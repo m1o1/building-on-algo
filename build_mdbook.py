@@ -32,6 +32,10 @@ SRC_DIR = MDBOOK_DIR / "src"
 # in the mdBook SUMMARY.md table of contents.
 # ---------------------------------------------------------------------------
 PART_BREAKS = {
+    "the-algorand-mental-model": "# Part I: Token Vesting",
+    "a-constant-product-amm": "# Part II: Automated Market Making",
+    "delegated-limit-order-book-with-logicsig-agents": "# Part III: Limit Order Book",
+    "private-governance-voting-with-zero-knowledge-proofs": "# Part IV: Private Governance",
     "algorand-smart-contract-cookbook": "# Appendices",
 }
 

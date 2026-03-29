@@ -521,7 +521,7 @@ The official Algorand developer documentation at [dev.algorand.co](https://dev.a
 
 \newpage
 
-# Project 1: A Token Vesting Contract
+# A Token Vesting Contract
 
 A startup has raised funds and needs to distribute tokens to its team. The tokens should not arrive all at once --- team members receive their allocation gradually over 12 months, with nothing released during the first 3 months (the "cliff"). If someone leaves early, the company can revoke their unvested tokens. This is a **token vesting contract**, and building one will teach you every foundational concept in Algorand smart contract development.
 
@@ -2510,7 +2510,7 @@ If any of these are unclear, revisit the relevant section before proceeding.
 
 Part II applies the foundations to DeFi. You will build a constant product AMM with multi-token accounting, price curves, and LP token mechanics, then extend it with a yield farming contract that introduces the reward accumulator pattern and smart contract composition. The part concludes with the cross-cutting production patterns --- fee subsidization, MBR lifecycle, event emission --- that separate tutorial code from production code.
 
-# Project 2: A Constant Product AMM
+# A Constant Product AMM
 
 You have built a contract that holds tokens, tracks per-user data in boxes, performs safe integer math, and releases assets via inner transactions. Now we are going to apply all of that --- and introduce several new concepts --- to build something significantly more complex: an automated market maker.
 
@@ -5368,7 +5368,7 @@ If any of these are unclear, revisit the AMM chapter or the Patterns chapter bef
 
 Part III introduces Algorand's second execution model --- Logic Signatures --- and demonstrates the hybrid stateful/stateless architecture that most production DeFi protocols use. You will build a delegated limit order book where stateless LogicSig programs encode per-user trading rules and keeper bots execute them permissionlessly.
 
-# Project 3: Delegated Limit Order Book with LogicSig Agents
+# Delegated Limit Order Book with LogicSig Agents
 
 **Building an on-chain limit order system where users encode trading rules as Logic Signatures and market-making bots ("keepers") execute them against AMM pools --- bridging the stateful smart contract world from Project 2 into Algorand's stateless smart signature layer.**
 
@@ -6641,7 +6641,7 @@ If any of these are unclear, revisit the Limit Order Book chapter before proceed
 
 Part IV pushes the AVM to its limits with advanced cryptography. You will build a privacy-preserving governance voting system using zero-knowledge proofs, explore Algorand's native elliptic curve opcodes and the MiMC hash, and learn about the Falcon-based post-quantum security roadmap.
 
-# Project 4: Private Governance Voting with Zero-Knowledge Proofs
+# Private Governance Voting with Zero-Knowledge Proofs
 
 Your DAO needs to hold a vote, but the community demands ballot secrecy --- no one should be able to see how anyone voted until results are final. On a public blockchain where all state is readable, this seems impossible. Zero-knowledge proofs make it possible.
 
