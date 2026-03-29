@@ -1,0 +1,10 @@
+# Build outputs
+Building-on-Algorand.pdf
+mdbook/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
