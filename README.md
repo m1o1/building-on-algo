@@ -26,7 +26,7 @@ Plus two appendices: a **Smart Contract Cookbook** with 50+ standalone recipes, 
 
 ## Reading the Book
 
-The easiest way to read is the [online version](https://m1o1.github.io/building-on-algo/) hosted on GitHub Pages. A [PDF](Building-on-Algorand.pdf) is also available in this repository.
+The easiest way to read is the [online version](https://m1o1.github.io/building-on-algo/) hosted on GitHub Pages. A PDF can also be built from the build.sh script in this repository.
 
 ## Building Locally
 
