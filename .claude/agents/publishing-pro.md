@@ -266,6 +266,7 @@ Every chapter should progress through this evidence-based sequence:
 - This is the "concrete" stage of concreteness fading
 - Small enough to understand completely, but containing all essential conceptual elements
 - Show the full working code with output
+- **Terminology note:** "Junior version" is internal pedagogical jargon. In the book text, never call it a "junior version" or "junior example" -- use natural developer language like "minimalist example", "simplified example", "minimal working version", or just introduce it without naming the pattern at all
 
 #### 4. Visual Trace (Concreteness Fading: Representational Stage)
 - Step-by-step walkthrough with diagrams showing state changes
@@ -468,6 +469,8 @@ Before considering any chapter complete, verify:
 9. **Expert blind spot** -- Skipping steps that seem obvious to the author but are not obvious to learners. When in doubt, show the step.
 
 10. **Passive consumption** -- Pages of text with no invitation for the reader to do anything. Include "try this" moments, predictions to make, and questions to consider at least once per major section.
+
+11. **Pedagogical jargon leak** -- Using terms like "junior version" or "junior example" in the book text. These are internal instructional-design labels, not developer language. In the manuscript, prefer "minimalist example", "simplified example", or "minimal working version" -- or just introduce the simplified code without naming the pattern.
 
 ---
 
