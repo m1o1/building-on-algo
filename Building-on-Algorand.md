@@ -854,27 +854,17 @@ from algopy import gtxn
         assert deposit_txn.xfer_asset == Asset(self.asset_id.value)
         assert deposit_txn.asset_amount > UInt64(0)
 
-        assert deposit_txn.asset_close_to == Global.zero_address
-        assert deposit_txn.rekey_to == Global.zero_address
-
         return deposit_txn.asset_amount
 ```
 
-The security checks at the end protect against two of the most exploited attack vectors in the Algorand ecosystem. (See [Transactions Overview](https://dev.algorand.co/concepts/transactions/overview/) for the full set of transaction fields.)
+The essential validations for an incoming grouped transaction in a stateful contract are: **who sent it** (authorization), **what asset** (correct token), **how much** (positive amount), and **where it went** (to the contract's address). These are the checks shown above.
 
-The **close-to attack** exploits the `asset_close_to` field on asset transfers (or `close_remainder_to` on Algo payments). These fields exist for legitimate purposes --- when closing out your entire holding of an asset, you set `asset_close_to` to the recipient. But if your contract accepts a transfer without checking this field, an attacker can set it to their own address. The explicit transfer amount might be trivially small, but the close-to operation drains the contract's entire token balance.
+You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in Chapter 7), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
 
-The **rekey attack** exploits the `rekey_to` field, which changes the authorization key of an account. If an attacker can submit a transaction with `rekey_to` set to their address, they permanently take over the sender's account.
+- **`close_remainder_to`** / **`asset_close_to`** --- drain the *sender's* balance to another address. The sender is the user, not the contract. The contract receives the specified `amount` regardless.
+- **`rekey_to`** --- reassigns the *sender's* signing authority. Again, the user's account, not the contract's.
 
-**This is the single most common finding in Algorand security audits.** Every method that processes external transactions must verify that the close field and `rekey_to` are the zero address. The three dangerous fields are:
-
-- **`close_remainder_to`** --- on Payment transactions. Drains the sender's entire Algo balance.
-- **`asset_close_to`** --- on Asset Transfer transactions. Drains the sender's entire balance of that ASA.
-- **`rekey_to`** --- on *all* transaction types. Permanently reassigns the sender's signing authority.
-
-Each incoming transaction needs **two** assertions: the close field for its type plus `rekey_to`. A Payment has `close_remainder_to` but not `asset_close_to`; an Asset Transfer has `asset_close_to` but not `close_remainder_to`. The `rekey_to` field exists on every transaction type and must always be checked.
-
-> **Warning:** These three fields are the #1 finding in Algorand security audits. For every incoming grouped transaction, assert both the close field (`close_remainder_to` for payments, `asset_close_to` for asset transfers) and `rekey_to` are the zero address. Missing even one creates an exploit that can drain the contract or permanently steal an account.
+A stateful contract's own account can only be affected by transactions it signs itself (inner transactions), and inner transactions default these fields to the zero address automatically. Asserting them on incoming grouped transactions just restricts what the user's wallet can do for no security benefit to the contract. It is the wallet's responsibility to warn users about dangerous fields on their own transactions. (See [Transactions Overview](https://dev.algorand.co/concepts/transactions/overview/) for the full set of transaction fields, and [Rekeying](https://dev.algorand.co/concepts/accounts/rekeying/) for the `rekey_to` field and its security implications.)
 
 
 ## Creating Vesting Schedules
@@ -942,8 +932,6 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         box_mbr = UInt64(2500) + UInt64(400) * (UInt64(34) + UInt64(41))
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.amount >= box_mbr
-        assert mbr_payment.close_remainder_to == Global.zero_address
-        assert mbr_payment.rekey_to == Global.zero_address
 
         now = Global.latest_timestamp
         self.schedules[beneficiary] = VestingSchedule(
@@ -1305,7 +1293,7 @@ In this chapter you learned to:
 | 1 | Deploy and admin | Contract structure, ARC4Contract, __init__, GlobalState, ABI methods, ARC-56, contract addresses, schema immutability |
 | 2 | Immutability | OnCompletion actions, bare methods, trust model |
 | 3 | Token opt-in | ASAs, inner transactions, MBR, fee pooling, resource references |
-| 4 | Deposit tokens | Atomic groups, typed gtxn parameters, close-to attacks, rekey attacks |
+| 4 | Deposit tokens | Atomic groups, typed gtxn parameters, verifying asset/receiver/amount |
 | 5 | Vesting schedules | Local state's ClearState trapdoor, box storage, BoxMap, arc4.Struct, timestamps, I/O budget |
 | 6 | Claim tokens | Integer math, overflow, wide arithmetic, rounding, subroutines, reentrancy safety |
 | 7 | Revocation | Authorization, design patterns for capping allocations |
@@ -1505,13 +1493,8 @@ The deposit method is unchanged from Chapter 2 --- the admin transfers vesting t
         assert deposit_txn.asset_receiver == Global.current_application_address
         assert deposit_txn.xfer_asset == Asset(self.asset_id.value)
         assert deposit_txn.asset_amount > UInt64(0)
-        # CRITICAL: prevent close-to and rekey attacks
-        assert deposit_txn.asset_close_to == Global.zero_address
-        assert deposit_txn.rekey_to == Global.zero_address
         return deposit_txn.asset_amount
 ```
-
-The close-to and rekey checks are non-negotiable for any method that accepts a grouped transaction. These are repeated verbatim from Chapter 2 because the pattern must become muscle memory.
 
 ## Minting the Vesting NFT
 
@@ -1544,8 +1527,6 @@ This is where the contract diverges from Chapter 2. Instead of simply writing a 
         nft_mbr = UInt64(100_000)
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.amount >= box_mbr + nft_mbr
-        assert mbr_payment.close_remainder_to == Global.zero_address
-        assert mbr_payment.rekey_to == Global.zero_address
 
         now = Global.latest_timestamp
 
@@ -2642,8 +2623,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         # Seed payment covers MBR for LP token creation + 2 asset opt-ins
         assert seed_payment.receiver == Global.current_application_address
         assert seed_payment.amount >= UInt64(400_000)
-        assert seed_payment.close_remainder_to == Global.zero_address
-        assert seed_payment.rekey_to == Global.zero_address
 
         self.asset_a.value = asset_a.id
         self.asset_b.value = asset_b.id
@@ -2796,10 +2775,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         assert b_txn.asset_receiver == Global.current_application_address
         assert a_txn.xfer_asset == Asset(self.asset_a.value)
         assert b_txn.xfer_asset == Asset(self.asset_b.value)
-        assert a_txn.asset_close_to == Global.zero_address
-        assert a_txn.rekey_to == Global.zero_address
-        assert b_txn.asset_close_to == Global.zero_address
-        assert b_txn.rekey_to == Global.zero_address
 
         amount_a = a_txn.asset_amount
         amount_b = b_txn.asset_amount
@@ -2887,8 +2862,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         self._update_twap()
 
         assert input_txn.asset_receiver == Global.current_application_address
-        assert input_txn.asset_close_to == Global.zero_address
-        assert input_txn.rekey_to == Global.zero_address
 
         input_asset = input_txn.xfer_asset
         input_amount = input_txn.asset_amount
@@ -3055,10 +3028,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         assert b_txn.asset_receiver == Global.current_application_address
         assert a_txn.xfer_asset == Asset(self.asset_a.value)
         assert b_txn.xfer_asset == Asset(self.asset_b.value)
-        assert a_txn.asset_close_to == Global.zero_address
-        assert a_txn.rekey_to == Global.zero_address
-        assert b_txn.asset_close_to == Global.zero_address
-        assert b_txn.rekey_to == Global.zero_address
 
         amount_a = a_txn.asset_amount
         amount_b = b_txn.asset_amount
@@ -3153,8 +3122,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
         assert lp_txn.asset_receiver == Global.current_application_address
         assert lp_txn.xfer_asset == Asset(self.lp_token_id.value)
-        assert lp_txn.asset_close_to == Global.zero_address
-        assert lp_txn.rekey_to == Global.zero_address
 
         lp_amount = lp_txn.asset_amount
         assert lp_amount > UInt64(0)
@@ -3211,9 +3178,9 @@ Second, **immutable contracts cannot be patched**. When Tinyman discovered the e
 
 Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the swap method. It checks `a_txn.xfer_asset == Asset(self.asset_a.value)` in add_liquidity. It checks `lp_txn.xfer_asset == Asset(self.lp_token_id.value)` in remove_liquidity. Never assume the correct asset was sent --- always verify.
 
-Beyond the Tinyman case study, the Trail of Bits "Not So Smart Contracts" database and the Panda static analysis framework (USENIX Security 2023) identified systematic vulnerability patterns. Panda found that 27.73\% of deployed Algorand applications had at least one vulnerability. The most common categories are the close-to and rekey attacks we have already addressed, missing authorization checks, group size validation gaps, and inner transaction fee drains.
+Beyond the Tinyman case study, the Trail of Bits "Not So Smart Contracts" database and the Panda static analysis framework (USENIX Security 2023) identified systematic vulnerability patterns. Panda found that 27.73\% of deployed Algorand applications had at least one vulnerability. The most common categories include missing authorization checks, group size validation gaps, inner transaction fee drains, and --- for Logic Signatures --- missing close-to and rekey-to checks (the #1 finding, though not applicable to stateful contracts like ours).
 
-Our contract handles all of these: close-to fields are checked on every incoming transfer, the contract is immutable, group sizes could be validated if we wanted stricter enforcement, and all inner transaction fees are zero.
+Our contract addresses the categories that apply to stateful contracts: the contract is immutable (update/delete rejected), all inner transaction fees are zero (preventing fee drain), every incoming transfer is verified for asset ID and receiver, and all privileged methods check caller authorization.
 
 Regarding reentrancy: classical reentrancy attacks are impossible on Algorand. The AVM has no fallback functions or callbacks triggered by token transfers. When your contract sends tokens via an inner transaction, no user code executes on the receiving side. The contract maintains full, uninterrupted control flow. This eliminates the entire class of *reentrancy* exploits that have caused hundreds of millions of dollars in losses on other blockchains. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a detailed security model comparison.)
 
@@ -4109,10 +4076,6 @@ The `deposit_rewards` method funds the reward pool and sets the distribution rat
         assert reward_txn.asset_receiver == (
             Global.current_application_address
         )
-        assert reward_txn.asset_close_to == (
-            Global.zero_address
-        )
-        assert reward_txn.rekey_to == Global.zero_address
         assert duration_seconds > UInt64(0)
 
         # Settle any accrued rewards before changing rate
@@ -4154,8 +4117,6 @@ The `stake` method is the heart of the contract. It updates the global accumulat
             Global.current_application_address
         )
         assert lp_txn.sender == Txn.sender
-        assert lp_txn.asset_close_to == Global.zero_address
-        assert lp_txn.rekey_to == Global.zero_address
         assert lp_txn.asset_amount > UInt64(0)
 
         # 1. Update the global accumulator
@@ -4974,13 +4935,9 @@ def deposit(
     # YOU must still validate the critical fields:
     assert payment_txn.receiver == Global.current_application_address
     assert payment_txn.amount >= UInt64(100_000)
-
-    # SECURITY: Always verify close-to and rekey fields
-    assert payment_txn.close_remainder_to == Global.zero_address
-    assert payment_txn.rekey_to == Global.zero_address
 ```
 
-The `gtxn.AssetTransferTransaction` and `gtxn.PaymentTransaction` parameter types in Algorand Python are powerful --- they give you type-safe access to the grouped transaction's fields and the ABI router validates the transaction type automatically. But **you must still validate receiver, amount, asset ID, and close-to fields yourself**. The type check doesn't verify the *contents*, only the *type*. (See [Transaction Types](https://dev.algorand.co/concepts/transactions/types/) for field definitions.)
+The `gtxn.AssetTransferTransaction` and `gtxn.PaymentTransaction` parameter types in Algorand Python are powerful --- they give you type-safe access to the grouped transaction's fields and the ABI router validates the transaction type automatically. But **you must still validate receiver, amount, and asset ID yourself**. The type check doesn't verify the *contents*, only the *type*. (See [Transaction Types](https://dev.algorand.co/concepts/transactions/types/) for field definitions.)
 
 **Why not just have the contract pull assets directly?** Because Algorand's security model requires the asset holder to sign the transfer. The contract cannot unilaterally debit a user's account (unless the user previously granted approval via a delegated LogicSig, which is rare). This "push" model --- user pushes assets, then tells the contract what to do --- is fundamental to Algorand's design.
 
@@ -5039,8 +4996,6 @@ def register_position(
 
     assert mbr_payment.receiver == Global.current_application_address
     assert mbr_payment.amount >= box_cost
-    assert mbr_payment.close_remainder_to == Global.zero_address
-    assert mbr_payment.rekey_to == Global.zero_address
 
     # Now create the box --- contract has sufficient MBR
     self.positions[arc4.Address(Txn.sender)] = Position(...)  # BoxMap write
@@ -5177,20 +5132,9 @@ def calculate_output(
     denominator = reserve_in * UInt64(1000) + input_with_fee
     return numerator // denominator
 
-@subroutine
-def verify_payment_safe(txn: gtxn.PaymentTransaction) -> None:
-    """Verify no close-to or rekey attacks on a payment transaction."""
-    assert txn.close_remainder_to == Global.zero_address
-    assert txn.rekey_to == Global.zero_address
-
-@subroutine
-def verify_asset_transfer_safe(txn: gtxn.AssetTransferTransaction) -> None:
-    """Verify no close-to or rekey attacks on an asset transfer."""
-    assert txn.asset_close_to == Global.zero_address
-    assert txn.rekey_to == Global.zero_address
 ```
 
-Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swap, add-liquidity, and remove-liquidity all needing the same safety checks and the same output calculation, this saves significant program bytes. Given the 8KB program size limit, this matters. (See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/) for subroutine best practices.)
+Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swap, add-liquidity, and remove-liquidity all needing the same output calculation, extracting it to a subroutine saves significant program bytes. Given the 8KB program size limit, this matters. (See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/) for subroutine best practices.)
 
 **When to subroutine vs inline:**
 - **Subroutine:** Logic used in 2+ methods, or logic longer than ~10 TEAL instructions
@@ -5405,7 +5349,9 @@ Part III introduces Algorand's second execution model --- Logic Signatures --- a
 
 **Building an on-chain limit order system where users encode trading rules as Logic Signatures and market-making bots ("keepers") execute them against AMM pools --- bridging the stateful smart contract world from Project 2 into Algorand's stateless smart signature layer.**
 
-This project introduces the other half of Algorand's programmable layer: **Logic Signatures (LogicSigs)**. Where the AMM chapter used stateful smart contracts exclusively, this project demonstrates the hybrid pattern that most production Algorand DeFi protocols actually use --- a stateful order book contract coordinates state, while stateless LogicSig programs encode per-user trading rules that keepers can execute permissionlessly.
+> **Important:** This chapter is primarily for informational purposes. The Algorand developer community strongly recommends modern stateful smart contracts for almost all use cases. Logic Signatures are extremely prone to security vulnerabilities --- every missing check (close-to, rekey-to, fee caps, expiration, group validation) is directly exploitable, and the attack surface is large. If you are building a new application, you almost certainly want a stateful contract, not a LogicSig. This chapter exists so you understand how LogicSigs work and can recognize them in production codebases, but you should default to stateful contracts unless you have a specific, well-justified reason to use LogicSigs.
+
+This project introduces the other half of Algorand's programmable layer: **Logic Signatures (LogicSigs)**. Where the AMM chapter used stateful smart contracts exclusively, this project demonstrates the hybrid pattern that some production Algorand DeFi protocols use --- a stateful order book contract coordinates state, while stateless LogicSig programs encode per-user trading rules that keepers can execute permissionlessly.
 
 The end result is a system where Alice says "sell up to 500 USDC for ALGO at a price of 0.25 ALGO per USDC, expiring in 24 hours" by signing a LogicSig program encoding those rules, and any keeper bot can fill that order by submitting the right atomic group --- with the LogicSig validating that the trade meets Alice's conditions.
 
@@ -5895,8 +5841,6 @@ The `place_order` method registers a new order in box storage. The seller calls 
         box_cost = UInt64(2500) + UInt64(400) * (UInt64(10) + UInt64(128))
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.amount >= box_cost
-        assert mbr_payment.close_remainder_to == Global.zero_address
-        assert mbr_payment.rekey_to == Global.zero_address
 
         order_id = self.next_order_id.value
         self.next_order_id.value = order_id + UInt64(1)
@@ -5977,8 +5921,6 @@ The `fill_order` method is the most complex in this project --- it validates the
         assert sell_txn.xfer_asset == Asset(sell_asset)
         assert sell_txn.asset_amount == fill_amount
         assert sell_txn.sender.bytes == seller
-        assert sell_txn.asset_close_to == Global.zero_address
-        assert sell_txn.rekey_to == Global.zero_address
 
         # Validate the buy-side transaction
         if buy_asset == UInt64(0):
@@ -7007,8 +6949,6 @@ The `commit_vote` method accepts a voter's MiMC commitment hash during the commi
         box_cost = UInt64(2500) + UInt64(400) * (UInt64(34) + UInt64(32))
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.amount >= box_cost
-        assert mbr_payment.close_remainder_to == Global.zero_address
-        assert mbr_payment.rekey_to == Global.zero_address
 
         self.commitments[sender] = commitment
         self.total_votes.value += UInt64(1)
@@ -8274,8 +8214,6 @@ class ReceivePayment(ARC4Contract):
         # YOU must validate the critical fields:
         assert payment.receiver == Global.current_application_address
         assert payment.amount > UInt64(0)
-        assert payment.close_remainder_to == Global.zero_address
-        assert payment.rekey_to == Global.zero_address
         return payment.amount
 ```
 
@@ -8296,8 +8234,6 @@ class ReceiveAsset(ARC4Contract):
         assert transfer.asset_receiver == Global.current_application_address
         assert transfer.xfer_asset == expected_asset
         assert transfer.asset_amount > UInt64(0)
-        assert transfer.asset_close_to == Global.zero_address
-        assert transfer.rekey_to == Global.zero_address
         return transfer.asset_amount
 ```
 
@@ -8471,25 +8407,11 @@ class TransferableAdmin(ARC4Contract):
         self.admin.value = new_admin.bytes
 ```
 
-### 11.3 --- Verifying close-to and rekey fields (CRITICAL)
+### 11.3 --- Close-to and rekey-to fields: LogicSigs vs stateful contracts
 
-```python
-from algopy import ARC4Contract, Global, arc4, gtxn
+These fields (`close_remainder_to`, `asset_close_to`, `rekey_to`) are **critical to check in Logic Signature programs** (see Section 10). A LogicSig authorizes transactions *from* its own account, so unchecked close-to or rekey-to fields let an attacker drain or steal the LogicSig's account. Missing these checks is the #1 finding in LogicSig audits.
 
-class SafeDeposit(ARC4Contract):
-    @arc4.abimethod
-    def safe_accept_payment(self, pay: gtxn.PaymentTransaction) -> None:
-        # ALWAYS check these three fields on incoming transactions:
-        assert pay.close_remainder_to == Global.zero_address  # No drain
-        assert pay.rekey_to == Global.zero_address             # No rekey
-
-    @arc4.abimethod
-    def safe_accept_asset(self, xfer: gtxn.AssetTransferTransaction) -> None:
-        assert xfer.asset_close_to == Global.zero_address      # No ASA drain
-        assert xfer.rekey_to == Global.zero_address             # No rekey
-```
-
-Missing these checks is the #1 vulnerability in Algorand contract audits.
+For **stateful smart contracts** accepting incoming grouped transactions, these fields affect the *sender's* account (the user), not the contract's. The contract receives the specified amount regardless. Inner transactions default these fields to the zero address automatically. Checking them in a stateful contract just restricts what users can do with their own wallets --- it is the wallet's responsibility to warn about dangerous transaction fields, not the contract's.
 
 ### 11.4 --- Verifying group size
 
@@ -9004,7 +8926,7 @@ Every gotcha from every chapter in one scannable list.
 
 (See [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/).)
 
-- Always check the close field and `rekey_to` equal zero address (`close_remainder_to` for payments, `asset_close_to` for asset transfers, `rekey_to` for both)
+- In LogicSig programs, always check the close field and `rekey_to` equal zero address (`close_remainder_to` for payments, `asset_close_to` for asset transfers, `rekey_to` for both) --- missing any one is directly exploitable
 - Always cap the fee to prevent fee-drain attacks
 - Include an expiration mechanism (check `Txn.last_valid` or `Txn.first_valid`)
 - Check `Global.genesis_hash` to restrict to a specific network (MainNet/TestNet)
@@ -9027,7 +8949,7 @@ Every gotcha from every chapter in one scannable list.
 
 (See [Rekeying](https://dev.algorand.co/concepts/accounts/rekeying/) for the rekey attack vector.)
 
-- Missing close-to / rekey checks are the #1 audit finding: assert `close_remainder_to` (payments) or `asset_close_to` (asset transfers), plus `rekey_to` (all types)
+- For Logic Signatures, missing close-to / rekey checks are the #1 audit finding: assert `close_remainder_to` (payments), `asset_close_to` (asset transfers), and `rekey_to` (all types). These checks are not needed in stateful contracts --- the fields affect the sender's account, not the contract's
 - Always verify group size matches expectations
 - Always verify asset IDs in every transfer (don't assume)
 - Always verify the receiver of incoming transfers is the contract address

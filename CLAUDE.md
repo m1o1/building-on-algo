@@ -87,9 +87,12 @@ This step can be skipped for trivial changes (typos, formatting) at the user's d
 #### 5. Security audit of all contract code
 After the walkthrough passes, use the **algorand-expert** agent to audit every smart contract in the changed chapter(s) for the common Algorand vulnerability classes. The agent must check for **all** of the following:
 
-**Transaction field validation:**
-- [ ] `close_remainder_to` / `asset_close_to` checked against `Global.zero_address` on every incoming transfer
-- [ ] `rekey_to` checked against `Global.zero_address` on every incoming transaction
+**Transaction field validation (LogicSigs ONLY -- skip for stateful smart contracts):**
+- [ ] `close_remainder_to` / `asset_close_to` checked against `Global.zero_address` (LogicSig security checklist)
+- [ ] `rekey_to` checked against `Global.zero_address` (LogicSig security checklist)
+- NOTE: These checks do NOT apply to stateful smart contracts. Inner transactions default these fields to the zero address. Asserting them on incoming group transactions just restricts the user's wallet for no security benefit.
+
+**Transaction group validation (stateful contracts):**
 - [ ] Group size validated where applicable (prevent unexpected extra transactions)
 
 **Authorization:**

@@ -629,7 +629,11 @@ Every LogicSig MUST enforce ALL of these:
 
 ### Modern Recommendation
 
-**Prefer smart contracts over LogicSigs** for most use cases. LogicSigs should mainly be used for compute-heavy operations needing the 20K budget (e.g., ZK proof verification: 8 txns x 20,000 = 160,000 opcodes for PLONK verification). Most wallets don't support delegated LogicSig signing.
+**Logic signatures are largely unnecessary for most applications and the Algorand developer community strongly recommends against them.** Modern stateful smart contracts cover nearly all use cases. LogicSigs are extremely easy to get wrong, with significant security vulnerabilities (missing field checks, no expiration, unsigned args, cross-network replay). The security checklist above is mandatory precisely because every omission is exploitable.
+
+The only remaining niche for LogicSigs is compute-heavy operations needing the separate 20K budget pool (e.g., ZK proof verification: 8 txns x 20,000 = 160,000 opcodes for PLONK verification). Most wallets don't support delegated LogicSig signing, further limiting their practicality.
+
+**When reviewing book content:** If a chapter proposes using a LogicSig, challenge whether a stateful smart contract would work instead. Only accept LogicSig usage when there is a clear, specific reason that stateful contracts cannot meet the requirement.
 
 ---
 
@@ -1358,10 +1362,14 @@ Sources: [Algorand Foundation Transparency](https://algorand.co/algorand-foundat
 ### Algorand-Specific Vulnerability Classes
 
 **Critical (check EVERY contract):**
-1. Missing `close_remainder_to` / `asset_close_to` zero-address checks -- #1 audit finding
-2. Missing `rekey_to` zero-address check -- permanent account theft
-3. Inner transaction `fee` not set to 0 -- contract balance drain
-4. ClearState always succeeds -- never store critical financial data solely in local state
+1. Inner transaction `fee` not set to 0 -- contract balance drain
+2. ClearState always succeeds -- never store critical financial data solely in local state
+
+**Critical (LogicSigs ONLY -- does NOT apply to stateful smart contracts):**
+3. Missing `close_remainder_to` / `asset_close_to` zero-address checks -- #1 LogicSig audit finding
+4. Missing `rekey_to` zero-address check -- permanent account theft
+
+**Why these checks are LogicSig-specific:** In stateful smart contracts, inner transactions default `close_remainder_to`, `asset_close_to`, and `rekey_to` to the zero address automatically. For incoming transactions in a group, asserting that other transactions set these to zero just restricts what the user's wallet can do for no security benefit -- the smart contract's own account is not at risk. It is the wallet's responsibility (not the contract's) to warn users about dangerous transaction fields like `rekey_to`. Do NOT add these checks to stateful contract code or recommend them in book content for stateful contracts.
 
 **High:**
 5. Missing asset ID verification on transfers -- accepting wrong token
@@ -1421,18 +1429,13 @@ sp.fee = 3000  # Covers outer (1000) + 2 inner (1000 each)
 sp.flat_fee = True
 ```
 
-### Checks-Effects-Interactions
+### No Checks-Effects-Interactions Needed
 
-Update state BEFORE inner transactions. Even though reentrancy is impossible on Algorand, this prevents bugs where a failed inner transaction leaves inconsistent state:
+The checks-effects-interactions (CEI) pattern from Ethereum exists to prevent reentrancy. **Reentrancy is impossible on Algorand** -- inner transactions execute atomically and do not trigger callbacks on receivers. Apps cannot call themselves, even indirectly. Therefore CEI is unnecessary and should NOT be recommended or enforced.
 
-```python
-# 1. Checks
-assert amount > UInt64(0)
-# 2. Effects (state update)
-self.balance.value -= amount
-# 3. Interactions (inner transaction)
-itxn.Payment(receiver=user, amount=amount, fee=UInt64(0)).submit()
-```
+The "failed inner transaction leaves inconsistent state" concern is also a non-issue: if any transaction in an atomic group fails, the **entire group is reverted** -- no partial state updates persist.
+
+Write state updates in whatever order is clearest to read. Do NOT restructure code to follow CEI ordering.
 
 ### Wide Arithmetic for Overflow Prevention
 
