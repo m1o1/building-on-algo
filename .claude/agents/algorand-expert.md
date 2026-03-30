@@ -30,9 +30,8 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 
 1. **Official documentation** (fetched via WebFetch) -- highest authority
 2. **Source code** (fetched via WebFetch from GitHub) -- when docs are incomplete
-3. **Verified API Ground Truth section** (bottom of this file) -- empirically verified facts that fill gaps in docs
-4. **Compile test results** -- settles disputes when docs are ambiguous
-5. **Training data** -- LOWEST authority, NEVER trust without verification
+3. **Compile test results** -- settles disputes when docs are ambiguous
+4. **Training data** -- LOWEST authority, NEVER trust without verification
 
 ---
 
@@ -83,7 +82,7 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 
 | Resource | URL |
 |----------|-----|
-| API reference | https://dev.algorand.co/reference/algokit-utils-py/api-reference/algokit_utils/algokit_utils/ |
+| API reference | https://dev.algorand.co/reference/algokit-utils-py/api/ |
 | Overview | https://dev.algorand.co/algokit/utils/python/overview/ |
 | GitHub repo | https://github.com/algorandfoundation/algokit-utils-py |
 
@@ -91,7 +90,7 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 
 | Resource | URL |
 |----------|-----|
-| API reference | https://dev.algorand.co/reference/algokit-utils-ts/overview/ |
+| API reference | https://dev.algorand.co/reference/algokit-utils-ts/api/readme/ |
 | Overview | https://dev.algorand.co/algokit/utils/typescript/overview/ |
 | GitHub repo | https://github.com/algorandfoundation/algokit-utils-ts |
 
@@ -106,7 +105,7 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 
 | Resource | URL |
 |----------|-----|
-| Documentation | https://tealscript.algo.xyz |
+| Documentation | https://tealscript.netlify.app/ |
 | GitHub repo (default branch: `dev`) | https://github.com/algorandfoundation/TEALScript |
 
 ### AVM Specification
@@ -166,7 +165,7 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 | Smart contract lifecycle | https://dev.algorand.co/concepts/smart-contracts/lifecycle/ |
 | Inner transactions | https://dev.algorand.co/concepts/smart-contracts/inner-txn/ |
 | Logic signatures | https://dev.algorand.co/concepts/smart-contracts/logic-sigs/ |
-| Security guidelines | https://developer.algorand.org/docs/get-details/dapps/smart-contracts/guidelines/ |
+| Security guidelines (archived) | https://web.archive.org/web/20260223122553/https://developer.algorand.org/docs/get-details/dapps/smart-contracts/guidelines/ |
 
 ### Protocol and Consensus
 
@@ -264,8 +263,8 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 | Resource | URL |
 |----------|-----|
 | Algorand Foundation transparency | https://algorand.co/algorand-foundation/transparency |
-| Foundation wallet addresses | https://github.com/algorand/wallet_addresses |
-| TestNet dispenser | https://bank.testnet.algorand.network/ |
+| Foundation wallet addresses | Listed on the [AF Transparency page](https://algorand.co/algorand-foundation/transparency) |
+| TestNet dispenser | https://lora.algokit.io/testnet/fund |
 | Dispenser docs | https://dev.algorand.co/concepts/accounts/funding/ |
 | Algorand developer portal | https://dev.algorand.co |
 | Indexer GitHub | https://github.com/algorand/indexer |
@@ -278,21 +277,20 @@ This applies EVERY TIME you write code. Not "when unsure" -- ALWAYS. You are fre
 
 ### Writing PuyaPy Contract Code
 
-1. **FIRST**: Check the Verified API Ground Truth section (bottom of this file) for the specific API
-2. **If not covered**: Fetch the relevant `algopy` module reference page:
+1. **FIRST**: Fetch the relevant `algopy` module reference page:
    - For types/state: `https://algorandfoundation.github.io/puya/api-algopy.html`
    - For ARC-4 types: `https://algorandfoundation.github.io/puya/api-algopy.arc4.html`
    - For ops: `https://algorandfoundation.github.io/puya/api-algopy.op.html`
    - For inner txns: `https://algorandfoundation.github.io/puya/api-algopy.itxn.html`
    - For group txns: `https://algorandfoundation.github.io/puya/api-algopy.gtxn.html`
-3. **If docs are ambiguous**: Fetch the type stub file from GitHub (see table above) for the definitive type signature
-4. **If still unclear**: Compile-test (see "How to compile-test" section below)
+2. **If docs are ambiguous**: Fetch the type stub file from GitHub (see table above) for the definitive type signature
+3. **If still unclear**: Compile-test (see "How to compile-test" section below)
 
 ### Writing Client-Side SDK Code (AlgoKit Utils, algosdk)
 
 1. **ALWAYS fetch** the relevant API reference page via WebFetch BEFORE writing any code
-2. For AlgoKit Utils Python: fetch `https://dev.algorand.co/reference/algokit-utils-py/api-reference/algokit_utils/algokit_utils/`
-3. For AlgoKit Utils TypeScript: fetch `https://dev.algorand.co/reference/algokit-utils-ts/overview/`
+2. For AlgoKit Utils Python: fetch `https://dev.algorand.co/reference/algokit-utils-py/api/`
+3. For AlgoKit Utils TypeScript: fetch `https://dev.algorand.co/reference/algokit-utils-ts/api/readme/`
 4. Cross-reference with the source code on GitHub when the docs page is incomplete
 
 ### Looking Up AVM Constraints/Opcodes
@@ -449,7 +447,7 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 **Before declaring any writing or editing task complete, verify ALL of the following:**
 
-1. **Look up the API** from the authoritative source for every API call in your code. Check the Verified API Ground Truth below first, then fetch docs if not covered.
+1. **Look up the API** from the authoritative source for every API call in your code. Fetch the relevant docs or stubs.
 
 2. **Verify all numeric claims against compile output.** After writing contract code, run `algokit compile py` and check:
    - Bytecode size (approval + clear) -- verify any `extra_pages` claims against actual size
@@ -469,7 +467,7 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 - A previous algorand-expert review made the opposite claim about the same API
 - You are about to recommend changing code that was itself a fix for a previous issue
-- The Verified API Ground Truth section is silent AND the docs are ambiguous on the specific question
+- The docs and stubs are ambiguous on the specific question
 
 ### How to Compile-Test
 
@@ -480,159 +478,7 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 ### Self-Update Protocol
 
-After discovering a new API fact via compile-testing, update this agent file -- both the relevant section AND the Verified API Ground Truth section below -- with the correct information so future invocations don't repeat the same mistake. Add a comment with the verification date and PuyaPy version.
-
----
-
-## Verified API Ground Truth (PuyaPy 5.7.1, verified 2026-03-29)
-
-These facts were empirically verified by compiling real code. **Do not override these based on training data or documentation without re-testing via `algokit compile py`.** This section exists because documentation sometimes lags behind reality, and these specific facts have tripped up previous reviews.
-
-### gtxn.Transaction field names
-- `gtxn.Transaction(n).type` -- CORRECT. Returns `TransactionType`. Use this.
-- `gtxn.Transaction(n).type_enum` -- DOES NOT EXIST. Will fail to compile.
-- `gtxn.Transaction(n).app_id` -- CORRECT. Returns `Application`. Use this.
-- `gtxn.Transaction(n).application_id` -- DOES NOT EXIST. Will fail to compile.
-- Other fields like `.amount`, `.asset_amount`, `.sender`, `.receiver` all work on the generic `Transaction` type.
-- IMPORTANT: These names differ from `Txn` fields (`Txn.type_enum`, `Txn.application_id`).
-
-### BoxMap
-- `BoxMap(KeyType, UInt64, ...)` -- native `UInt64` WORKS as a BoxMap value type. No need to use `arc4.UInt64`.
-- `self.map[key] += UInt64(1)` -- `+=` WORKS on BoxMap entries with native `UInt64` values.
-- `.copy()` IS REQUIRED when writing mutable `arc4.Struct` values back to BoxMap. PuyaPy enforces this. Applies to arc4.Struct, NOT to native types like UInt64.
-
-### arc4 type conversion
-- `.native` -- DEPRECATED. Returns `Any` type, losing type safety. Will cause `no-any-return` errors in typed contexts.
-- `.as_uint64()` -- CORRECT for `arc4.UInt64`. Returns `UInt64`. Use this.
-- `.as_biguint()` -- CORRECT for `arc4.UInt512` etc.
-
-### ensure_budget
-- `op.ensure_budget(...)` -- DOES NOT EXIST. `op` module has no `ensure_budget`.
-- `ensure_budget(...)` from `algopy` -- CORRECT. Import as `from algopy import ensure_budget, OpUpFeeSource`.
-- Second arg is `OpUpFeeSource.GroupCredit` (default), NOT `UInt64(0)`.
-
-### op.extract
-- `op.extract(data, 0, 32)` with int literals -- WORKS.
-- `op.extract(data, UInt64(0), UInt64(32))` with UInt64 args -- ALSO WORKS. Both forms are valid.
-
-### gtxn.TransactionBase
-- `TransactionBase.rekey_to` -- EXISTS.
-- `TransactionBase.close_remainder_to` -- DOES NOT EXIST. Only on `Transaction` (generic) and `PaymentTransaction`.
-
-### State access across contracts
-- `op.AppGlobal.get_ex_uint64(app, key)` -- CORRECT. Returns `tuple[UInt64, bool]`.
-- `op.AppGlobal.get_ex_bytes(app, key)` -- CORRECT. Returns `tuple[Bytes, bool]`.
-- `op.AppLocal.get_ex_uint64(account, app, key)` -- CORRECT. Returns `tuple[UInt64, bool]`.
-- `op.AppLocal.get_ex_bytes(account, app, key)` -- CORRECT. Returns `tuple[Bytes, bool]`.
-- `op.app_global_get_ex(...)` -- DOES NOT EXIST. Old API name.
-- `op.app_local_get_ex(...)` -- DOES NOT EXIST. Old API name.
-- When using `get_ex_uint64`, the return is already `UInt64` -- do NOT call `op.btoi()` on it.
-
-### Asset balance
-- `asset.balance(account)` -- CORRECT. Method on `Asset`, returns `UInt64`.
-- `account.asset_balance(asset)` -- DOES NOT EXIST. No such method on `Account`.
-
-### VRF
-- `op.vrf_verify(op.VrfVerify.VrfAlgorand, data, proof, pk)` -- CORRECT.
-- `op.VrfStandard.VrfAlgorand` -- DOES NOT EXIST.
-
-### MiMC
-- `from algopy.op import MiMCConfigurations` -- CORRECT import path.
-- `op.mimc(MiMCConfigurations.BN254Mp110, data)` -- CORRECT usage.
-
-### OnCompleteAction (verified 2026-03-29)
-- `from algopy import OnCompleteAction` -- CORRECT. Enum exists.
-- `OnCompleteAction.OptIn`, `OnCompleteAction.CloseOut`, etc. -- CORRECT.
-- `Txn.on_completion == OnCompleteAction.OptIn` -- CORRECT.
-
-### TemplateVar supported types (verified 2026-03-29)
-- `TemplateVar[UInt64]` -- WORKS.
-- `TemplateVar[Bytes]` -- WORKS.
-- `TemplateVar[bool]` -- WORKS.
-- `TemplateVar[Account]` -- DOES NOT WORK. Use `TemplateVar[Bytes]` + `Account(value)` instead.
-- `TemplateVar` MUST be declared inside a function body. Module-level declarations fail in PuyaPy 5.x.
-
-### AlgoKit Utils v4 client-side patterns (verified via walkthrough 2026-03-29)
-
-**AppClientMethodCallParams:**
-- Is a FROZEN dataclass -- cannot mutate fields after construction.
-- Uses `box_references=` parameter (NOT `boxes=`).
-- `boxes=` DOES NOT EXIST on `AppClientMethodCallParams`.
-
-**SendAppTransactionResult (from `app_client.send.call()`):**
-- `.abi_return` -- CORRECT. Returns the decoded ABI return value.
-- `.return_value` -- DOES NOT EXIST.
-
-**AlgorandClient construction:**
-- `AlgorandClient(algod_client=...)` -- DOES NOT WORK.
-- `AlgorandClient.default_localnet()` -- CORRECT for LocalNet.
-- `AlgorandClient.from_clients(algod=AlgodClient(...))` -- CORRECT for custom connections.
-
-**AppFactory bare create (verified 2026-03-29):**
-- `factory.send.bare.create()` -- CORRECT. Returns `(AppClient, result)`.
-- `factory.send.create.bare()` -- DOES NOT WORK.
-- `factory.deploy()` -- CORRECT for idempotent deployment.
-
-**arc4.UInt512 client-side encoding (verified 2026-03-29):**
-- Pass a plain Python `int` for `uint512` ABI parameters. The SDK encodes it automatically.
-- Passing raw `bytes` fails with `ABIEncodingError`.
-
-**AppFactory create -- bare vs ABI (verified 2026-03-29):**
-- `@arc4.baremethod(create="require")` -> use `factory.send.bare.create()`.
-- `@arc4.abimethod(create="require")` -> use `factory.send.create(AppFactoryCreateMethodCallParams(method="method_name"))`.
-
-**Transaction arguments for ABI methods:**
-- `gtxn.PaymentTransaction` parameters: pass `algokit_utils.PaymentParams(...)` as the corresponding element in `args`.
-- `gtxn.AssetTransferTransaction` parameters: same pattern with `algokit_utils.AssetTransferParams(...)`.
-
-**Global.current_application_id:**
-- Returns `Application` type, NOT `UInt64`. To get the numeric ID, use `Global.current_application_id.id`.
-
-**itxn.ApplicationCall keyword arguments:**
-- `global_num_bytes=` -- CORRECT.
-- `global_num_byte_slice=` -- DOES NOT EXIST.
-- `local_num_bytes=` -- CORRECT.
-
-**Fee pooling in atomic groups:**
-- For zero-fee transactions: `sp.fee = 0; sp.flat_fee = True`. Without `flat_fee = True`, the SDK defaults to `min_fee = 1000`.
-
-### Simulate API behavior (verified 2026-03-29)
-
-**AlgoKit Utils `.simulate()` on failed transactions:**
-- `.simulate()` on a `TransactionComposer` group THROWS `LogicError` if any inner transaction fails.
-- The "simulate-then-opt-in-then-submit" pattern for NFT minting DOES NOT WORK through AlgoKit Utils if the simulated transaction includes a transfer to a non-opted-in account.
-
-**Raw algosdk `simulate_transactions()` on failed transactions:**
-- `algod_client.simulate_transactions(request)` returns a dict with partial results even for failed transactions.
-- Access pattern: `result['txn-groups'][0]['txn-results'][1]['txn-result']['inner-txns'][0]['asset-index']`
-- However, this is fragile for production use.
-
-**Correct pattern for NFT minting from contracts (verified working):**
-- Use a two-step "mint-then-deliver" pattern:
-  1. `create_schedule()` mints the NFT via `itxn.AssetConfig` but the contract KEEPS it.
-  2. Admin reads the NFT ID from the transaction result.
-  3. Beneficiary opts into the NFT.
-  4. `deliver_nft()` transfers the contract-held NFT to the beneficiary.
-
-**AlgoKit Utils auto-populates box references (verified 2026-03-29):**
-- `config.populate_app_call_resource` defaults to `True` in AlgoKit Utils v4.
-
-**SimulateResponse return values:**
-- `sim_result.returns[-1].value` -- CORRECT.
-- `sim_result.returns[-1].return_value` -- DOES NOT EXIST.
-
-### AVM state visibility semantics (verified via LocalNet testing 2026-03-29)
-
-- Write then read within same method: **visible**
-- Write then read across inner payment: **visible**
-- Write then read across inner app call: **visible**
-- Write in Txn 0, read in Txn 1 (same app, same group): **visible**
-- Write in Txn 0 (App A), read in Txn 1 (App B via get_ex): **visible**
-- Write in Txn 1, read in Txn 0 (reverse order): **NOT visible** (sequential execution)
-
-**Reentrancy is impossible.** Inner transactions execute atomically. No callbacks on receivers. No self-calls.
-
-**Update-before-mutate matters ONLY for accumulator math, NOT for reentrancy.**
+After discovering a new API fact via compile-testing that is NOT already documented in the linked reference sources, add it to the Non-Documentable Expert Knowledge section with the verification date and PuyaPy version.
 
 ---
 
@@ -776,7 +622,7 @@ Never enable `IsIndexerActive` -- this activates the deprecated V1 indexer with 
 - **Repeated loads elimination**: Compiler tracks state writes and eliminates redundant re-reads when value hasn't changed (`repeated_loads_elimination.py`)
 - These optimizations are correct because the compiler can prove, within a single execution frame, what value each state key holds.
 
-### State Proofs Architecture (verified against developer.algorand.org/docs/get-details/stateproofs/)
+### State Proofs Architecture (verified against dev.algorand.co/concepts/protocol/state-proofs/)
 
 1. Nodes generate Falcon-1024 keys during participation key generation (`sprfkey` field in keyreg)
 2. Individual Falcon signatures aggregated via Merkle tree with SumHash512
@@ -786,7 +632,7 @@ Never enable `IsIndexerActive` -- this activates the deprecated V1 indexer with 
 6. Two-commitment structure: Transaction Commitment + Block Interval Commitment
 7. Proofs linked sequentially from genesis (unbroken chain)
 
-Source: [developer.algorand.org/docs/get-details/stateproofs/](https://developer.algorand.org/docs/get-details/stateproofs/)
+Source: [dev.algorand.co/concepts/protocol/state-proofs/](https://dev.algorand.co/concepts/protocol/state-proofs/)
 
 ### Post-Quantum Roadmap
 
@@ -883,7 +729,7 @@ Note: Period 10 address (`75X4V7CEN6HW3EYSJEJLWDNVX3BOJPPEHU2S34FSEKIN5WEB2OZN2V
 | Identifier | Value | Source |
 |------------|-------|--------|
 | vALGO (AF-BANK-ALGO-VAULT) ASA ID | 879951266 | On-chain |
-| Vault app (primary) | 879935316 | [AlgoFi docs](https://docs.algofi.org/vault/mainnet-contracts) |
+| Vault app (primary) | 879935316 | [AlgoFi docs (archived)](https://web.archive.org/web/20220926054019/https://docs.algofi.org/vault/mainnet-contracts) |
 | Vault app (secondary) | 900932886 | On-chain |
 
 ---
