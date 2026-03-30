@@ -6,5 +6,8 @@ mdbook/
 __pycache__/
 *.pyc
 
+# Backups
+*.bak
+
 # macOS
 .DS_Store
