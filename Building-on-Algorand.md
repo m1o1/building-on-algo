@@ -75,11 +75,11 @@ The book is structured around seven progressively complex chapters, each built i
 
 - **Chapter 2 --- Project 1: A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of Chapter 2 you can build and deploy a production-quality smart contract from scratch.
 
-- **Chapter 3 --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the simulate-then-submit coordination pattern.
+- **Chapter 3 --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
 
-- **Chapter 4 --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, and security hardening.
+- **Chapter 4 --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
 
-- **Chapter 5 --- Yield Farming: Extending the AMM with Staking Rewards.** You extend the AMM with a staking contract where LPs lock LP tokens to earn reward tokens, introducing the Synthetix-style reward accumulator pattern, duration multipliers, smart contract composition via cross-contract state reads, and a TWAP price oracle.
+- **Chapter 5 --- Yield Farming: Extending the AMM with Staking Rewards.** You extend the AMM with a staking contract where LPs lock LP tokens to earn reward tokens, introducing the Synthetix-style reward accumulator pattern, duration multipliers, and smart contract composition via cross-contract state reads.
 
 - **Chapter 6 --- Common Patterns and Idioms.** A patterns chapter covers cross-cutting production concerns: fee subsidization, MBR lifecycle, canonical ordering, event emission, and opcode budget management.
 
@@ -212,7 +212,7 @@ A practical rule of thumb: use **global state** for contract-wide configuration,
 
 ### Transaction Types
 
-Algorand has seven [transaction types](https://dev.algorand.co/concepts/transactions/types/):
+Algorand has seven developer-facing [transaction types](https://dev.algorand.co/concepts/transactions/types/) (an eighth, heartbeat, is used internally by the consensus protocol and is not relevant to contract development):
 
 1. **Payment** --- Send Algos from one account to another
 2. **Asset Transfer** --- Send ASAs between accounts (also used for opt-in)
@@ -245,7 +245,7 @@ The distinction from atomic groups is important: atomic groups are assembled *of
 Understanding limits is as important as understanding capabilities:
 
 - **No floating point.** The AVM has only `uint64` and `bytes` types. All math is integer-only. Prices must be represented as rational numbers (numerator/denominator). (See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).)
-- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction costs a fixed number of units (called opcodes), and your contract gets a budget of 700 per application call --- roughly enough for a few hundred arithmetic operations and a couple of state reads. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a more generous 20,000 per transaction.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
+- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction costs a fixed number of units (called opcodes), and your contract gets a budget of 700 per application call --- roughly enough for several hundred arithmetic operations and dozens of state reads, but not enough for expensive cryptographic operations like signature verification. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a more generous 20,000 per transaction.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
 - **No callbacks or fallback functions.** When your contract sends tokens via an inner transaction, no code executes on the receiving side. This eliminates classical reentrancy attacks. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a comparison of security models.)
 - **No cross-contract state reads within an atomic group.** If contract A and contract B are both called in the same atomic group, contract B sees contract A's state as it was *before* the group started executing, not any mid-group modifications. State changes from all transactions in the group are only committed together at the end, after every transaction succeeds.
 - **No private on-chain data.** All state (global, local, boxes) is publicly readable off-chain via algod and indexer APIs. Boxes are private *on-chain* (only the owning app can read them in TEAL), but anyone can read them via the REST API.
@@ -745,30 +745,9 @@ from algopy import Asset, Global, UInt64, itxn
         ).submit()
 ```
 
-Before calling `initialize`, the client must fund the contract with enough Algo for the MBR and set the outer transaction fee high enough to cover the inner transaction. This is client-side code (e.g., in your `deploy.py` script), not part of the contract:
+Before calling `initialize`, the client must fund the contract with enough Algo for the MBR and set the outer transaction fee high enough to cover the inner transaction. The following script demonstrates the complete initialize flow using AlgoKit Utils.
 
-```python
-fund_txn = transaction.PaymentTxn(
-    sender=admin_address, sp=sp,
-    receiver=app_address, amt=200_000,
-)
-
-sp_with_fee = algorand.client.algod.suggested_params()
-sp_with_fee.fee = 2000
-sp_with_fee.flat_fee = True
-
-init_txn = transaction.ApplicationCallTxn(
-    sender=admin_address, sp=sp_with_fee,
-    index=app_id, app_args=["initialize"],
-    foreign_assets=[vesting_token_id],
-)
-
-gid = transaction.calculate_group_id([fund_txn, init_txn])
-fund_txn.group = gid
-init_txn.group = gid
-```
-
-The `foreign_assets` parameter is part of Algorand's **resource reference system**. Every application call must declare which blockchain resources it will access --- accounts, assets, applications, and boxes. The AVM node pre-loads these resources into memory before execution, ensuring predictable performance. Think of it as declaring your read-set before running a database query --- the node needs to know which accounts, assets, applications, and boxes your program will touch so it can load them into memory. The limit is 8 total references per transaction. Since AVM v9, references are shared across the transaction group, effectively allowing up to 128 references for complex operations.
+The `foreign_assets` parameter (populated automatically by AlgoKit Utils) is part of Algorand's **resource reference system**. Every application call must declare which blockchain resources it will access --- accounts, assets, applications, and boxes. The AVM node pre-loads these resources into memory before execution, ensuring predictable performance. Think of it as declaring your read-set before running a database query --- the node needs to know which accounts, assets, applications, and boxes your program will touch so it can load them into memory. The limit is 8 total references per transaction. Since AVM v9, references are shared across the transaction group, effectively allowing up to 128 references for complex operations.
 
 ## Compiling and Running What We Have So Far
 
@@ -932,14 +911,14 @@ app_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="create_schedule",
         args=[beneficiary_address, 1_000_000, 7_776_000, 31_536_000, mbr_txn],
-        boxes=[(app_client.app_id, b"v_" + decode_address(beneficiary_address))],
+        box_references=[b"v_" + decode_address(beneficiary_address)],
     )
 )
 ```
 
 Forgetting this declaration produces "box read/write budget exceeded" --- the single most common error new Algorand developers encounter. If you see this error, your first check should always be: did I declare the box references? For boxes larger than 1KB, you need multiple references to the same box (e.g., a 4KB box needs four references). The Cookbook (Recipe 6.5) shows this pattern in detail.
 
-> **Warning:** Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `boxes` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
+> **Warning:** Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -1011,10 +990,11 @@ def calculate_vested(
     duration = vesting_end - start
     high, low = op.mulw(total, elapsed)
     q_hi, vested, r_hi, r_lo = op.divmodw(high, low, UInt64(0), duration)
+    assert q_hi == 0, "Overflow in vesting calculation"
     return vested
 ```
 
-Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. There are two ways to convert: `.native` returns the corresponding native type generically (`arc4.UInt64.native` yields `UInt64`, `arc4.Bool.native` yields `bool`), while `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`. Both produce identical results for numeric types; this book uses `.as_uint64()` for numeric fields (making the expected type explicit) and `.native` for booleans.
+Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. The conversion method `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`, and it is the recommended approach. An older alternative, `.native`, returns the corresponding native type generically (`arc4.UInt64.native` yields `UInt64`, `arc4.Bool.native` yields `bool`), but `.native` is deprecated since PuyaPy 5.0 because it returns `Any`, losing type safety. This book uses `.as_uint64()` for numeric fields and `.native` only for booleans (where it remains the natural conversion).
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -1262,12 +1242,11 @@ class TestTokenVesting:
 
 # Helper: wraps the v4 send.call pattern for concise test code
 def call_method(app_client, method, args, sender=None):
-    params = algokit_utils.AppClientMethodCallParams(
-        method=method, args=args,
+    return app_client.send.call(
+        algokit_utils.AppClientMethodCallParams(
+            method=method, args=args, sender=sender,
+        )
     )
-    if sender:
-        params.sender = sender
-    return app_client.send.call(params)
 ```
 
 > **Tip:** Use the `simulate` endpoint for debugging and security testing, not just read-only queries. Simulate executes the full transaction logic without committing state changes or charging fees --- ideal for diagnosing failures and verifying security checks.
@@ -1281,17 +1260,15 @@ import algokit_utils
 attacker = algorand.account.random()
 
 # Simulate without submitting --- see what would happen
-result = app_client.send.call(
-    algokit_utils.AppClientMethodCallParams(
-        method="claim",
-        sender=attacker.address,
-    ),
-    send_params=algokit_utils.SendParams(
-        simulate=algokit_utils.SimulateParams(
-            allow_empty_signatures=True,
-        ),
-    ),
-)
+result = algorand.new_group().add_app_call_method_call(
+    app_client.params.call(
+        algokit_utils.AppClientMethodCallParams(
+            method="claim",
+            sender=attacker.address,
+        )
+    )
+).simulate()
+
 # If the call would fail, the simulate response includes the failure reason.
 # This confirms the contract correctly rejects unauthorized callers.
 ```
@@ -1538,7 +1515,7 @@ The close-to and rekey checks are non-negotiable for any method that accepts a g
 
 ## Minting the Vesting NFT
 
-This is where the contract diverges from Chapter 2. Instead of simply writing a schedule to box storage, `create_schedule` now also mints an NFT and transfers it to the beneficiary. The NFT represents ownership of the vesting position.
+This is where the contract diverges from Chapter 2. Instead of simply writing a schedule to box storage, `create_schedule` now mints an NFT that represents ownership of the vesting position. The NFT stays with the contract until the beneficiary opts in and the admin delivers it --- a two-step pattern we will explore shortly.
 
 *Inner transactions* are the mechanism. You used them in Chapter 2 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
 
@@ -1546,7 +1523,6 @@ This is where the contract diverges from Chapter 2. Instead of simply writing a 
     @arc4.abimethod
     def create_schedule(
         self,
-        beneficiary: Account,
         total_amount: UInt64,
         cliff_duration: UInt64,
         vesting_duration: UInt64,
@@ -1573,7 +1549,7 @@ This is where the contract diverges from Chapter 2. Instead of simply writing a 
 
         now = Global.latest_timestamp
 
-        # Mint the vesting NFT
+        # Mint the vesting NFT (contract keeps it until deliver_nft)
         nft_txn = itxn.AssetConfig(
             total=1,
             decimals=0,
@@ -1591,14 +1567,6 @@ This is where the contract diverges from Chapter 2. Instead of simply writing a 
 
         nft_id = nft_txn.created_asset.id
 
-        # Transfer the NFT to the beneficiary (they must have opted in)
-        itxn.AssetTransfer(
-            xfer_asset=nft_txn.created_asset,
-            asset_receiver=beneficiary,
-            asset_amount=1,
-            fee=UInt64(0),
-        ).submit()
-
         # Store the schedule keyed by NFT asset ID
         schedule = VestingSchedule(
             total_amount=arc4.UInt64(total_amount),
@@ -1612,6 +1580,25 @@ This is where the contract diverges from Chapter 2. Instead of simply writing a 
         self.schedule_count.value += 1
 
         return nft_id
+
+    @arc4.abimethod
+    def deliver_nft(self, nft_asset: Asset, beneficiary: Account) -> None:
+        """Transfer a minted NFT to the beneficiary after they opt in."""
+        assert Txn.sender.bytes == self.admin.value, "Only admin"
+        schedule_key = arc4.UInt64(nft_asset.id)
+        assert schedule_key in self.schedules, "No schedule for this NFT"
+
+        # Verify the contract still holds the NFT
+        assert nft_asset.balance(
+            Global.current_application_address
+        ) == 1, "Contract does not hold this NFT"
+
+        itxn.AssetTransfer(
+            xfer_asset=nft_asset,
+            asset_receiver=beneficiary,
+            asset_amount=1,
+            fee=UInt64(0),
+        ).submit()
 ```
 
 There is a lot happening here. Let us unpack the new pieces.
@@ -1627,15 +1614,23 @@ When creating an ASA, four special addresses control what can be done with it af
 
 > **Warning:** Setting `clawback` to the contract address means the contract can take the NFT from anyone at any time. This is necessary for revocation, but it means the NFT is not fully "sovereign" --- holders should understand that the vesting contract retains authority over it. This is visible on-chain and should be communicated clearly in your application's UI.
 
-### The Opt-In Requirement
+### The Opt-In Problem and the Two-Step Pattern
 
-Notice that the beneficiary must opt into the NFT *before* `create_schedule` is called. The contract mints the NFT and immediately transfers it, so if the beneficiary has not opted in, the transfer fails and the entire transaction is rejected. In practice, the admin coordinates with the beneficiary: the beneficiary opts into the NFT's asset ID (which they learn after the admin does a dry run or simulation), or the admin uses a two-step process where step one mints and step two transfers after opt-in.
+On Algorand, a recipient must opt into an ASA before they can receive it. But the NFT does not exist until the contract mints it, so the beneficiary cannot know the asset ID in advance. This is a fundamental coordination problem when minting NFTs from contracts.
 
-*Before reading on: how would you handle this opt-in coordination problem? Consider that the NFT does not exist until the contract mints it, so the beneficiary cannot know the asset ID in advance.*
+*Before reading on: how would you handle this? Consider that the NFT's asset ID is only known after `create_schedule` executes.*
 
-The simplest solution is to split `create_schedule` into two calls --- one that mints the NFT and returns the asset ID, and one that transfers it after the beneficiary opts in. But this adds complexity and requires the contract to hold the NFT in an intermediate state. A more practical approach: the admin calls `create_schedule` using `simulate` first to learn the NFT asset ID, tells the beneficiary to opt in, then submits the real transaction. AlgoKit's simulate endpoint makes this straightforward. We will use this approach in our deployment script later in the chapter.
+We solve it by splitting the process into two steps. `create_schedule` mints the NFT and stores the schedule, but the contract *keeps* the NFT. The method returns the NFT's asset ID. The admin reads this ID from the transaction result, tells the beneficiary to opt in, and then calls `deliver_nft` to transfer the NFT to the beneficiary's account.
 
-> **Warning:** The simulate-then-submit pattern assumes no other asset creations happen between simulation and submission. On LocalNet with on-demand block production this is guaranteed, but on TestNet or MainNet, other transactions could produce different asset IDs. In production, treat the simulated ID as a prediction for opt-in coordination, and always read the real transaction's return value as the authoritative NFT ID.
+This two-step pattern is common whenever a contract mints an ASA for a specific recipient:
+
+1. **Mint** --- create the asset, contract holds it
+2. **Coordinate** --- recipient learns the asset ID and opts in
+3. **Deliver** --- contract transfers the asset to the now-opted-in recipient
+
+The `deliver_nft` method is admin-only and verifies that the contract still holds the NFT and that a schedule exists for it. The beneficiary must be opted in before `deliver_nft` is called, or the inner asset transfer will fail.
+
+> **Note:** An alternative approach is to call `create_schedule` using `simulate` first to predict the NFT asset ID, have the beneficiary opt in, then submit the real transaction. This works on LocalNet (where no other transactions intervene) but is fragile on TestNet or MainNet where concurrent asset creations can shift asset IDs. The two-step pattern is more robust and is what production systems use.
 
 ### MBR Accounting
 
@@ -1648,11 +1643,11 @@ The total is 122,900 microAlgos per schedule. The `mbr_payment` grouped transact
 
 ### Inner Transaction Fees
 
-The method executes two inner transactions (asset creation + asset transfer), plus the outer application call and the MBR payment. The minimum group fee is:
+The `create_schedule` method executes one inner transaction (asset creation), plus the outer application call and the MBR payment. The minimum group fee is:
 
-- 1,000 (MBR payment) + 1,000 (app call) + 1,000 (inner AssetConfig) + 1,000 (inner AssetTransfer) = 4,000 microAlgos total
+- 1,000 (MBR payment) + 1,000 (app call) + 1,000 (inner AssetConfig) = 3,000 microAlgos total
 
-With fee pooling, the MBR payment transaction can overpay to cover all four.
+The `deliver_nft` call adds one more inner transaction (asset transfer), needing 1,000 (app call) + 1,000 (inner AssetTransfer) = 2,000 microAlgos. With fee pooling, a single transaction in each group can overpay to cover the inner fees.
 
 ## Claiming with NFT Ownership Verification
 
@@ -1719,7 +1714,7 @@ This is the *ownership-by-asset* pattern: instead of binding rights to an addres
 
 ## The Vesting Calculation
 
-The `calculate_vested` subroutine is identical to Chapter 2. It uses [wide arithmetic](https://dev.algorand.co/reference/algorand-teal/opcodes/) (`mulw`/`divmodw`) to avoid overflow when multiplying large token amounts by time durations:
+The same `calculate_vested` subroutine from Chapter 2, unchanged. It uses [wide arithmetic](https://dev.algorand.co/reference/algorand-teal/opcodes/) (`mulw`/`divmodw`) to avoid overflow when multiplying large token amounts by time durations:
 
 ```python
 @subroutine
@@ -1734,11 +1729,11 @@ def calculate_vested(
     elapsed = now - start
     duration = vesting_end - start
     # Wide multiply: total * elapsed → 128-bit result (high, low)
-    hi, lo = op.mulw(total, elapsed)
-    # Wide divide: (hi, lo) / duration → (quotient_hi, quotient_lo, remainder_hi, remainder_lo)
-    q_hi, q_lo, r_hi, r_lo = op.divmodw(hi, lo, UInt64(0), duration)
+    high, low = op.mulw(total, elapsed)
+    # Wide divide: (high, low) / duration → (quotient_hi, quotient_lo, remainder_hi, remainder_lo)
+    q_hi, vested, r_hi, r_lo = op.divmodw(high, low, UInt64(0), duration)
     assert q_hi == 0, "Overflow in vesting calculation"
-    return q_lo
+    return vested
 ```
 
 Place this function outside the class, between the `VestingSchedule` struct and the `NftVesting` class. Recall from Chapter 2 that `@subroutine` functions are compiled inline by PuyaPy --- they are not ABI methods and cannot be called externally. Extracting this logic into a subroutine saves program bytes because it is called in three places: `claim`, `revoke`, and `get_claimable`.
@@ -2018,70 +2013,67 @@ app_client.send.call(
 )
 print("Deposited 1,000 tokens (with 6 decimals)")
 
-# Step 5: Create a vesting schedule (simulate → opt-in → submit)
+# Step 5: Create a vesting schedule (mint → opt-in → deliver)
 nft_url = b"ipfs://QmExample#arc3"
 metadata_hash = b"\x00" * 32  # Placeholder hash for testing
 
-
-def build_create_schedule_group(box_key):
-    """Build the create_schedule call with MBR payment as a method arg."""
-    c = algorand.new_group()
-    c.add_app_call_method_call(
-        app_client.params.call(
-            algokit_utils.AppClientMethodCallParams(
-                method="create_schedule",
-                args=[
-                    beneficiary.address,
-                    1_000_000_000,   # 1000 tokens (6 decimals)
-                    0,               # 0 cliff (for easy testing)
-                    31_536_000,      # 365 days vesting
-                    nft_url,
-                    metadata_hash,
-                    algokit_utils.PaymentParams(
-                        sender=admin.address,
-                        receiver=app_client.app_address,
-                        amount=algokit_utils.AlgoAmount.from_micro_algo(122_900),
-                        note=os.urandom(8),
-                    ),
-                ],
-                static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),
-                box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key)],
-                note=os.urandom(8),
-            )
+# Phase A: Create the schedule (contract mints and keeps the NFT)
+# We don't know the NFT ID yet, so we use a placeholder box key.
+# AlgoKit Utils auto-populates the correct reference before sending.
+placeholder_box_key = b"v_" + struct.pack(">Q", 0)
+create_result = algorand.new_group().add_app_call_method_call(
+    app_client.params.call(
+        algokit_utils.AppClientMethodCallParams(
+            method="create_schedule",
+            args=[
+                1_000_000_000,   # 1000 tokens (6 decimals)
+                0,               # 0 cliff (for easy testing)
+                31_536_000,      # 365 days vesting
+                nft_url,
+                metadata_hash,
+                algokit_utils.PaymentParams(
+                    sender=admin.address,
+                    receiver=app_client.app_address,
+                    amount=algokit_utils.AlgoAmount.from_micro_algo(122_900),
+                    note=os.urandom(8),
+                ),
+            ],
+            static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),
+            box_references=[
+                algokit_utils.BoxReference(
+                    app_id=app_client.app_id, name=placeholder_box_key,
+                ),
+            ],
+            note=os.urandom(8),
         )
     )
-    return c
-
-
-# Phase A: Simulate to predict the NFT asset ID
-placeholder_box_key = b"v_" + struct.pack(">Q", 0)
-simulate_result = build_create_schedule_group(placeholder_box_key).simulate()
-# The return value is on the second transaction (index 1: payment is 0, app call is 1)
-nft_id = simulate_result.returns[-1].return_value
-print(f"Simulated NFT ID: {nft_id}")
-
-# Phase B: Beneficiary opts into the NFT and the vesting token
-algorand.send.asset_opt_in(
-    algokit_utils.AssetOptInParams(
-        sender=beneficiary.address, asset_id=nft_id, note=os.urandom(8),
-    )
-)
-algorand.send.asset_opt_in(
-    algokit_utils.AssetOptInParams(
-        sender=beneficiary.address, asset_id=token_id, note=os.urandom(8),
-    )
-)
-print(f"Beneficiary opted into NFT {nft_id} and vesting token {token_id}")
-
-# Phase C: Submit the real transaction with the correct box reference
-real_box_key = b"v_" + struct.pack(">Q", nft_id)
-result = build_create_schedule_group(real_box_key).send()
-# The real transaction's return value is authoritative
-actual_nft_id = result.returns[-1].return_value
-assert actual_nft_id == nft_id, f"NFT ID mismatch: expected {nft_id}, got {actual_nft_id}"
+).send()
+nft_id = create_result.returns[-1].value
 print(f"Created vesting schedule with NFT ID: {nft_id}")
 
+# Phase B: Beneficiary opts into the NFT and the vesting token
+for asset_id in [nft_id, token_id]:
+    algorand.send.asset_opt_in(
+        algokit_utils.AssetOptInParams(
+            sender=beneficiary.address, asset_id=asset_id,
+            note=os.urandom(8),
+        )
+    )
+print(f"Beneficiary opted into NFT {nft_id} and vesting token {token_id}")
+
+# Phase C: Deliver the NFT to the beneficiary
+app_client.send.call(
+    algokit_utils.AppClientMethodCallParams(
+        method="deliver_nft",
+        args=[nft_id, beneficiary.address],
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
+        note=os.urandom(8),
+    )
+)
+print(f"Delivered NFT {nft_id} to beneficiary")
+
 # Step 6: Claim vested tokens as the beneficiary
+box_key = b"v_" + struct.pack(">Q", nft_id)
 beneficiary_client = algorand.client.get_app_client_by_id(
     app_spec=app_spec,
     app_id=app_client.app_id,
@@ -2092,7 +2084,7 @@ claim_result = beneficiary_client.send.call(
         method="claim",
         args=[nft_id],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
-        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=real_box_key)],
+        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key)],
         note=os.urandom(8),
     )
 )
@@ -2100,16 +2092,13 @@ print(f"Beneficiary claimed {claim_result.abi_return} tokens")
 
 # Step 7: Demonstrate transferability --- transfer the NFT to a new holder
 # New holder opts into the NFT and vesting token
-algorand.send.asset_opt_in(
-    algokit_utils.AssetOptInParams(
-        sender=new_holder.address, asset_id=nft_id, note=os.urandom(8),
+for asset_id in [nft_id, token_id]:
+    algorand.send.asset_opt_in(
+        algokit_utils.AssetOptInParams(
+            sender=new_holder.address, asset_id=asset_id,
+            note=os.urandom(8),
+        )
     )
-)
-algorand.send.asset_opt_in(
-    algokit_utils.AssetOptInParams(
-        sender=new_holder.address, asset_id=token_id, note=os.urandom(8),
-    )
-)
 
 # Beneficiary transfers the NFT --- a standard asset transfer, no contract involved
 algorand.send.asset_transfer(
@@ -2134,14 +2123,14 @@ claim_result = new_holder_client.send.call(
         method="claim",
         args=[nft_id],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
-        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=real_box_key)],
+        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key)],
         note=os.urandom(8),
     )
 )
 print(f"New holder claimed {claim_result.abi_return} tokens")
 ```
 
-> **Tip:** The simulate-then-opt-in-then-submit flow is the key coordination pattern for minting NFTs from contracts. The simulation predicts the NFT asset ID without committing any state changes, giving the beneficiary time to opt in before the real transaction is submitted. Always verify the real transaction's return value matches the simulated prediction.
+> **Tip:** The mint-then-deliver flow is the key coordination pattern for minting NFTs from contracts. The admin creates the schedule (which mints the NFT and returns its ID), the beneficiary opts in, and then the admin calls `deliver_nft`. This avoids the fragile simulate-then-submit approach where predicted asset IDs can shift on a live network.
 
 Run the script:
 
@@ -2149,7 +2138,7 @@ Run the script:
 poetry run python deploy_nft_vesting.py
 ```
 
-If everything works, you will see the app ID, contract address, token ID, NFT ID, and claimed amounts for both the original beneficiary and the new holder. If you get a "box read/write budget exceeded" error, make sure you are passing the correct box reference in the `boxes` parameter. If you get "balance below minimum," increase the initial funding amount.
+If everything works, you will see the app ID, contract address, token ID, NFT ID, and claimed amounts for both the original beneficiary and the new holder. If you get a "box read/write budget exceeded" error, make sure you are passing the correct box reference in the `box_references` parameter. If you get "balance below minimum," increase the initial funding amount.
 
 ## Testing the NFT Vesting Contract
 
@@ -2221,42 +2210,49 @@ def box_key(nft_id):
 
 def create_schedule(algorand, admin, app_client, beneficiary, total,
                     cliff, vest, token_id):
-    """Simulate → opt-in → submit. Returns the NFT asset ID."""
+    """Mint → opt-in → deliver. Returns the NFT asset ID."""
     url = b"ipfs://QmTest#arc3"
     meta = b"\x00" * 32
 
-    def build_group(bk):
-        c = algorand.new_group()
-        c.add_app_call_method_call(app_client.params.call(
+    # Step 1: Create the schedule (contract keeps the NFT)
+    result = algorand.new_group().add_app_call_method_call(
+        app_client.params.call(
             algokit_utils.AppClientMethodCallParams(
                 method="create_schedule",
                 args=[
-                    beneficiary.address, total, cliff, vest, url, meta,
+                    total, cliff, vest, url, meta,
                     algokit_utils.PaymentParams(
-                        sender=admin.address, receiver=app_client.app_address,
+                        sender=admin.address,
+                        receiver=app_client.app_address,
                         amount=algokit_utils.AlgoAmount.from_micro_algo(122_900),
                         note=os.urandom(8),
                     ),
                 ],
-                static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),
-                box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=bk)],
+                static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),
+                box_references=[
+                    algokit_utils.BoxReference(
+                        app_id=app_client.app_id, name=box_key(0),
+                    ),
+                ],
                 note=os.urandom(8),
             )
-        ))
-        return c
+        )
+    ).send()
+    nft_id = result.returns[-1].value
 
-    # Simulate to predict NFT ID
-    sim = build_group(box_key(0)).simulate()
-    nft_id = sim.returns[-1].return_value
-
-    # Beneficiary opts in
+    # Step 2: Beneficiary opts in
     for asset_id in [nft_id, token_id]:
         algorand.send.asset_opt_in(algokit_utils.AssetOptInParams(
-            sender=beneficiary.address, asset_id=asset_id, note=os.urandom(8),
+            sender=beneficiary.address, asset_id=asset_id,
+            note=os.urandom(8),
         ))
 
-    # Submit
-    build_group(box_key(nft_id)).send()
+    # Step 3: Deliver the NFT
+    app_client.send.call(algokit_utils.AppClientMethodCallParams(
+        method="deliver_nft", args=[nft_id, beneficiary.address],
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
+        note=os.urandom(8),
+    ))
     return nft_id
 
 def client_for(algorand, app_client, account):
@@ -2454,7 +2450,7 @@ In this chapter you learned to:
 - Apply the ownership-by-asset pattern to decouple rights from addresses
 - Use clawback to reclaim NFTs during revocation and destroy them to recover MBR
 - Calculate MBR implications when a contract creates ASAs (100,000 microAlgos per asset)
-- Coordinate opt-in timing using simulate to predict asset IDs before submission
+- Coordinate opt-in timing using the mint-then-deliver pattern for contract-minted ASAs
 
 | Step | Feature | Concepts Introduced |
 |------|---------|---------------------|
@@ -2499,7 +2495,7 @@ Before starting the AMM chapter, you should be able to:
 - [ ] Apply the ownership-by-asset pattern to decouple rights from addresses
 - [ ] Use clawback to reclaim NFTs and destroy them to recover MBR
 - [ ] Pass grouped transactions (payment, asset transfer) as ABI method arguments
-- [ ] Use the simulate-then-submit pattern to predict asset IDs before opt-in
+- [ ] Use the mint-then-deliver pattern to coordinate opt-in for contract-minted ASAs
 - [ ] Calculate MBR implications when a contract creates ASAs
 
 If any of these are unclear, revisit the relevant section before proceeding.
@@ -2597,6 +2593,7 @@ from algopy import (
 )
 
 MINIMUM_LIQUIDITY = 1000
+TWAP_PRECISION = 10**9
 
 class ConstantProductPool(ARC4Contract):
     def __init__(self) -> None:
@@ -2608,18 +2605,22 @@ class ConstantProductPool(ARC4Contract):
         self.lp_total_supply = GlobalState(UInt64(0))
         self.locked_liquidity = GlobalState(UInt64(0))
         self.is_bootstrapped = GlobalState(UInt64(0))
+        # TWAP oracle state
+        self.cumulative_price_a = GlobalState(BigUInt(0))
+        self.cumulative_price_b = GlobalState(BigUInt(0))
+        self.twap_last_update = GlobalState(UInt64(0))
 
     @arc4.baremethod(allow_actions=["UpdateApplication", "DeleteApplication"])
     def reject_lifecycle(self) -> None:
         assert False, "Contract is immutable"
 ```
 
-We are using global state rather than box storage for the pool's reserves and configuration. This is the right choice here: the data is small (8 fields), belongs to the application itself (not per-user), and is accessed on every single operation. Global state has a 64-pair limit, but we are nowhere near that. The schema is declared once at deployment and cannot change, so we have allocated all the fields we will need upfront.
+We are using global state rather than box storage for the pool's reserves and configuration. This is the right choice here: the data is small (11 fields), belongs to the application itself (not per-user), and is accessed on every single operation. Global state has a 64-pair limit, but we are nowhere near that. The schema is declared once at deployment and cannot change, so we have allocated all the fields we will need upfront. The three TWAP fields (`cumulative_price_a`, `cumulative_price_b`, `twap_last_update`) support the price oracle that we will build later in this chapter. The two `BigUInt` cumulatives are stored as byte-slice global state slots (not uint slots), so the contract's schema needs both `global_uints` and `global_bytes` allocations. PuyaPy handles this automatically.
 
 
 ## Bootstrapping the Pool
 
-Bootstrapping is the one-time initialization that creates the LP token, opts the contract into both pool assets, and establishes the pool's identity. This is more involved than the vesting contract's `initialize` because we are creating a new ASA (the LP token) and performing three asset opt-ins.
+Bootstrapping is the one-time initialization that creates the LP token, opts the contract into both pool assets, and establishes the pool's identity. This is more involved than the vesting contract's `initialize` because we are creating a new ASA (the LP token) and performing two asset opt-ins.
 
 Canonical asset ordering --- always placing the lower ASA ID first --- prevents duplicate pools for the same pair. Without this, someone could create a USDC/ALGO pool and a separate ALGO/USDC pool, fragmenting liquidity. By enforcing `asset_a.id < asset_b.id`, there is exactly one valid pool per pair. (See [Asset Metadata](https://dev.algorand.co/concepts/assets/asset-metadata/) for how asset IDs are assigned.)
 
@@ -2634,6 +2635,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         asset_b: Asset,
     ) -> UInt64:
         """One-time pool initialization. Creates LP token, opts into assets."""
+        assert Txn.sender == Global.creator_address, "Only creator can bootstrap"
         assert self.is_bootstrapped.value == UInt64(0), "Already bootstrapped"
         assert asset_a.id < asset_b.id, "Assets must be in canonical order"
 
@@ -2681,7 +2683,7 @@ The LP token has a total supply of $2^{63}$ --- a very large number that the poo
 
 Notice the seed payment pattern: the caller sends Algo to cover the MBR for the LP token creation (100,000 microAlgos) plus two asset opt-ins (100,000 each) plus the global state MBR plus a buffer. This is the same MBR-funding-via-grouped-payment pattern from the vesting contract, but scaled up for more resources.
 
-The caller's outer transaction fee must cover the four inner transactions (LP creation + two opt-ins + some headroom). With fee pooling, `sp.fee = 5000` covers 5 transactions worth of minimum fees.
+The caller's outer transaction fee must cover the three inner transactions (1 LP creation + 2 asset opt-ins) plus the outer call itself --- that is 4 transactions total. With fee pooling, `static_fee = 5000` covers all 4 plus some headroom.
 
 ## Deploying and Bootstrapping on LocalNet
 
@@ -2727,30 +2729,29 @@ factory = algorand.client.get_app_factory(
     app_spec=Path("smart_contracts/artifacts/constant_product_pool/ConstantProductPool.arc56.json").read_text(),
     default_sender=admin.address,
 )
-app_client, deploy_result = factory.deploy()
+app_client, deploy_result = factory.send.bare.create()
 print(f"Pool App ID: {app_client.app_id}")
 print(f"Pool Address: {app_client.app_address}")
 
-# Bootstrap: fund the pool + call bootstrap in an atomic group
-composer = algorand.new_group()
-composer.add_payment(
-    algokit_utils.PaymentParams(
-        sender=admin.address,
-        receiver=app_client.app_address,
-        amount=algokit_utils.AlgoAmount.from_micro_algo(500_000),  # 0.5 Algo for MBR
+# Bootstrap: fund the pool + call bootstrap.
+# The seed payment is passed as the first argument to the bootstrap method.
+# AlgoKit automatically places it as the preceding transaction in the group.
+result = app_client.send.call(
+    algokit_utils.AppClientMethodCallParams(
+        method="bootstrap",
+        args=[
+            algokit_utils.PaymentParams(
+                sender=admin.address,
+                receiver=app_client.app_address,
+                amount=algokit_utils.AlgoAmount.from_micro_algo(500_000),  # 0.5 Algo for MBR
+            ),
+            token_a,
+            token_b,
+        ],
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(5000),  # Covers inner txns
     )
 )
-composer.add_app_call_method_call(
-    app_client.params.call(
-        algokit_utils.AppClientMethodCallParams(
-            method="bootstrap",
-            args=[token_a, token_b],
-            static_fee=algokit_utils.AlgoAmount.from_micro_algo(5000),  # Covers inner txns
-        )
-    )
-)
-result = composer.send()
-lp_token_id = result.returns[-1].return_value  # Return value from the bootstrap call
+lp_token_id = result.abi_return  # Return value from the bootstrap call
 print(f"LP Token ID: {lp_token_id}")
 print("Bootstrap complete!")
 ```
@@ -2827,6 +2828,9 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
             fee=UInt64(0),
         ).submit()
 
+        # Initialize TWAP tracking with the first reserves
+        self.twap_last_update.value = Global.latest_timestamp
+
         return lp_tokens
 ```
 
@@ -2880,6 +2884,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         min_output: UInt64,
     ) -> UInt64:
         """Swap one pool asset for the other."""
+        self._update_twap()
+
         assert input_txn.asset_receiver == Global.current_application_address
         assert input_txn.asset_close_to == Global.zero_address
         assert input_txn.rekey_to == Global.zero_address
@@ -2915,7 +2921,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         # Update reserves
         new_reserve_in = reserve_in + input_amount
         new_reserve_out = reserve_out - output_amount
-
         if input_asset == Asset(self.asset_a.value):
             self.reserve_a.value = new_reserve_in
             self.reserve_b.value = new_reserve_out
@@ -2926,7 +2931,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         return output_amount
 ```
 
-The invariant check --- verifying that `new_reserve_a * new_reserve_b >= old_reserve_a * old_reserve_b` --- is implicit in the formula. Because the output is calculated from the formula and rounded down, the invariant is mathematically guaranteed to hold. For additional defense-in-depth, you can add an explicit check using wide arithmetic. Insert this in the `swap` method, after calculating the new reserve values and before updating state, in `smart_contracts/constant_product_pool/contract.py`:
+The invariant check --- verifying that `new_reserve_a * new_reserve_b >= old_reserve_a * old_reserve_b` --- is implicit in the formula. Because the output is calculated from the formula and rounded down, the invariant is mathematically guaranteed to hold. For additional defense-in-depth, you can add an explicit check using wide arithmetic. Insert this in the `swap` method, after calculating `new_reserve_in` and `new_reserve_out` and before writing them to global state, in `smart_contracts/constant_product_pool/contract.py`:
 
 ```python
         # Explicit invariant verification (defense-in-depth)
@@ -2987,7 +2992,7 @@ lp_result = app_client.send.call(
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),  # Cover inner txn
     )
 )
-print(f"LP tokens received: {lp_result.return_value}")
+print(f"LP tokens received: {lp_result.abi_return}")
 ```
 
 With liquidity in the pool, we can execute a swap. The user sends 100 Token A and receives Token B, with `min_output` providing slippage protection:
@@ -3010,7 +3015,7 @@ swap_result = app_client.send.call(
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
     )
 )
-print(f"Swap output: {swap_result.return_value} base units of Token B")
+print(f"Swap output: {swap_result.abi_return} base units of Token B")
 
 # Verify reserves changed
 app_info = algorand.client.algod.application_info(app_client.app_id)
@@ -3042,6 +3047,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         b_txn: gtxn.AssetTransferTransaction,
     ) -> UInt64:
         """Add liquidity to an existing pool. Returns LP tokens minted."""
+        self._update_twap()
+
         assert self.lp_total_supply.value > UInt64(0), "Use add_initial_liquidity"
 
         assert a_txn.asset_receiver == Global.current_application_address
@@ -3142,6 +3149,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         min_b: UInt64,
     ) -> None:
         """Burn LP tokens to withdraw proportional reserves."""
+        self._update_twap()
+
         assert lp_txn.asset_receiver == Global.current_application_address
         assert lp_txn.xfer_asset == Asset(self.lp_token_id.value)
         assert lp_txn.asset_close_to == Global.zero_address
@@ -3181,13 +3190,13 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
             fee=UInt64(0),
         ).submit()
 
-        # Update reserves
+        # Update reserves and LP supply
         self.reserve_a.value = reserve_a - amount_a
         self.reserve_b.value = reserve_b - amount_b
         self.lp_total_supply.value = total_lp - lp_amount
 ```
 
-As with the vesting contract, we execute the [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) before updating bookkeeping state. On Algorand this ordering is a style choice, not a security requirement --- reentrancy is impossible and all changes roll back atomically on failure. The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
+The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
 
 
 ## Security Hardening and the Tinyman V1 Lesson
@@ -3215,29 +3224,170 @@ Regarding MEV (Miner/Maximum Extractable Value): Algorand's block proposers are 
 
 Never submit an on-chain transaction just to get a price quote. The swap output can be calculated client-side using the same constant-product formula, reading reserves from [global state](https://dev.algorand.co/concepts/smart-contracts/storage/global/) (which is a free API call --- no transaction, no fee). This is how frontends display real-time quotes and price impact warnings. Pattern 12 in the Common Patterns chapter provides the complete client-side `get_swap_quote` helper function with price impact calculation and slippage defaults.
 
-## Reading Pool Prices From Other Contracts
+## The TWAP Price Oracle
 
-Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a de facto price oracle --- but one that must be used carefully.
+Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a natural price oracle --- but one that must be used carefully.
 
-A lending protocol that needs to know the ALGO/USDC price could read our pool's reserves. This is an illustrative example showing a separate lending contract, not part of the AMM project code:
+### Why Spot Prices Are Dangerous
+
+A lending protocol that needs to know the ALGO/USDC price could read our pool's reserves and compute a spot price: `reserve_b / reserve_a`. But spot prices are trivially manipulable. Consider a pool with reserves of 10,000 USDC and 10,000 ALGO (spot price: 1.0). An attacker with 100,000 USDC swaps into the pool, temporarily pushing the price to approximately 0.01 ALGO/USDC. If a liquidation contract checks the spot price at this moment, it would incorrectly conclude that ALGO is nearly worthless and liquidate healthy positions. The attacker then swaps back, restoring the price. This entire attack fits in a single atomic group.
+
+Production price oracles solve this with a **Time-Weighted Average Price (TWAP)** --- a price that reflects the average over many blocks, not just the current instant. An attacker who manipulates the spot price for one block (2.85 seconds) barely affects a 1-hour TWAP: their manipulation contributes only $2.85 / 3600 \approx 0.08\%$ of the average.
+
+> *Before reading on: if a single-block manipulation costs the attacker nothing and distorts the price completely, what property would an oracle need to make manipulation expensive?*
+
+### Cumulative Price Tracking
+
+A TWAP oracle tracks the cumulative sum of prices over time. The *cumulative price* at any moment is:
+
+$$cumulative\_price_t = cumulative\_price_{t-1} + spot\_price \times \Delta t$$
+
+The TWAP between two timestamps $t_1$ and $t_2$ is:
+
+$$TWAP = \frac{cumulative\_price_{t_2} - cumulative\_price_{t_1}}{t_2 - t_1}$$
+
+> *Quick check: if the cumulative price at t=100 is 500,000 and at t=200 is 1,200,000, what is the TWAP over that interval?*
+
+In production AMMs (Uniswap V2, Tinyman V2), the cumulative price accumulators live inside the pool contract itself and update on every swap, mint, and burn. This is why we added the three TWAP state variables to `__init__` and the `_update_twap()` call at the top of every state-changing method. The price oracle is available to any external consumer --- lending protocols, liquidation engines, farming contracts --- without any of those consumers needing to maintain their own accumulator.
+
+The `_update_twap` call happens *before* reserves change. This is the same design as Uniswap V2: the accumulated price is the price that *held* since the last update, not the price created by the current transaction.
+
+### BigUInt: When UInt64 Is Not Enough
+
+We used `BigUInt` briefly in `add_initial_liquidity` for the square root calculation. Now we need it for a different reason: the TWAP cumulative values grow without bound and will eventually exceed `UInt64`. `BigUInt` is an arbitrary-precision integer type (up to 512 bits) that works with standard Python operators (`+`, `-`, `*`, `//`) rather than the `mulw`/`divmodw` pair. `BigUInt` arithmetic compiles to the AVM's `b+`, `b*`, `b/` opcodes, which cost roughly 10--20 opcodes each (compared to 1 for `UInt64` operations). `BigUInt` values are stored in global state as byte-slice slots, not uint slots, so they count toward your `global_bytes` schema allocation. Use `BigUInt` when your values can exceed $2^{64}$; stick with `UInt64` and wide arithmetic when they cannot.
+
+The cumulative price grows without bound. With a spot price of 1,000,000 (scaled by $10^9$) and 1 year of accumulation:
+
+$$1{,}000{,}000{,}000 \times 31{,}536{,}000 = 3.15 \times 10^{16}$$
+
+This fits in `UInt64`. But at higher prices or over longer periods --- or with a higher precision scale factor --- the cumulative value can exceed $2^{64}$. Uniswap V2's TWAP famously uses `uint224` for cumulative prices precisely because `uint256` overflow would corrupt the average.
+
+On Algorand, `BigUInt` supports up to 512 bits --- more than enough for any practical TWAP accumulation. The tradeoff is that `BigUInt` arithmetic costs roughly 10x more opcodes than `UInt64`. For a single TWAP update per transaction (two multiplications, one addition), this is approximately 30 extra opcodes --- negligible within a 700-opcode budget. Compare this with the EVM, where Solidity's `uint256` arithmetic handles intermediate products natively and Uniswap V2 uses `uint224` as a deliberate overflow boundary. On the AVM, `UInt64` would overflow within days at moderate prices, so `BigUInt` is not optional --- it is a required design choice. The AVM's constraints force you to think about overflow earlier in the design process, which is arguably a safety benefit.
+
+### The TWAP Update Subroutine
+
+Add this method to the `ConstantProductPool` class. It reads the pool's own reserves (no cross-contract read needed --- they are local state) and accumulates the price:
+
+```python
+    @subroutine
+    def _update_twap(self) -> None:
+        last = self.twap_last_update.value
+        now = Global.latest_timestamp
+        if last == UInt64(0) or now <= last:
+            return
+
+        delta_t = now - last
+        res_a = self.reserve_a.value
+        res_b = self.reserve_b.value
+
+        if res_a == UInt64(0) or res_b == UInt64(0):
+            self.twap_last_update.value = now
+            return
+
+        # price_a = reserve_b * TWAP_PRECISION / reserve_a
+        # price_b = reserve_a * TWAP_PRECISION / reserve_b
+        # Accumulate: cumulative += price * delta_t
+        price_a = (
+            BigUInt(res_b) * BigUInt(TWAP_PRECISION)
+            // BigUInt(res_a)
+        )
+        price_b = (
+            BigUInt(res_a) * BigUInt(TWAP_PRECISION)
+            // BigUInt(res_b)
+        )
+
+        self.cumulative_price_a.value += (
+            price_a * BigUInt(delta_t)
+        )
+        self.cumulative_price_b.value += (
+            price_b * BigUInt(delta_t)
+        )
+        self.twap_last_update.value = now
+```
+
+The method is already called at the top of `swap`, `add_liquidity`, and `remove_liquidity`. For `add_initial_liquidity`, we initialize `twap_last_update` instead (there are no pre-existing reserves to accumulate).
+
+### Reading the TWAP
+
+A read-only method returns the average price over a caller-specified window. The caller provides the cumulative price snapshot from their last interaction (stored client-side or in a separate contract's state):
+
+```python
+    @arc4.abimethod(readonly=True)
+    def get_twap_price(
+        self,
+        old_cumulative_a: arc4.UInt512,
+        old_timestamp: UInt64,
+    ) -> UInt64:
+        """Returns TWAP of asset A in terms of B (how many B per one A)."""
+        # Accumulate any pending price data up to the current block.
+        # This is readonly, so state writes will not persist --- but the
+        # computed `current` value reflects the true cumulative price
+        # even if no swap/add/remove has occurred recently.
+        now = Global.latest_timestamp
+        last = self.twap_last_update.value
+        current = self.cumulative_price_a.value
+        if last > UInt64(0) and now > last:
+            res_a = self.reserve_a.value
+            res_b = self.reserve_b.value
+            if res_a > UInt64(0) and res_b > UInt64(0):
+                delta_t = now - last
+                price_a = (
+                    BigUInt(res_b) * BigUInt(TWAP_PRECISION)
+                    // BigUInt(res_a)
+                )
+                current += price_a * BigUInt(delta_t)
+
+        old = old_cumulative_a.as_biguint()
+        assert current > old, "No price data"
+        elapsed = now - old_timestamp
+        assert elapsed > UInt64(0), "Zero elapsed"
+
+        diff = current - old
+        twap = diff // BigUInt(elapsed)
+        assert twap < BigUInt(2**64), "TWAP overflow"
+        return op.btoi(twap.bytes)
+```
+
+> **Note:** The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display real-time price data. The inline accumulation at the top of `get_twap_price` ensures the cumulative value is current even if the pool has not been interacted with recently --- the same approach Uniswap V2 takes in its `currentCumulativePrices` helper. Because the method is read-only, the state writes from this accumulation do not persist.
+
+The method returns a `UInt64`, which means the TWAP result must fit in 64 bits. This is a deliberate design choice --- `UInt64` is easier for callers to work with than a variable-length `BigUInt` --- but it requires a bounds check.
+
+> **Warning:** The `op.btoi` call accepts a byte array of 0--8 bytes and interprets it as a big-endian unsigned integer. A `BigUInt` that exceeds $2^{64} - 1$ would produce more than 8 bytes, causing `btoi` to fail at runtime. The `assert twap < BigUInt(2**64)` guard ensures the TWAP result fits in 64-bit range before the conversion. With `TWAP_PRECISION = 10^9` and typical asset prices, this bound is safe for years of accumulation. If you use a higher precision scale factor or expect extreme price ratios, return a `BigUInt` instead of converting to `UInt64`.
+
+### Manipulation Resistance
+
+A 1-hour TWAP window requires an attacker to sustain the manipulated price for the full hour to meaningfully distort the average. Sustaining the manipulation means keeping a large amount of capital locked in the pool for that duration --- capital that is exposed to arbitrageurs who would trade against the distortion for profit. The cost of manipulation scales linearly with the TWAP window length and the pool's liquidity depth. For pools with meaningful TVL and a 1-hour+ window, TWAP manipulation is economically irrational.
+
+**Quantifying the cost.** Suppose a pool has \$1M in total value locked (500K USDC + equivalent ALGO). To move the spot price by 10\%, an attacker needs to add approximately \$52,600 in one-sided liquidity (from the constant product formula). To sustain this for 1 hour, that capital is locked and exposed to ~\$5,260 in arbitrage losses. The TWAP distortion from this 1-hour manipulation is only $10\% \times (2.85 / 3600) \approx 0.008\%$ per block of manipulation --- negligible. The attacker would need to sustain the manipulation for the entire window at a cost far exceeding any plausible profit.
+
+### Reading Pool Prices From Other Contracts
+
+External contracts consume the TWAP by reading the pool's cumulative price state via `op.AppGlobal.get_ex_bytes` (since `BigUInt` values are stored as byte slices, not uint64). This is an illustrative example showing a separate lending contract, not part of the AMM project code:
 
 ```python
 # In a separate lending contract:
 @arc4.abimethod
-def get_price_from_amm(self, amm_app: Application) -> UInt64:
-    """Read AMM reserves to derive a spot price."""
-    # Reserves are stored as UInt64, so use get_ex_uint64
-    reserve_a, exists_a = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_a"))
-    reserve_b, exists_b = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_b"))
-    assert exists_a and exists_b, "AMM not found"
+def get_price_from_amm(
+    self, amm_app: Application
+) -> UInt64:
+    """Read AMM spot price from reserves."""
+    reserve_a, a_ok = op.AppGlobal.get_ex_uint64(
+        amm_app, Bytes(b"reserve_a")
+    )
+    reserve_b, b_ok = op.AppGlobal.get_ex_uint64(
+        amm_app, Bytes(b"reserve_b")
+    )
+    assert a_ok and b_ok, "AMM not found"
 
     # Spot price of B in terms of A (scaled by 10^6)
     high, low = op.mulw(reserve_b, UInt64(1_000_000))
-    q_hi, price, r_hi, r_lo = op.divmodw(high, low, UInt64(0), reserve_a)
+    q_hi, price, r_hi, r_lo = op.divmodw(
+        high, low, UInt64(0), reserve_a
+    )
     return price
 ```
 
-> **Warning:** A spot price read from a single AMM pool is manipulable. An attacker can execute a large swap to skew the price, trigger a liquidation or other price-dependent action in the same atomic group, and then swap back --- profiting from the temporary distortion. Production price oracles use **time-weighted average prices (TWAPs)** that smooth the price over many blocks, making single-block manipulation prohibitively expensive. Our AMM does not implement TWAP; adding it requires tracking cumulative price sums across blocks. If you use an AMM pool as a price feed in production, implement TWAP or use an external oracle service.
+> **Warning:** The spot price example above is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
 
 Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC via ALGO/TOKEN and TOKEN/USDC) follows the same pattern --- read reserves from each pool in the chain and multiply the ratios. (See [Opcodes Overview](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) for the cross-app state reading opcodes.)
 
@@ -3302,8 +3452,8 @@ Switch your `AlgorandClient` to TestNet. This is a client-side configuration cha
 # Instead of default_localnet():
 algorand = AlgorandClient.default_testnet()
 # Or connect to a specific algod endpoint:
-algorand = AlgorandClient(
-    algod_client=AlgodClient("", "https://testnet-api.4160.nodely.dev"),
+algorand = AlgorandClient.from_clients(
+    algod=AlgodClient("", "https://testnet-api.4160.nodely.dev"),
 )
 ```
 
@@ -3322,6 +3472,7 @@ In this chapter you learned to:
 - Calculate LP token minting amounts using the geometric mean for initial liquidity and proportional ratios for subsequent deposits
 - Implement proportional liquidity withdrawal with dual slippage protection
 - Apply the Tinyman V1 lesson: defense-in-depth invariant checks that catch exploits even when individual validations fail
+- Build a TWAP price oracle using `BigUInt` cumulative price tracking for manipulation-resistant price feeds
 - Build client-side quote calculations using free global state reads
 
 This chapter applied the foundational concepts from the vesting contract to a significantly more complex DeFi application. Some concepts were reused directly (inner transactions, group transactions, security checks), while others were introduced fresh.
@@ -3334,6 +3485,7 @@ This chapter applied the foundational concepts from the vesting contract to a si
 | Swaps | Slippage protection, swap direction detection, explicit invariant verification |
 | Add liquidity | Proportional minting with min() ratio, unbalanced deposit penalty |
 | Remove liquidity | Proportional withdrawal, dual slippage protection |
+| TWAP oracle | Cumulative price tracking, BigUInt, manipulation resistance |
 | Security | Tinyman V1 case study, defense-in-depth invariant checks, MEV on Algorand |
 | Client integration | Off-chain quote calculation, free state reads |
 
@@ -3349,9 +3501,12 @@ In the next chapter, we extend this AMM with a yield farming contract --- a stak
 
     *Hint:* Add `self.protocol_fees_a = GlobalState(UInt64(0))` and `self.protocol_fees_b = GlobalState(UInt64(0))` to `__init__`. In the `swap` method, after calculating `output_amount`, compute `protocol_fee = output_amount * UInt64(5) // UInt64(10000)` (0.05%), subtract it from the output sent to the user, and add it to the appropriate protocol fee accumulator. The `withdraw_protocol_fees` method should be admin-only, send both accumulated fee balances via inner transactions, and reset the accumulators to zero.
 
+4. **(Analyze)** The TWAP oracle stops accumulating if no transactions interact with the pool. If there is a 24-hour gap with no swaps or liquidity operations, the TWAP becomes stale. Design a public `poke_twap` method that allows anyone (a keeper bot) to trigger a TWAP update without performing a swap. What should the method do, and what incentive does a keeper have to call it?
+
 ## Further Reading
 
 - [Algorand Python Operations](https://dev.algorand.co/algokit/languages/python/lg-ops/) --- mulw, divmodw, bsqrt, and other op module functions
+- [Uniswap V2 TWAP Oracle](https://docs.uniswap.org/contracts/v2/guides/smart-contract-integration/building-an-oracle) --- the reference implementation for cumulative price tracking
 - [ARC-28: Event Logging](https://dev.algorand.co/arc-standards/arc-0028/) --- standardized event emission for off-chain indexing
 - [App Deployment](https://dev.algorand.co/algokit/utils/python/app-deploy/) --- idempotent deployment strategies
 - [Transaction Composer](https://dev.algorand.co/algokit/utils/python/transaction-composer/) --- building atomic groups with AlgoKit Utils
@@ -3366,11 +3521,11 @@ Your AMM works. Liquidity providers deposit tokens, traders swap against the poo
 
 This is the problem *yield farming* solves. In a yield farming system, LPs lock their LP tokens in a separate staking contract for a fixed duration --- 30 days, 90 days, a year --- and earn additional reward tokens on top of the trading fees they already collect from the pool. Longer lock-ups earn proportionally higher rewards, creating a direct incentive for the sticky liquidity that healthy markets depend on.
 
-We are going to build a staking contract that composes with the AMM from the previous chapter. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the AMM's global state to verify that the LP tokens are genuine, demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system, and adds a TWAP (time-weighted average price) oracle as production polish.
+We are going to build a staking contract that composes with the AMM from the previous chapter. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the AMM's global state to verify that the LP tokens are genuine and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
 
 Two core concepts drive this chapter. First, the *reward accumulator pattern* --- a mathematical technique (popularized by Synthetix) that distributes rewards fairly across any number of stakers without iterating over them. Second, *smart contract composition* --- reading another contract's state to make trust decisions, a fundamental DeFi building block that connects isolated contracts into composable protocols.
 
-By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and a manipulation-resistant price oracle.
+By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract verification of LP token provenance.
 
 > **Note:** This chapter assumes you have a working AMM from the previous chapter. The farming contract reads the AMM's global state and accepts its LP tokens. If you skipped the AMM chapter, go back and build it first --- the farming contract will not compile or deploy without it.
 
@@ -3830,7 +3985,7 @@ class StakePosition(arc4.Struct):
 
 Five `arc4.UInt64` fields = 40 bytes. Box key: `b"s_"` prefix (2 bytes) + 32-byte address = 34 bytes. Box MBR: $2{,}500 + 400 \times (34 + 40) = 32{,}100$ microAlgos per staker.
 
-The global state schema uses 11 `UInt64` slots and 3 `Bytes` slots (the admin address plus two `BigUInt` TWAP cumulatives). Since the default schema allows up to 64 of each, we have plenty of room. The contract uses `extra_pages=1` to accommodate the approval program --- the accumulator logic, multiplier math, and TWAP oracle push us past the 2,048-byte base limit.
+The global state schema uses 9 `UInt64` slots and 1 `Bytes` slot (the admin address). Since the default schema allows up to 64 of each, we have plenty of room.
 
 > **Note:** `Global.latest_timestamp` is the timestamp of the block containing the current transaction, not the wall-clock time. It is accurate to within about 25 seconds and is set by the block proposer. For a staking contract with lock periods measured in days, this precision is more than adequate. Do not use timestamps for sub-minute precision requirements.
 
@@ -3839,7 +3994,7 @@ The global state schema uses 11 `UInt64` slots and 3 `Bytes` slots (the admin ad
 ```python
 from algopy import (
     ARC4Contract, Account, Application, Asset,
-    BigUInt, Bytes, Global, GlobalState, Txn,
+    Bytes, Global, GlobalState, Txn,
     UInt64, arc4, gtxn, itxn, op, subroutine,
     BoxMap,
 )
@@ -4142,35 +4297,36 @@ amm_factory = algorand.client.get_app_factory(
     app_spec=amm_spec,
     default_sender=admin.address,
 )
-amm_client, _ = amm_factory.deploy()
+amm_client, _ = amm_factory.send.bare.create()
 print(f"AMM App ID: {amm_client.app_id}")
 
-composer = algorand.new_group()
-composer.add_payment(
-    algokit_utils.PaymentParams(
-        sender=admin.address,
-        receiver=amm_client.app_address,
-        amount=algokit_utils.AlgoAmount.from_micro_algo(
-            500_000
-        ),
-        note=os.urandom(8),
-    )
-)
-composer.add_app_call_method_call(
-    amm_client.params.call(
-        algokit_utils.AppClientMethodCallParams(
-            method="bootstrap",
-            args=[token_a, token_b],
-            static_fee=(
-                algokit_utils.AlgoAmount.from_micro_algo(
-                    5000
-                )
+# Bootstrap: the seed payment is the first ABI argument.
+# The SDK places it as the preceding transaction in the
+# group automatically.
+result = amm_client.send.call(
+    algokit_utils.AppClientMethodCallParams(
+        method="bootstrap",
+        args=[
+            algokit_utils.PaymentParams(
+                sender=admin.address,
+                receiver=amm_client.app_address,
+                amount=(
+                    algokit_utils.AlgoAmount.from_micro_algo(
+                        500_000
+                    )
+                ),
             ),
-        )
+            token_a,
+            token_b,
+        ],
+        static_fee=(
+            algokit_utils.AlgoAmount.from_micro_algo(
+                5000
+            )
+        ),
     )
 )
-result = composer.send()
-lp_token_id = result.returns[-1].return_value
+lp_token_id = result.abi_return
 print(f"LP Token ID: {lp_token_id}")
 
 # --- Step 3: Deploy the farming contract ---
@@ -4182,10 +4338,10 @@ farm_factory = algorand.client.get_app_factory(
     app_spec=farm_spec,
     default_sender=admin.address,
 )
-farm_client, _ = farm_factory.send.create.bare(
-    params=algokit_utils.AppClientBareCallCreateParams(
-        extra_program_pages=1,
-    ),
+farm_client, _ = farm_factory.send.create(
+    algokit_utils.AppFactoryCreateMethodCallParams(
+        method="create",
+    )
 )
 print(f"Farm App ID: {farm_client.app_id}")
 
@@ -4415,7 +4571,7 @@ The MBR refund is 32,100 microAlgos --- the exact cost of the position box. When
 
 > **Warning:** The `del self.stakes[key]` call and the MBR refund payment happen *after* the state update (`total_effective -= effective`). If the box deletion or payment fails (e.g., insufficient contract balance), the entire transaction rolls back atomically --- the state update is reverted too. This is safe on Algorand because of atomic rollback semantics, but it means you must ensure the contract always has enough Algo to cover the refund.
 
-Notice the checks-effects-interactions ordering: we update state (`total_effective -= effective`) before executing inner transactions (LP return, reward send, MBR refund). On Algorand, reentrancy is impossible --- inner transactions do not trigger callbacks. But maintaining this ordering prevents a subtler class of bugs: if the inner transaction reads contract state (e.g., via a cross-contract call), it sees the already-updated values. This is a good habit to carry across chains.
+Notice that the accumulator update (`_update_reward()`) happens before computing the user's pending reward and before modifying the user's stake. This ordering is mathematically necessary --- the global `reward_per_token` must reflect the current state of the world before individual positions are calculated against it. This is an algorithmic correctness requirement, not a reentrancy guard (reentrancy is impossible on Algorand --- inner transactions do not trigger callbacks).
 
 The `unstake` method requires a client-side fee that covers the outer transaction plus up to 3 inner transactions (LP return, reward send, MBR refund):
 
@@ -4432,154 +4588,19 @@ farm_client.send.call(
 ```
 
 
-## TWAP Position Valuation
+## Consuming the AMM's TWAP Oracle
 
-> **Note:** The core farming contract is complete. This section adds a production feature --- price oracle support --- but is not required to understand or deploy the staking contract. Feel free to skip it on first reading and return after the Testing section.
+The AMM from the previous chapter tracks cumulative price accumulators and exposes a `get_twap_price` read-only method. The farming contract does not need to maintain its own oracle --- it can consume the AMM's TWAP for position valuation.
 
-The AMM chapter warned that spot prices read from a single pool are manipulable. An attacker can execute a large swap, trigger a price-dependent action in the same atomic group, and swap back. The farming contract does not currently use prices for anything, but a natural extension --- and one that many production farms implement --- is *position valuation*: displaying the dollar value of a staked position using the AMM's price data.
+A natural extension of the farming contract is displaying the dollar value of a staked position. A frontend would:
 
-To do this safely, we need a **Time-Weighted Average Price (TWAP)** --- a price that reflects the average over many blocks, not just the current instant.
+1. **Snapshot**: Read the AMM's raw global state --- `cumulative_price_a` and `twap_last_update` --- via the algod REST API (`GET /v2/applications/{app-id}`). Store both values along with the current wall-clock time. This is a free API read, not a contract call.
+2. **Query**: After the desired TWAP window has elapsed (e.g., 1 hour), call `get_twap_price` via `simulate`, passing the stored cumulative price and timestamp as arguments. The method computes the time-weighted average over the window and returns it as a `UInt64`.
+3. **Value**: Multiply the TWAP price by the user's staked LP amount to estimate the position's dollar value.
 
-### Why Spot Prices Are Dangerous
+Because `get_twap_price` performs inline accumulation before computing the difference, the returned TWAP is current even if no swap, mint, or burn has occurred since the snapshot. This is a key advantage of placing the oracle in the AMM rather than in each consumer: one well-trafficked pool feeds price data to any number of downstream contracts.
 
-Consider an AMM pool with reserves of 10,000 USDC and 10,000 ALGO. The spot price is 1.0 ALGO/USDC. An attacker with 100,000 USDC swaps into the pool, temporarily pushing the price to approximately 0.01 ALGO/USDC (the pool now holds 110,000 USDC and ~909 ALGO). If a liquidation contract checks the spot price at this moment, it would incorrectly conclude that ALGO is nearly worthless and liquidate healthy positions. The attacker then swaps back, restoring the price.
-
-This entire attack fits in a single atomic group. The spot price is correct *at that instant* but wildly unrepresentative of the true market price.
-
-### Cumulative Price Tracking
-
-A TWAP oracle tracks the cumulative sum of prices over time. The *cumulative price* at any moment is:
-
-$$cumulative\_price_t = cumulative\_price_{t-1} + spot\_price \times \Delta t$$
-
-The TWAP between two timestamps $t_1$ and $t_2$ is:
-
-$$TWAP = \frac{cumulative\_price_{t_2} - cumulative\_price_{t_1}}{t_2 - t_1}$$
-
-An attacker who manipulates the spot price for one block (2.85 seconds) barely affects a 1-hour TWAP --- their manipulation contributes only $2.85 / 3600 \approx 0.08\%$ of the average.
-
-### BigUInt: When UInt64 Is Not Enough
-
-Until now, every integer in this book has been a `UInt64` --- 64-bit unsigned, with `mulw`/`divmodw` handling 128-bit intermediates. Algorand Python also provides `BigUInt`, an arbitrary-precision integer type (up to 512 bits) that works with standard Python operators (`+`, `-`, `*`, `//`) rather than `mulw`/`divmodw`. `BigUInt` arithmetic compiles to the AVM's `b+`, `b*`, `b/` opcodes, which cost roughly 10--20 opcodes each (compared to 1 for `UInt64` operations). `BigUInt` values are stored in global state as byte-slice slots, not uint slots, so they count toward your `global_bytes` schema allocation. Use `BigUInt` when your values can exceed $2^{64}$; stick with `UInt64` and wide arithmetic when they cannot.
-
-The cumulative price grows without bound. With a spot price of 1,000,000 (scaled by $10^6$) and 1 year of accumulation:
-
-$$1{,}000{,}000 \times 31{,}536{,}000 = 3.15 \times 10^{13}$$
-
-This fits in `UInt64`. But at higher prices or over longer periods --- or with a higher precision scale factor --- the cumulative value can exceed $2^{64}$. Uniswap V2's TWAP famously uses `uint224` for cumulative prices precisely because `uint256` overflow would corrupt the average.
-
-On Algorand, `BigUInt` supports up to 512 bits --- more than enough for any practical TWAP accumulation. The tradeoff is that `BigUInt` arithmetic costs roughly 10x more opcodes than `UInt64`. For a single TWAP update per transaction (two multiplications, one addition), this is approximately 30 extra opcodes --- negligible within a 700-opcode budget.
-
-We add two `BigUInt` global state fields for the cumulative price of each asset:
-
-```python
-    # In __init__:
-    self.cumulative_price_a = GlobalState(BigUInt(0))
-    self.cumulative_price_b = GlobalState(BigUInt(0))
-    self.twap_last_update = GlobalState(UInt64(0))
-```
-
-### The TWAP Update Subroutine
-
-This method should be called during `stake`, `unstake`, and `claim` --- any transaction that interacts with the farm. It reads the AMM's current reserves and accumulates the price.
-
-```python
-    @subroutine
-    def _update_twap(self) -> None:
-        last = self.twap_last_update.value
-        now = Global.latest_timestamp
-        if last == UInt64(0) or now <= last:
-            self.twap_last_update.value = now
-            return
-
-        delta_t = now - last
-
-        # Read AMM reserves
-        amm = Application(self.amm_app_id.value)
-        res_a, a_ok = op.AppGlobal.get_ex_uint64(
-            amm, Bytes(b"reserve_a")
-        )
-        res_b, b_ok = op.AppGlobal.get_ex_uint64(
-            amm, Bytes(b"reserve_b")
-        )
-        assert a_ok and b_ok, "AMM reserves unavailable"
-        assert res_a > UInt64(0) and res_b > UInt64(0)
-
-        # price_a = reserve_b * PRECISION / reserve_a
-        # price_b = reserve_a * PRECISION / reserve_b
-        # Accumulate: cumulative += price * delta_t
-        price_a = (
-            BigUInt(res_b)
-            * BigUInt(PRECISION)
-            // BigUInt(res_a)
-        )
-        price_b = (
-            BigUInt(res_a)
-            * BigUInt(PRECISION)
-            // BigUInt(res_b)
-        )
-
-        self.cumulative_price_a.value += (
-            price_a * BigUInt(delta_t)
-        )
-        self.cumulative_price_b.value += (
-            price_b * BigUInt(delta_t)
-        )
-        self.twap_last_update.value = now
-```
-
-To integrate TWAP tracking, add `self._update_twap()` after every `self._update_reward()` call in `stake`, `claim`, `extend_lock`, and `unstake`. The AMM app must be included in the foreign apps array (or access list) of every transaction that triggers a TWAP update, since `_update_twap` reads the AMM's reserve state via `op.AppGlobal.get_ex_uint64`.
-
-### Reading the TWAP
-
-A read-only method returns the average price over a caller-specified window. The caller provides the cumulative price snapshot from their last interaction (stored client-side or in a box):
-
-```python
-    @arc4.abimethod(readonly=True)
-    def get_twap_price(
-        self,
-        old_cumulative_a: arc4.UInt512,
-        old_timestamp: UInt64,
-    ) -> UInt64:
-        """Returns TWAP of asset B in terms of A."""
-        current = self.cumulative_price_a.value
-        old = old_cumulative_a.native
-        assert current > old, "No price data"
-        elapsed = (
-            Global.latest_timestamp - old_timestamp
-        )
-        assert elapsed > UInt64(0), "Zero elapsed"
-
-        diff = current - old
-        twap = diff // BigUInt(elapsed)
-        assert twap < BigUInt(2**64), "TWAP overflow"
-        return op.btoi(twap.bytes)
-```
-
-> **Note:** The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display position valuations in real time.
-
-> **Warning:** The `op.btoi` call requires exactly 8 bytes of input and the value must fit in `UInt64`. The `assert twap < BigUInt(2**64)` guard ensures the TWAP result has not overflowed 64-bit range. With `PRECISION = 10^9` and typical asset prices, this bound is safe for years of accumulation. If you use a higher precision scale factor or expect extreme price ratios, return a `BigUInt` instead of converting to `UInt64`.
-
-### EVM vs. AVM Overflow Comparison
-
-On the EVM, Uniswap V2's TWAP uses `uint224` for cumulative prices. Solidity's `uint256` arithmetic handles the intermediate products natively. On the AVM, `UInt64` is the native type and would overflow within days at moderate prices. `BigUInt` (up to 512 bits) provides ample headroom but requires explicit use --- there is no automatic promotion. This is a case where the AVM's constraints force you to think about overflow earlier in the design process, which is arguably a safety benefit.
-
-### Manipulation Resistance
-
-A 1-hour TWAP window requires an attacker to sustain the manipulated price for the full hour to meaningfully distort the average. Sustaining the manipulation means keeping a large amount of capital locked in the pool for that duration --- capital that is exposed to arbitrageurs who would trade against the distortion for profit. The cost of manipulation scales linearly with the TWAP window length and the pool's liquidity depth. For pools with meaningful TVL and a 1-hour+ window, TWAP manipulation is economically irrational.
-
-**Quantifying the cost.** Suppose a pool has $1M in total value locked (500K USDC + equivalent ALGO). To move the spot price by 10%, an attacker needs to add approximately $52,600 in one-sided liquidity (from the constant product formula). To sustain this for 1 hour, that capital is locked and exposed to ~$5,260 in arbitrage losses (10% of the capital, since arbitrageurs will trade the price back toward the true market value). The TWAP distortion from this 1-hour manipulation is only $10\% \times (2.85 / 3600) \approx 0.008\%$ per block of manipulation --- negligible. The attacker would need to sustain the manipulation for the entire window to achieve meaningful distortion, at a cost far exceeding any plausible profit from the oracle manipulation.
-
-### Integrating the TWAP with the Farming Contract
-
-To use the TWAP for position valuation, a frontend would:
-
-1. Store the cumulative price and timestamp from a previous read (e.g., 1 hour ago)
-2. Call `get_twap_price` via `simulate` with the stored values
-3. Multiply the TWAP price by the user's staked LP amount to get a dollar valuation
-4. Display this as the position's estimated value
-
-The farming contract itself does not make decisions based on the TWAP --- it is a read-only oracle for external consumers. If you wanted to build a liquidation system or a dynamic reward rate based on LP token value, the TWAP provides the manipulation-resistant price feed needed to do so safely.
+If a farming contract needed to make on-chain decisions based on price (e.g., dynamic reward rates or position liquidation), it could read the AMM's cumulative price state directly via `op.AppGlobal.get_ex_bytes` (since `BigUInt` values are stored as byte slices). It would store its own periodic snapshots and compute the TWAP over its desired window. For our farming contract, position valuation is purely a frontend concern, so no additional on-chain code is needed.
 
 
 ## Testing
@@ -4719,10 +4740,10 @@ In this chapter you learned to:
 - Use `op.mulw` and `op.divmodw` for two-stage wide arithmetic that prevents overflow in reward calculations
 - Design duration-based multipliers that incentivize long-term liquidity commitment
 - Read another contract's global state via `op.AppGlobal.get_ex_uint64` for cross-contract verification
-- Build a TWAP oracle using `BigUInt` cumulative price tracking for manipulation-resistant price feeds
+- Consume the AMM's TWAP oracle for manipulation-resistant position valuation
 - Manage the full staking lifecycle: stake, claim, extend, unstake with MBR refund
 
-This chapter extended the AMM from the previous chapter into a two-contract system --- the first example of smart contract composition in this book. The farming contract does not modify the AMM; it reads its state and accepts its LP tokens. This *composability* --- contracts interacting through shared state and token standards without needing to trust each other --- is what makes DeFi protocols interoperable. Any contract that holds LP tokens can integrate with the farm. Any contract that needs a price feed can read the TWAP. A lending protocol could accept staked LP positions as collateral by reading the farming contract's box state. Each contract is a building block, and the system's value comes from the combinations.
+This chapter extended the AMM from the previous chapter into a two-contract system --- the first example of smart contract composition in this book. The farming contract does not modify the AMM; it reads its state and accepts its LP tokens. This *composability* --- contracts interacting through shared state and token standards without needing to trust each other --- is what makes DeFi protocols interoperable. Any contract that holds LP tokens can integrate with the farm. Any contract that needs a price feed can read the AMM's TWAP oracle. A lending protocol could accept staked LP positions as collateral by reading the farming contract's box state. Each contract is a building block, and the system's value comes from the combinations.
 
 The accumulator pattern you learned here appears in virtually every DeFi staking system: Synthetix's StakingRewards, Curve's gauge system, Sushiswap's MasterChef, and their Algorand equivalents. The specific numbers change (precision factors, multiplier curves, reward schedules), but the core insight --- track a global per-unit accumulator and diff it against per-user snapshots --- is universal.
 
@@ -4732,7 +4753,6 @@ The accumulator pattern you learned here appears in virtually every DeFi staking
 | Wide arithmetic | Two-stage mulw/divmodw for overflow-safe accumulator updates |
 | Duration multipliers | Linear scaling, effective balance, SCALE factor |
 | Composition | Cross-contract state reads, foreign apps array, get_ex_uint64 |
-| TWAP oracle | Cumulative price tracking, BigUInt, manipulation resistance |
 | Position management | Box lifecycle, MBR refund on cleanup, double-stake prevention |
 
 In the next chapter, we cover common patterns and idioms that apply across all Algorand DeFi contracts --- fee subsidization strategies, MBR lifecycle management, canonical ordering, opcode budget management, and event emission for off-chain indexing.
@@ -4746,16 +4766,13 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 3. **(Analyze)** The linear multiplier gives 1x at 30 days and 4x at 365 days. Consider an alternative: a square-root multiplier where $multiplier = \sqrt{duration / MIN\_LOCK} \times SCALE$. A 30-day lock gets 1x, a 120-day lock gets 2x, a 365-day lock gets ~3.49x. What are the game-theoretic implications? Does this favor short-term or long-term stakers compared to linear?
 
-4. **(Analyze)** The TWAP oracle stops accumulating if no transactions interact with the farming contract. If there is a 24-hour gap with no stakes, claims, or unstakes, the TWAP becomes stale. Design a mechanism that allows anyone (a keeper bot) to poke the TWAP update without staking, and analyze the gas cost and incentive structure.
-
-5. **(Create)** Add an on-chain randomness bonus using `op.Block.blk_seed`. Every time a user claims, the contract reads the block seed from 2 rounds ago and hashes it with the user's address. If the resulting hash (mod 100) is less than 5, the user receives a 10% bonus on their claim. Implement the method and explain why reading the seed from 2 rounds ago (rather than the current round) prevents the user from choosing when to submit their claim based on a known seed.
+4. **(Create)** Add an on-chain randomness bonus using `op.Block.blk_seed`. Every time a user claims, the contract reads the block seed from 2 rounds ago and hashes it with the user's address. If the resulting hash (mod 100) is less than 5, the user receives a 10% bonus on their claim. Implement the method and explain why reading the seed from 2 rounds ago (rather than the current round) prevents the user from choosing when to submit their claim based on a known seed.
 
 
 ## Further Reading
 
 - [Synthetix StakingRewards](https://github.com/Synthetixio/synthetix/blob/develop/contracts/StakingRewards.sol) --- the original Solidity implementation of the reward accumulator pattern
 - [Curve Finance](https://curve.fi/whitepaper) --- multi-token gauge reward systems with vote-escrow multipliers
-- [Uniswap V2 TWAP Oracle](https://docs.uniswap.org/contracts/v2/guides/smart-contract-integration/building-an-oracle) --- the reference implementation for cumulative price tracking
 - [Algorand Python Storage](https://dev.algorand.co/algokit/languages/python/lg-storage/) --- BoxMap, GlobalState, and BigUInt storage patterns
 - [Algorand Python Operations](https://dev.algorand.co/algokit/languages/python/lg-ops/) --- mulw, divmodw, and wide arithmetic reference
 - [Cross-App State Reading](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) --- get_ex_uint64 and foreign app references
@@ -4769,7 +4786,7 @@ Before starting the next chapter, you should be able to:
 - [ ] Implement the reward-per-token accumulator with correct wide arithmetic
 - [ ] Calculate a user's pending rewards given their snapshot and the current accumulator value
 - [ ] Read another contract's global state and handle the case where the key does not exist
-- [ ] Describe how TWAP resists single-block price manipulation and why BigUInt is needed for cumulative prices
+- [ ] Explain how the farming contract consumes the AMM's TWAP oracle for position valuation
 - [ ] Manage box lifecycle with creation, updates, deletion, and MBR refund
 
 If any of these are unclear, revisit the relevant section before proceeding.
@@ -4891,18 +4908,28 @@ The user experience becomes: sign one or two transactions, pay zero Algo. The re
 A LogicSig (Logic Signature) is a program that authorizes transactions without a private key signature. A sponsor can create a delegated LogicSig that approves fee payments for specific contract interactions:
 
 ```python
-from algopy import Application, TransactionType, Txn, UInt64, gtxn, logicsig, TemplateVar
+from algopy import (
+    Application, Global, TransactionType, Txn, UInt64,
+    gtxn, logicsig, TemplateVar,
+)
 
 # LogicSig program: "I authorize payment transactions that:"
 # - Are payment type (not asset transfer, not app call)
 # - Have amount = 0 (just fee coverage, no value transfer)
 # - Are grouped with a call to pool app ID X
 # - Have fee below 10,000 microAlgos (cap exposure)
-
-POOL_APP_ID = TemplateVar[UInt64]("POOL_APP_ID")
+# - Cannot close out balance, rekey, or be used in unexpected groups
 
 @logicsig
 def fee_sponsor() -> bool:
+    POOL_APP_ID = TemplateVar[UInt64]("POOL_APP_ID")
+
+    # --- Security checks (mandatory for every LogicSig) ---
+    assert Txn.close_remainder_to == Global.zero_address
+    assert Txn.rekey_to == Global.zero_address
+    assert Global.group_size == UInt64(2)
+
+    # --- Business logic ---
     assert Txn.type_enum == TransactionType.Payment
     assert Txn.amount == 0
     assert Txn.fee < UInt64(10000)
@@ -5136,7 +5163,7 @@ itxn.AssetTransfer(
 In Algorand Python, use `@subroutine` for shared logic that should be compiled to a single TEAL subroutine and called from multiple methods. Without this, the compiler inlines the code at every call site, bloating program size.
 
 ```python
-from algopy import subroutine, UInt64, Global
+from algopy import Global, UInt64, gtxn, subroutine
 
 @subroutine
 def calculate_output(
@@ -5151,9 +5178,15 @@ def calculate_output(
     return numerator // denominator
 
 @subroutine
-def verify_no_close_or_rekey(txn: gtxn.TransactionBase) -> None:
-    """Verify no close-to or rekey attacks in a grouped transaction."""
+def verify_payment_safe(txn: gtxn.PaymentTransaction) -> None:
+    """Verify no close-to or rekey attacks on a payment transaction."""
     assert txn.close_remainder_to == Global.zero_address
+    assert txn.rekey_to == Global.zero_address
+
+@subroutine
+def verify_asset_transfer_safe(txn: gtxn.AssetTransferTransaction) -> None:
+    """Verify no close-to or rekey attacks on an asset transfer."""
+    assert txn.asset_close_to == Global.zero_address
     assert txn.rekey_to == Global.zero_address
 ```
 
@@ -5192,23 +5225,23 @@ group = [
 ]
 ```
 
-### Option B: Use `op.ensure_budget()` in Algorand Python
+### Option B: Use `ensure_budget()` in Algorand Python
 
 This is the cleaner approach --- the compiler automatically issues inner app calls to pad the budget:
 
 ```python
-from algopy import op
+from algopy import OpUpFeeSource, ensure_budget
 
 @arc4.abimethod
 def complex_operation(self) -> None:
     # Request 2,800 opcodes minimum available
     # PuyaPy inserts inner app calls as needed to reach this budget
-    op.ensure_budget(UInt64(2800), UInt64(0))
+    ensure_budget(2800, OpUpFeeSource.GroupCredit)
 
     # ... expensive computation that needs the extra budget ...
 ```
 
-The second parameter controls the fee source (`0` = caller-funded via fee pooling, `1` = from contract balance). Always use `0` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See [Algorand Python opcode budget guide](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/).)
+The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = caller-funded via fee pooling, `OpUpFeeSource.AppAccount` = from contract balance). Always use `GroupCredit` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See [Algorand Python opcode budget guide](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/).)
 
 **How many opcodes does your AMM need?** A standard constant product swap with fee calculation, safety checks, and one inner transaction typically fits within 700 opcodes. Add-liquidity with the square root calculation for initial minting may need ~1,400. Budget padding is more commonly needed for operations involving multiple box reads/writes or cryptographic operations.
 
@@ -5292,7 +5325,7 @@ self.reserve_b.value = self.reserve_b.value - output_amount
 
 ```python
 # Read actual balance, calculate delta
-actual_balance = get_asset_holding(Global.current_application_address, asset)
+actual_balance = asset.balance(Global.current_application_address)
 input_amount = actual_balance - last_known_reserve
 ```
 
@@ -5762,6 +5795,8 @@ def limit_order() -> bool:
     return True
 ```
 
+> **Why no genesis hash check?** The security checklist in Part 1 requires a `Global.genesis_hash` check to prevent cross-network replay. This LogicSig omits it because the `ORDER_BOOK_APP` template variable already pins the LogicSig to a specific network --- application IDs are unique per network, so a LogicSig compiled with a MainNet app ID is useless on TestNet (and vice versa). The app ID check on line `assert gtxn.Transaction(2).app_id == Application(ORDER_BOOK_APP)` provides equivalent network binding.
+
 ### What the LogicSig Validates vs What It Delegates
 
 The LogicSig handles **trustless enforcement of the user's trading rules**: correct asset, acceptable price, maximum amount, expiry, and safety. It does NOT handle order tracking, partial fill accounting, or double-fill prevention --- that's the smart contract's job.
@@ -5827,6 +5862,7 @@ class LimitOrderBook(ARC4Contract):
     @arc4.abimethod
     def initialize(self, fee_bps: UInt64) -> None:
         assert Txn.sender == Global.creator_address
+        assert self.admin.value == Bytes()  # One-time initialization only
         self.admin.value = Txn.sender.bytes
         self.fee_bps.value = fee_bps
 ```
@@ -5847,6 +5883,7 @@ The `place_order` method registers a new order in box storage. The seller calls 
         mbr_payment: gtxn.PaymentTransaction,
     ) -> UInt64:
         """Register a new limit order."""
+        assert Global.group_size == UInt64(2), "Expected payment + app call"
         assert self.paused.value == UInt64(0)
         assert price_d > UInt64(0)  # No division by zero
         assert max_amount > UInt64(0)
@@ -5904,6 +5941,7 @@ The `fill_order` method is the most complex in this project --- it validates the
         sell_txn: gtxn.AssetTransferTransaction,
     ) -> None:
         """Execute a fill against an open order."""
+        assert Global.group_size == UInt64(3), "Expected 3 transactions"
         assert self.paused.value == UInt64(0)
 
         # Load and unpack order data
@@ -6263,8 +6301,9 @@ lsig_teal = compile_limit_order(
     sell_asset=usdc_id, buy_asset=0,
     price_n=250_000, price_d=1_000_000,
     max_sell=500_000_000,
-    expiry_round=algorand.client.algod.status()["last-round"] + 1000,
+    expiry_round=algorand.client.algod.status()["last-round"] + 5000,
 )
+expiry_round = algorand.client.algod.status()["last-round"] + 5000
 compiled = algorand.client.algod.compile(lsig_teal)
 program = base64.b64decode(compiled["result"])
 lsig = transaction.LogicSigAccount(program)
@@ -6275,55 +6314,88 @@ order_result = book_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="place_order",
         args=[usdc_id, 0, 250_000, 1_000_000, 500_000_000,
-              algorand.client.algod.status()["last-round"] + 1000,
+              expiry_round,
               encoding.decode_address(compiled["hash"]),
               fund_mbr(admin, book_client)],
         sender=alice.address,
+        box_references=[b"o_" + (1).to_bytes(8, "big")],
     )
 )
 print(f"Order placed: ID {order_result.abi_return}")
 ```
 
-Finally, a keeper fills the order by constructing the 3-transaction atomic group --- buy-side payment, LogicSig-authorized sell-side transfer, and order book app call:
+Finally, a keeper fills the order by constructing the 3-transaction atomic group --- buy-side payment, LogicSig-authorized sell-side transfer, and order book app call. Because `fill_order` has signature `fill_order(uint64,uint64,axfer)void`, the sell-side transfer is a **transaction argument** (not an `app_args` value) and must be passed via the `AtomicTransactionComposer`:
 
 ```python
 keeper = algorand.account.random()
 fund_account(algorand, admin, keeper, algo=200_000_000)  # 200 ALGO
+# Keeper must opt into the sell asset to receive it
+algorand.send.asset_opt_in(
+    algokit_utils.AssetOptInParams(
+        sender=keeper.address, asset_id=usdc_id
+    )
+)
 
 fill_amount = 500_000_000  # Fill the full order
 buy_amount = 125_000_000   # 0.25 ALGO per USDC x 500 USDC = 125 ALGO
 order_id = order_result.abi_return
 
+from algosdk.atomic_transaction_composer import (
+    AtomicTransactionComposer, TransactionWithSigner,
+    AccountTransactionSigner, LogicSigTransactionSigner,
+)
+from algosdk.abi import Method
+
+atc = AtomicTransactionComposer()
 sp = algorand.client.algod.suggested_params()
+sp.last = min(sp.last, expiry_round)  # Cap to LogicSig expiry
+sp.fee = 0
+sp.flat_fee = True  # Fee pooling: app call covers all fees
+
+# [0] Keeper's buy-side payment (precedes the ATC-managed txns)
 buy_txn = transaction.PaymentTxn(
     sender=keeper.address, sp=sp,
     receiver=alice.address, amt=buy_amount,
 )
+atc.add_transaction(TransactionWithSigner(
+    buy_txn, AccountTransactionSigner(keeper.private_key),
+))
+
+# [1] LogicSig-authorized sell-side asset transfer, passed as
+# the `axfer` transaction argument to fill_order
 sell_txn = transaction.AssetTransferTxn(
     sender=alice.address, sp=sp,
     receiver=keeper.address, amt=fill_amount, index=usdc_id,
 )
+sell_signer = LogicSigTransactionSigner(lsig)
+
+# [2] ARC-4 app call --- the ATC encodes order_id and fill_amount
+# as ABI arguments and attaches sell_txn as the txn reference
 sp_fee = algorand.client.algod.suggested_params()
 sp_fee.fee = 4000
 sp_fee.flat_fee = True
-app_txn = transaction.ApplicationCallTxn(
-    sender=keeper.address, sp=sp_fee,
-    index=book_client.app_id,
-    on_complete=transaction.OnComplete.NoOpOC,
-    app_args=[b"fill_order", order_id.to_bytes(8, "big"),
-              fill_amount.to_bytes(8, "big")],
-    foreign_assets=[usdc_id], accounts=[alice.address],
-    boxes=[(book_client.app_id, b"o_" + order_id.to_bytes(8, "big"))],
+
+fill_method = Method.from_signature(
+    "fill_order(uint64,uint64,axfer)void"
+)
+atc.add_method_call(
+    app_id=book_client.app_id,
+    method=fill_method,
+    sender=keeper.address,
+    sp=sp_fee,
+    signer=AccountTransactionSigner(keeper.private_key),
+    method_args=[
+        order_id,
+        fill_amount,
+        TransactionWithSigner(sell_txn, sell_signer),
+    ],
+    foreign_assets=[usdc_id],
+    accounts=[alice.address],
+    boxes=[(book_client.app_id,
+            b"o_" + order_id.to_bytes(8, "big"))],
 )
 
-gid = transaction.calculate_group_id([buy_txn, sell_txn, app_txn])
-buy_txn.group = sell_txn.group = app_txn.group = gid
-
-signed_buy = buy_txn.sign(keeper.private_key)
-signed_sell = transaction.LogicSigTransaction(sell_txn, lsig)
-signed_app = app_txn.sign(keeper.private_key)
-
-algorand.client.algod.send_transactions([signed_buy, signed_sell, signed_app])
+atc.execute(algorand.client.algod, wait_rounds=4)
 print("Order filled! Alice received ALGO, keeper received USDC.")
 ```
 
@@ -6513,12 +6585,9 @@ Here is how the order book contract could verify an AMM price directly, rather t
     ) -> UInt64:
         """Read the current price from an AMM pool's global state."""
         # Read the AMM's reserves via cross-app state read
-        reserve_a_val, reserve_a_exists = op.app_global_get_ex(amm_app, Bytes(b"reserve_a"))
-        reserve_b_val, reserve_b_exists = op.app_global_get_ex(amm_app, Bytes(b"reserve_b"))
+        reserve_a, reserve_a_exists = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_a"))
+        reserve_b, reserve_b_exists = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_b"))
         assert reserve_a_exists and reserve_b_exists, "AMM state not found"
-
-        reserve_a = op.btoi(reserve_a_val)
-        reserve_b = op.btoi(reserve_b_val)
 
         # Price = reserve_b / reserve_a (as a ratio in base units)
         # Return reserve_b per 1 unit of reserve_a (scaled by 10^6 for precision)
@@ -6527,7 +6596,7 @@ Here is how the order book contract could verify an AMM price directly, rather t
         return price_scaled
 ```
 
-The `op.app_global_get_ex` opcode reads another application's global state without calling it. The target app must be in the transaction's foreign apps array. This is a read-only operation --- you cannot modify another app's state, only read it. (See [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/) for foreign reference requirements.)
+The `op.AppGlobal.get_ex_uint64` opcode reads another application's global state without calling it. The target app must be in the transaction's foreign apps array. This is a read-only operation --- you cannot modify another app's state, only read it. (See [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/) for foreign reference requirements.)
 
 For operations that need to *modify* another contract's state, use an inner `ApplicationCall`:
 
@@ -6884,7 +6953,14 @@ class GovernanceVoting(ARC4Contract):
         self.commitments = BoxMap(arc4.Address, Bytes, key_prefix=b"c_")
         self.proof_status = BoxMap(arc4.Address, UInt64, key_prefix=b"p_")
         self.tallies = BoxMap(arc4.UInt64, UInt64, key_prefix=b"t_")
+
+    @arc4.baremethod(allow_actions=["UpdateApplication", "DeleteApplication"])
+    def reject_lifecycle(self) -> None:
+        """Reject update and delete --- this contract is immutable."""
+        assert False, "Contract is immutable"
 ```
+
+The `reject_lifecycle` bare method explicitly rejects `UpdateApplication` and `DeleteApplication` on-completion actions. Without this, the default ARC4Contract routing would reject them anyway (no handler registered), but an explicit rejection with a clear error message is a security best practice --- it makes the contract's immutability self-documenting and auditable.
 
 The `initialize` method sets up the proposal parameters and creates tally boxes for each choice. Note the fixed-maximum loop pattern --- the AVM requires compile-time constant loop bounds, so we iterate up to 16 and break early:
 
@@ -6944,6 +7020,7 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
     @arc4.abimethod
     def advance_to_prove_phase(self) -> None:
         """Transition from commit to prove phase."""
+        assert Txn.sender == Global.creator_address
         assert self.phase.value == UInt64(PHASE_COMMIT)
         assert Global.round > self.commit_end_round.value
         self.phase.value = UInt64(PHASE_PROVE)
@@ -7001,6 +7078,7 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
 
     @arc4.abimethod
     def advance_to_reveal_phase(self) -> None:
+        assert Txn.sender == Global.creator_address
         assert self.phase.value == UInt64(PHASE_PROVE)
         assert Global.round > self.prove_end_round.value
         self.phase.value = UInt64(PHASE_REVEAL)
@@ -7009,6 +7087,10 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
     def get_tally(self, choice: UInt64) -> UInt64:
         return self.tallies[arc4.UInt64(choice)]
 ```
+
+> **Design gap --- exercise opportunity.** The contract accumulates tallies during the reveal phase but has no `advance_to_tally_phase` method to formally close voting and finalize results. In the current design, the reveal phase remains open indefinitely. As an exercise, add a `PHASE_CLOSED` state (see Exercise 2 below) with an `advance_to_closed_phase` method that transitions from `PHASE_REVEAL` after a configurable duration, prevents further reveals, and emits the final tally via an ARC-28 event.
+
+> **Note: Voters who do not prove forfeit their vote.** A voter who submits a commitment during the commit phase but fails to provide a ZK proof during the prove phase cannot reveal their vote --- the `reveal_vote` method requires `proof_status == 1`. Their vote is effectively lost. Additionally, the box storage MBR for their commitment box (`c_` prefix) remains locked in the app account, since no cleanup method exists to delete orphaned commitment boxes. A production system should include an admin-callable cleanup method that can reclaim MBR from unproven commitments after the voting period ends.
 
 > **Warning: Fund the app account before calling `initialize`.** The `initialize` method creates tally boxes (one per choice). Each tally box costs `2,500 + 400 * (10 + 8) = 9,700 microAlgos` in MBR. For 3 choices, the app account needs at least `3 * 9,700 = 29,100 microAlgos` plus its base MBR of `100,000 microAlgos` before `initialize` is called. Send a payment to the app's address before the `initialize` call, or you will see a "balance below minimum" error.
 
@@ -7056,6 +7138,7 @@ import (
     "github.com/consensys/gnark/backend/plonk"
     "github.com/consensys/gnark/frontend"
     "github.com/consensys/gnark/frontend/cs/scs"
+    "github.com/consensys/gnark/test"
 )
 
 func main() {
@@ -7434,7 +7517,8 @@ The reveal and timing tests verify the commit-reveal binding (revealing a differ
 - LogicSig verifier address is hardcoded/verified in the smart contract
 - Public inputs to the ZK proof are bound to on-chain state (commitment, num_choices)
 - Box storage MBR is properly funded and refundable
-- Phase transitions check round numbers correctly
+- Phase transitions check round numbers correctly and are admin-only
+- Group size is validated in the proof-submission atomic group (production hardening)
 - Admin cannot see or modify votes (only advance phases)
 - The trusted setup ceremony is properly conducted (for PLONK, a universal setup from a ceremony)
 
@@ -7453,7 +7537,7 @@ In this chapter you learned to:
 
 | Feature Built | New Concepts Introduced |
 |--------------|------------------------|
-| ZK circuit (gnark) | Groth16/PLONK proof systems, R1CS, witness generation |
+| ZK circuit (gnark) | Groth16/PLONK proof systems, R1CS/SCS, witness generation |
 | MiMC commitments | ZK-friendly hashing, commitment schemes, nullifiers |
 | Voting smart contract | Multi-phase state machine, box-based vote tracking, tally accumulation |
 | LogicSig ZK verifier | BN254 curve operations, pairing checks, opcode budget pooling |
@@ -7515,7 +7599,6 @@ See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full sp
 | gnark (ZK circuit framework) | [github.com/ConsenSys/gnark](https://github.com/ConsenSys/gnark) |
 | Cryptographic Tools | [dev.algorand.co/concepts/smart-contracts/cryptographic-tools/](https://dev.algorand.co/concepts/smart-contracts/cryptographic-tools/) |
 | AVM Opcodes Reference | [dev.algorand.co/reference/algorand-teal/opcodes/](https://dev.algorand.co/reference/algorand-teal/opcodes/) |
-| Staking Rewards | [dev.algorand.co/concepts/protocol/staking-rewards/](https://dev.algorand.co/concepts/protocol/staking-rewards/) |
 | State Proofs | [dev.algorand.co/concepts/protocol/state-proofs/](https://dev.algorand.co/concepts/protocol/state-proofs/) |
 | Falcon CLI tool | [github.com/algorandfoundation/falcon-signatures](https://github.com/algorandfoundation/falcon-signatures) |
 | Algorand Post-Quantum | [algorand.co/technology/post-quantum](https://algorand.co/technology/post-quantum) |
@@ -7694,13 +7777,13 @@ Bare methods have no ABI arguments. They match on `OnCompletion` action type.
 ### 2.4 --- Method that allows multiple OnComplete actions
 
 ```python
-from algopy import ARC4Contract, Txn, UInt64, arc4
+from algopy import ARC4Contract, OnCompleteAction, Txn, arc4
 
 class MultiAction(ARC4Contract):
     @arc4.abimethod(allow_actions=["NoOp", "OptIn"])
     def register(self) -> None:
         # This method works for both regular calls and opt-in calls
-        if Txn.on_completion == UInt64(1):  # OptIn
+        if Txn.on_completion == OnCompleteAction.OptIn:
             pass  # Handle opt-in logic
 ```
 
@@ -7737,7 +7820,7 @@ The AVM has exactly two native types. Everything else is built on top of these.
 ### 3.2 --- BigUInt: up to 512-bit integers
 
 ```python
-from algopy import ARC4Contract, BigUInt, UInt64, arc4
+from algopy import ARC4Contract, BigUInt, UInt64, arc4, op
 
 class BigMath(ARC4Contract):
     @arc4.abimethod
@@ -7834,15 +7917,15 @@ class OptionalState(ARC4Contract):
 ### 4.3 --- Reading another app's global state
 
 ```python
-from algopy import ARC4Contract, Application, UInt64, arc4, op
+from algopy import ARC4Contract, Application, Bytes, UInt64, arc4, op
 
 class CrossAppReader(ARC4Contract):
     @arc4.abimethod
     def read_other_app(self, app: Application, key: Bytes) -> UInt64:
         # The target app must be in the foreign apps array
-        value, exists = op.app_global_get_ex(app, key)
+        value, exists = op.AppGlobal.get_ex_uint64(app, key)
         assert exists
-        return op.btoi(value)
+        return value
 ```
 
 Requires the target app ID in the transaction's foreign apps array.
@@ -7876,16 +7959,16 @@ Max 16 key-value pairs per user. Users can clear local state at any time via Cle
 ### 5.2 --- Reading another account's local state
 
 ```python
-from algopy import ARC4Contract, Account, Application, UInt64, arc4, op
+from algopy import ARC4Contract, Account, Application, Bytes, UInt64, arc4, op
 
 class LocalReader(ARC4Contract):
     @arc4.abimethod
     def read_user_score(
         self, user: Account, app: Application, key: Bytes
     ) -> UInt64:
-        value, exists = op.app_local_get_ex(user, app, key)
+        value, exists = op.AppLocal.get_ex_uint64(user, app, key)
         assert exists
-        return op.btoi(value)
+        return value
 ```
 
 
@@ -7947,7 +8030,7 @@ class BalanceMap(ARC4Contract):
 ### 6.3 --- Raw box access (BoxRef)
 
 ```python
-from algopy import ARC4Contract, BoxRef, UInt64, arc4, op
+from algopy import ARC4Contract, BoxRef, Bytes, UInt64, arc4
 
 class RawBoxAccess(ARC4Contract):
     @arc4.abimethod
@@ -8098,9 +8181,8 @@ from algopy import ARC4Contract, Account, Asset, UInt64, arc4
 class BalanceChecker(ARC4Contract):
     @arc4.abimethod
     def get_asset_balance(self, account: Account, asset: Asset) -> UInt64:
-        balance, is_opted_in = account.asset_balance(asset)
-        assert is_opted_in
-        return balance
+        # asset.balance() fails if the account has not opted in
+        return asset.balance(account)
 ```
 
 
@@ -8154,7 +8236,7 @@ class AppFactory(ARC4Contract):
             approval_program=approval,
             clear_state_program=clear,
             global_num_uint=UInt64(4),
-            global_num_byte_slice=UInt64(2),
+            global_num_bytes=UInt64(2),
             fee=UInt64(0),
         ).submit()
         return result.created_app.id
@@ -8510,7 +8592,7 @@ Rule of thumb: use native types for method parameters and return types when poss
 ### 13.2 --- ARC-4 structs
 
 ```python
-from algopy import ARC4Contract, arc4
+from algopy import ARC4Contract, Global, arc4
 
 class Position(arc4.Struct):
     owner: arc4.Address
@@ -8616,7 +8698,7 @@ class VRFExample(ARC4Contract):
         self, message: Bytes, proof: Bytes, public_key: Bytes
     ) -> Bytes:
         output, is_valid = op.vrf_verify(
-            op.VrfStandard.VrfAlgorand, message, proof, public_key
+            op.VrfVerify.VrfAlgorand, message, proof, public_key
         )
         assert is_valid
         return output  # 64 bytes of verifiable randomness
@@ -8642,14 +8724,14 @@ class ECExample(ARC4Contract):
 ### 15.1 --- Ensure minimum opcode budget
 
 ```python
-from algopy import ARC4Contract, UInt64, arc4, op
+from algopy import ARC4Contract, OpUpFeeSource, arc4, ensure_budget
 
 class BudgetExample(ARC4Contract):
     @arc4.abimethod
     def expensive_operation(self) -> None:
         # Request at least 2,800 opcodes
         # PuyaPy auto-generates inner app calls to pad the budget
-        op.ensure_budget(UInt64(2800), UInt64(0))
+        ensure_budget(2800, OpUpFeeSource.GroupCredit)
         # ... expensive computation ...
 ```
 
@@ -8673,7 +8755,7 @@ class BudgetPadded(ARC4Contract):
 ### 15.3 --- Reading the contract's own address and balance
 
 ```python
-from algopy import ARC4Contract, Global, UInt64, arc4
+from algopy import ARC4Contract, Bytes, Global, UInt64, arc4
 
 class SelfInfo(ARC4Contract):
     @arc4.abimethod
@@ -8690,7 +8772,7 @@ class SelfInfo(ARC4Contract):
 
     @arc4.abimethod
     def my_app_id(self) -> UInt64:
-        return Global.current_application_id
+        return Global.current_application_id.id
 ```
 
 ### 15.4 --- Accessing transaction fields
@@ -8735,7 +8817,7 @@ puyapy contract.py --output-bytecode
 ### 16.2 --- Using compile_contract in Algorand Python
 
 ```python
-from algopy import compile_contract
+from algopy import ARC4Contract, UInt64, arc4, compile_contract, itxn
 
 class MyContract(ARC4Contract):
     @arc4.abimethod
@@ -8745,7 +8827,7 @@ class MyContract(ARC4Contract):
             approval_program=compiled.approval_program,
             clear_state_program=compiled.clear_state_program,
             global_num_uint=compiled.global_uints,
-            global_num_byte_slice=compiled.global_bytes,
+            global_num_bytes=compiled.global_bytes,
             fee=UInt64(0),
         ).submit()
         return result.created_app.id
@@ -8870,7 +8952,7 @@ Every gotcha from every chapter in one scannable list.
 - Maximum 256 inner transactions per application call
 - Maximum call depth of 8 --- the 8th contract cannot make further app calls
 - ClearState programs cannot issue inner transactions
-- Inner transactions see the state from the *start* of the group, not mid-execution state
+- State changes from one top-level transaction in a group are not visible to other top-level transactions until the group finalizes. Within a single app call, inner transactions DO see state changes from earlier inner transactions in that same execution.
 
 ## Local State
 
@@ -8897,7 +8979,7 @@ Every gotcha from every chapter in one scannable list.
 - `asset_sender` is only for clawback, not for sending --- use `Txn.sender` for regular transfers
 - `Txn.receiver` is for Payment transactions; `Txn.asset_receiver` is for AssetTransfer
 - Similarly: `Txn.amount` vs `Txn.asset_amount`, `Txn.close_remainder_to` vs `Txn.asset_close_to`
-- Setting freeze/clawback address to empty string makes it permanently immutable
+- Setting freeze/clawback address to the zero address makes it permanently immutable
 
 ## Arithmetic
 
@@ -8928,7 +9010,7 @@ Every gotcha from every chapter in one scannable list.
 - Check `Global.genesis_hash` to restrict to a specific network (MainNet/TestNet)
 - Arguments (`Arg[0]`, etc.) are visible on-chain and are NOT signed --- anyone can change them
 - LogicSig signed delegations are valid forever unless you build in expiration
-- LogicSig opcode budget is 20,000 per transaction (separate pool from smart contracts)
+- LogicSig opcode budget is 20,000 per transaction (separate pool from smart contracts). Since AVM v10, LogicSig budgets pool across the group --- e.g., 8 LogicSig transactions contribute 160,000 opcodes to a shared LogicSig pool
 - Template variables are baked into the program at compile time and ARE covered by the signature
 
 ## Compilation and Tooling
@@ -9069,7 +9151,7 @@ Here is where to go next.
 :   A TypeScript-based smart contract language for Algorand that compiles to TEAL bytecode. An alternative to Algorand Python (PuyaPy) for developers who prefer TypeScript.
 
 **Template variable**
-:   A compile-time parameter in a LogicSig program, substituted with a concrete value before compilation. Produces a unique program hash per parameter set.
+:   A compile-time parameter in a smart contract or LogicSig program, substituted with a concrete value before compilation. Produces a unique program hash per parameter set.
 
 **TWAP (Time-Weighted Average Price)**
 :   A price derived by averaging spot prices over a time window, weighted by block time. Resistant to single-block manipulation. Used by lending protocols as a price oracle.

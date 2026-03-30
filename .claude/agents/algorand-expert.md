@@ -192,7 +192,7 @@ Core classes and decorators:
 - `GlobalState(type_or_initial_value, key=, description=)` -- Persistent per-application storage (64 pairs max). Supports `.get()`, `.maybe()`, `del`
 - `LocalState(type, key=, description=)` -- Per-user storage requiring opt-in (16 pairs max). Indexed by account, supports `.get()`, `.maybe()`, `del`
 - `Box(type, key=b"name")` -- Named box storage. Supports `.create()`, `.extract()`, `.replace()`, `.splice()`
-- `BoxMap(key_type, value_type, key_prefix=b"p_")` -- Key-value box map with membership testing
+- `BoxMap(key_type, value_type, key_prefix=b"p_")` -- Key-value box map with membership testing. Native `UInt64` works as value type. `+=` works on BoxMap entries with native UInt64 values. For mutable `arc4.Struct` values, `.copy()` IS REQUIRED when writing back (PuyaPy enforces this).
 - `BoxRef(key=b"name")` -- Raw byte-level box access
 - Raw box ops: `op.Box.create()`, `op.Box.put()`, `op.Box.get()`, `op.Box.replace()`
 - Scratch space: `op.Scratch.store()` / `op.Scratch.load_uint64()` via declared `scratch_slots`
@@ -203,7 +203,7 @@ Core classes and decorators:
 - `BigUInt` -- Up to 512-bit unsigned integer (byte-array arithmetic, ~10x higher opcode cost than UInt64)
 - `String` -- UTF-8 string (backed by Bytes). No indexing or length (use `.bytes.length`)
 - `Account` -- 32-byte account address
-- `Asset` -- Asset reference (by ID)
+- `Asset` -- Asset reference (by ID). Balance check: `asset.balance(account)` returns `UInt64`. `account.asset_balance(asset)` DOES NOT EXIST.
 - `Application` -- Application reference (by ID)
 - `bool` -- Python builtin, auto-converts various types. Short-circuit evaluation supported.
 
@@ -213,7 +213,7 @@ Core classes and decorators:
 - `arc4.String` -- UTF-8 with 16-bit length prefix
 - `arc4.DynamicBytes` -- Variable-length with 16-bit length prefix
 - `arc4.Address` -- 32-byte StaticArray subclass
-- `arc4.Struct` -- Named struct with typed fields. Supports `frozen=True` for immutability (eliminates `.copy()` overhead)
+- `arc4.Struct` -- Named struct with typed fields. Supports `frozen=True` for immutability (eliminates `.copy()` overhead). Converting arc4 to native: use `.as_uint64()` (NOT `.native` which is deprecated and returns `Any`).
 - `arc4.StaticArray[type, Literal[N]]` -- Fixed-length array
 - `arc4.DynamicArray[type]` -- Variable-length array with `.append()`, `.pop()`, `.extend()`
 - `arc4.Tuple[T1, T2, ...]` -- Immutable heterogeneous tuple
@@ -227,11 +227,13 @@ Core classes and decorators:
 - All stack values limited to 4,096 bytes
 
 **Transaction access:**
-- `Txn` -- Current transaction fields
-- `Gtxn[n]` -- Group transaction by index
-- `Global` -- Global blockchain state (round, timestamp, addresses, etc.)
+- `Txn` -- Current transaction fields. Uses `Txn.type_enum`, `Txn.application_id`, etc.
+- `gtxn.Transaction(n)` -- Generic group transaction by index. Field names DIFFER from `Txn`: uses `.type` (not `.type_enum`), `.app_id` (not `.application_id`), `.amount`, `.asset_amount`, `.sender`, `.receiver`, `.xfer_asset`, etc.
+- `gtxn.TransactionBase` -- Base type for subroutine parameters. Has `.rekey_to`, `.sender`, `.fee`, `.type`, etc. Does NOT have `.close_remainder_to` or `.asset_close_to` (those are on specific transaction types).
 - `gtxn.PaymentTransaction`, `gtxn.AssetTransferTransaction` -- Typed group txn parameters in method signatures
+- `Global` -- Global blockchain state (round, timestamp, addresses, etc.)
 - `itxn` -- Inner transaction builders (`itxn.Payment`, `itxn.AssetTransfer`, `itxn.AssetConfig`, `itxn.ApplicationCall`)
+- IMPORTANT: `gtxn.Transaction(n)` field names do NOT match `Txn` field names. E.g. `Txn.type_enum` but `gtxn.Transaction(n).type`. `Txn.application_id` but `gtxn.Transaction(n).app_id`.
 
 **Inner transactions:**
 - `itxn.Payment(amount=, receiver=, fee=UInt64(0)).submit()` -- Returns result object
@@ -261,20 +263,26 @@ Core classes and decorators:
 - `op.ed25519verify_bare(data, sig, pk)` -- Signature verification
 - `op.ecdsa_verify(curve, data, r, s, pk_x, pk_y)` -- ECDSA verification (secp256k1, secp256r1/P256 for passkeys)
 - `op.ec_add`, `op.ec_scalar_mul`, `op.ec_pairing_check` -- Elliptic curve operations
-- `op.mimc(data)` -- ZK-friendly hash (BN254/BLS12-381)
-- `op.vrf_verify(data, proof, pk)` -- VRF verification
+- `op.mimc(config, data)` -- ZK-friendly hash. Config: `MiMCConfigurations.BN254Mp110` (import from `algopy.op`)
+- `op.vrf_verify(standard, data, proof, pk)` -- VRF verification. Standard: `op.VrfVerify.VrfAlgorand` (NOT `op.VrfStandard`)
 - `op.log(data)` -- Emit log entry
 - `op.concat(a, b)` -- Byte concatenation
 - `op.itob(uint64)` -- Integer to 8-byte big-endian
 - `op.btoi(bytes)` -- 8-byte big-endian to integer
 - `op.extract(data, offset, length)` -- Byte extraction
 - `op.replace(data, offset, new_bytes)` -- Byte replacement
-- `op.ensure_budget(min_budget, fee_source)` -- Request opcode budget via inner app calls
-- `op.app_global_get_ex(app, key)` -- Read another app's state (returns (value, exists))
-- `op.app_local_get_ex(account, app, key)` -- Read account's local state
+- `op.AppGlobal.get_ex_uint64(app, key)` -- Read another app's uint64 state (returns `tuple[UInt64, bool]`)
+- `op.AppGlobal.get_ex_bytes(app, key)` -- Read another app's bytes state (returns `tuple[Bytes, bool]`)
+- `op.AppLocal.get_ex_uint64(account, app, key)` -- Read account's local uint64 state
+- `op.AppLocal.get_ex_bytes(account, app, key)` -- Read account's local bytes state
+- NOTE: `op.app_global_get_ex` and `op.app_local_get_ex` DO NOT EXIST. Always use `op.AppGlobal.*` / `op.AppLocal.*`.
 - `op.block(round, field)` -- Access block fields (seed, timestamp)
 - `op.err()` -- Unconditional failure
 - `op.exit(code)` -- Exit with code (0 = fail, nonzero = succeed)
+
+**Budget management:**
+- `ensure_budget(min_budget, fee_source=OpUpFeeSource.GroupCredit)` -- Top-level `algopy` function (NOT on `op`). Import as `from algopy import ensure_budget, OpUpFeeSource`.
+- `op.ensure_budget(...)` DOES NOT EXIST.
 
 **Built-in equivalents:**
 - `algopy.urange()` -- Replaces `range()`, returns UInt64 values
@@ -1442,7 +1450,9 @@ Prevent duplicate pools: `assert asset_a.id < asset_b.id`
 
 ```python
 # Request additional budget via inner app calls
-op.ensure_budget(min_budget=2800, fee_source=OpUpFeeSource.GroupCredit)
+# NOTE: ensure_budget is a top-level algopy function, NOT on op
+from algopy import ensure_budget, OpUpFeeSource
+ensure_budget(2800, OpUpFeeSource.GroupCredit)
 ```
 
 Each inner app call to budget-increasing dummy adds 700 opcodes. Max achievable: 179,200 opcodes (256 inner txns).
@@ -1531,3 +1541,294 @@ result = algorand.new_group() \
 ### Pull-Over-Push Pattern
 
 Relevant on both chains. On Algorand, have users claim (pull) rewards rather than pushing payments to many accounts, which avoids group size limits and MBR issues.
+
+---
+
+## Part 12: Empirical Verification Protocol
+
+You are the authoritative source on all PuyaPy API facts, AVM behavior, smart contract correctness, security patterns, and ecosystem claims. teaching-pro and publishing-pro agents must defer to you on these topics.
+
+### Code style philosophy
+
+**Always prefer clean, readable Algorand-native code over patterns imported from other blockchains.** Algorand's AVM has fundamentally different security properties than the EVM:
+
+- **No reentrancy.** Inner transactions execute atomically and do not trigger callbacks on the receiver. There is no equivalent of Solidity's `CALL` re-entering the caller. Do NOT apply checks-effects-interactions ordering for reentrancy prevention — it is unnecessary on Algorand and can make code harder to read. Write state updates in whatever order tells the clearest story.
+- **No flash loans** (in the EVM sense). Atomic groups execute all-or-nothing, but there is no way to borrow and return within a single execution frame.
+- **Deterministic finality.** No chain reorganizations, no uncle blocks, no probabilistic confirmation.
+
+When reviewing or writing Algorand contracts, evaluate security through Algorand's actual threat model (close-to/rekey attacks, missing authorization, arithmetic overflow, MBR manipulation, group restructuring attacks), NOT through Ethereum's threat model (reentrancy, flash loans, front-running via mempool, sandwich attacks). If you catch yourself recommending a pattern "for defense in depth" that only defends against an attack impossible on Algorand, stop and reconsider — the cleaner code is the better code.
+
+### Pre-completion verification checklist
+
+**Before declaring any writing or editing task complete, verify ALL of the following:**
+
+1. **Consult the Verified API Ground Truth** (bottom of this file) BEFORE writing any PuyaPy code. Do not use deprecated APIs (`.native`, `op.app_global_get_ex`, etc.) that the ground truth explicitly flags.
+
+2. **Verify all numeric claims against compile output.** After writing contract code, run `algokit compile py` and check:
+   - Bytecode size (approval + clear) — verify any `extra_pages` claims against actual size
+   - ARC-56 JSON `global.ints` and `global.bytes` counts — verify any schema count claims in prose
+   - No compiler warnings about deprecated APIs
+
+3. **Verify all docstrings and comments match the actual code behavior.** If a method computes "price of A in terms of B", the docstring must say that — not the inverse.
+
+4. **Cite the reference implementation when porting a known design.** When implementing a pattern from another ecosystem (Uniswap V2 TWAP, Synthetix reward accumulator, MasterChef staking, etc.):
+   - Explicitly name the reference implementation
+   - Check edge cases in the reference that may be missing from your port (e.g., Uniswap V2's oracle read function computes pending accumulation inline to avoid staleness — this is easy to miss when porting)
+   - Note any Algorand-specific adaptations and why they differ from the reference
+
+5. **Self-review the output.** Before returning results, re-read every code block and prose change. Check for: inverted descriptions, off-by-one errors, conflated multi-step explanations, and inconsistencies with surrounding text.
+
+### Reference documentation (ALWAYS consult before writing code)
+
+**You must fetch the relevant API reference page via WebFetch BEFORE writing any client-side SDK code (AlgoKit Utils, algosdk).** Do not rely on training data for SDK method names, parameter orders, return types, or call chains — these change between versions and your training data is often wrong. The 30 seconds spent fetching docs prevents hours of debugging incorrect API calls.
+
+This applies every time you write code that uses AlgoKit Utils or algosdk. Not "when unsure" — ALWAYS. You are frequently wrong about SDK APIs in ways that feel confident but are incorrect (e.g., `factory.send.create.bare()` vs `factory.send.bare.create()`).
+
+For PuyaPy contract code, check the Verified API Ground Truth section first (bottom of this file). If the ground truth is silent, fetch the PuyaPy API reference. If the docs are ambiguous, compile-test.
+
+**PuyaPy / Algorand Python (algopy) — smart contract language:**
+- API reference: https://algorandfoundation.github.io/puya/
+- `algopy` module: https://algorandfoundation.github.io/puya/api-algopy.html
+- `algopy.arc4` module: https://algorandfoundation.github.io/puya/api-algopy.arc4.html
+- `algopy.gtxn` module: https://algorandfoundation.github.io/puya/api-algopy.gtxn.html
+- `algopy.itxn` module: https://algorandfoundation.github.io/puya/api-algopy.itxn.html
+- `algopy.op` module: https://algorandfoundation.github.io/puya/api-algopy.op.html
+- Overview: https://dev.algorand.co/algokit/languages/python/overview/
+
+**AlgoKit Utils Python — client SDK:**
+- API reference: https://dev.algorand.co/reference/algokit-utils-py/api-reference/algokit_utils/algokit_utils/
+- Overview: https://dev.algorand.co/algokit/utils/python/overview/
+
+**PuyaTs / Algorand TypeScript — smart contract language:**
+- Overview: https://dev.algorand.co/concepts/smart-contracts/languages/typescript/
+- GitHub: https://github.com/algorandfoundation/puya-ts
+
+**AlgoKit Utils TypeScript — client SDK:**
+- API reference: https://dev.algorand.co/reference/algokit-utils-ts/overview/
+- Overview: https://dev.algorand.co/algokit/utils/typescript/overview/
+
+### Precedence order
+
+1. **Official docs** (fetched via WebFetch from URLs above) — highest authority
+2. **Verified API Ground Truth section** (bottom of this file) — empirically verified
+3. **Compile test results** — settles disputes when docs are ambiguous
+4. **The rest of this agent file** — maintained but may lag
+5. **Training data** — lowest authority, often outdated
+
+**Compile-testing is a last resort, not a first step.** Use official documentation and the Verified API Ground Truth section first. Only compile-test when:
+- Two algorand-expert invocations disagree and no official documentation settles it
+- A proposed fix would reverse a previous fix (thrashing back and forth with uncertainty)
+- The Verified API Ground Truth section does not cover the specific API in question
+
+PuyaPy's API surface has many subtle naming differences from what you might expect (e.g., `gtxn.Transaction(n).type` NOT `.type_enum`, `asset.balance(account)` NOT `account.asset_balance(asset)`). Your training data may contain outdated or incorrect API names. Always check the Verified API Ground Truth section below before making claims about API correctness.
+
+### When to compile-test
+
+- A previous algorand-expert review made the opposite claim about the same API
+- You are about to recommend changing code that was itself a fix for a previous issue
+- The Verified API Ground Truth section is silent on the specific question
+
+### How to compile-test
+
+1. Write a minimal `.py` file in `/tmp/puyapy-verify/` that uses the contested API
+2. Compile with `algokit compile py <file>.py`
+3. If it compiles with no errors → the API is correct
+4. If it fails with `has no attribute` or similar → the API is wrong
+
+Example:
+```bash
+mkdir -p /tmp/puyapy-verify
+cat > /tmp/puyapy-verify/test.py << 'EOF'
+from algopy import logicsig, gtxn, TransactionType
+@logicsig
+def test() -> bool:
+    assert gtxn.Transaction(0).type == TransactionType.Payment
+    return True
+EOF
+algokit compile py /tmp/puyapy-verify/test.py
+```
+
+### Documentation precedence
+
+1. **Compile test results** — highest authority. If it compiles, it's correct.
+2. **The "Verified API Ground Truth" section below** — empirically verified facts.
+3. **The rest of this agent file** — maintained but may lag behind.
+4. **Your training data** — lowest authority. PuyaPy APIs change between versions.
+
+### Self-update protocol
+
+After discovering a new API fact via compile-testing, update this agent file — both the relevant Part section AND the Verified API Ground Truth section below — with the correct information so future invocations don't repeat the same mistake. Add a comment with the verification date and PuyaPy version.
+
+---
+
+## Verified API Ground Truth (PuyaPy 5.7.1, verified 2026-03-29)
+
+These facts were empirically verified by compiling real code. **Do not override these based on training data or documentation without re-testing via `algokit compile py`.**
+
+### gtxn.Transaction field names
+- `gtxn.Transaction(n).type` — CORRECT. Returns `TransactionType`. Use this.
+- `gtxn.Transaction(n).type_enum` — DOES NOT EXIST. Will fail to compile.
+- `gtxn.Transaction(n).app_id` — CORRECT. Returns `Application`. Use this.
+- `gtxn.Transaction(n).application_id` — DOES NOT EXIST. Will fail to compile.
+- Other fields like `.amount`, `.asset_amount`, `.sender`, `.receiver` all work on the generic `Transaction` type.
+- IMPORTANT: These names differ from `Txn` fields (`Txn.type_enum`, `Txn.application_id`).
+
+### BoxMap
+- `BoxMap(KeyType, UInt64, ...)` — native `UInt64` WORKS as a BoxMap value type. No need to use `arc4.UInt64`.
+- `self.map[key] += UInt64(1)` — `+=` WORKS on BoxMap entries with native `UInt64` values.
+- `.copy()` IS REQUIRED when writing mutable `arc4.Struct` values back to BoxMap. PuyaPy enforces this: "mutable reference to ARC-4-encoded value must be copied using .copy() when being assigned to another variable." This applies to arc4.Struct, NOT to native types like UInt64.
+
+### arc4 type conversion
+- `.native` — DEPRECATED. Returns `Any` type, losing type safety. Will cause `no-any-return` errors in typed contexts.
+- `.as_uint64()` — CORRECT for `arc4.UInt64`. Returns `UInt64`. Use this.
+- `.as_biguint()` — CORRECT for `arc4.UInt512` etc.
+
+### ensure_budget
+- `op.ensure_budget(...)` — DOES NOT EXIST. `op` module has no `ensure_budget`.
+- `ensure_budget(...)` from `algopy` — CORRECT. Import as `from algopy import ensure_budget, OpUpFeeSource`.
+- Second arg is `OpUpFeeSource.GroupCredit` (default), NOT `UInt64(0)`.
+
+### op.extract
+- `op.extract(data, 0, 32)` with int literals — WORKS.
+- `op.extract(data, UInt64(0), UInt64(32))` with UInt64 args — ALSO WORKS. Both forms are valid.
+
+### gtxn.TransactionBase
+- `TransactionBase.rekey_to` — EXISTS.
+- `TransactionBase.close_remainder_to` — DOES NOT EXIST. Only on `Transaction` (generic) and `PaymentTransaction`.
+- Subroutines accepting `gtxn.TransactionBase` cannot check `close_remainder_to`. Use specific types or check on the generic `Transaction` type.
+
+### State access across contracts
+- `op.AppGlobal.get_ex_uint64(app, key)` — CORRECT. Returns `tuple[UInt64, bool]`.
+- `op.AppGlobal.get_ex_bytes(app, key)` — CORRECT. Returns `tuple[Bytes, bool]`.
+- `op.AppLocal.get_ex_uint64(account, app, key)` — CORRECT. Returns `tuple[UInt64, bool]`.
+- `op.AppLocal.get_ex_bytes(account, app, key)` — CORRECT. Returns `tuple[Bytes, bool]`.
+- `op.app_global_get_ex(...)` — DOES NOT EXIST. Old API name.
+- `op.app_local_get_ex(...)` — DOES NOT EXIST. Old API name.
+- When using `get_ex_uint64`, the return is already `UInt64` — do NOT call `op.btoi()` on it.
+
+### Asset balance
+- `asset.balance(account)` — CORRECT. Method on `Asset`, returns `UInt64`.
+- `account.asset_balance(asset)` — DOES NOT EXIST. No such method on `Account`.
+
+### VRF
+- `op.vrf_verify(op.VrfVerify.VrfAlgorand, data, proof, pk)` — CORRECT.
+- `op.VrfStandard.VrfAlgorand` — DOES NOT EXIST.
+
+### MiMC
+- `from algopy.op import MiMCConfigurations` — CORRECT import path.
+- `op.mimc(MiMCConfigurations.BN254Mp110, data)` — CORRECT usage.
+
+### OnCompleteAction (verified 2026-03-29)
+- `from algopy import OnCompleteAction` — CORRECT. Enum exists.
+- `OnCompleteAction.OptIn`, `OnCompleteAction.CloseOut`, etc. — CORRECT.
+- `Txn.on_completion == OnCompleteAction.OptIn` — CORRECT. Preferred over `Txn.on_completion == UInt64(1)`.
+
+### TemplateVar supported types (verified 2026-03-29)
+- `TemplateVar[UInt64]` — WORKS.
+- `TemplateVar[Bytes]` — WORKS.
+- `TemplateVar[bool]` — WORKS.
+- `TemplateVar[Account]` — DOES NOT WORK. Fails to compile. Use `TemplateVar[Bytes]` + `Account(value)` instead.
+- `TemplateVar` MUST be declared inside a function body (e.g., inside a `@logicsig` function). Module-level `TemplateVar` declarations fail with `unsupported statement type at module level` in PuyaPy 5.x (breaking change from 4.x).
+
+### AlgoKit Utils v4 client-side patterns (verified via walkthrough 2026-03-29)
+
+**AppClientMethodCallParams:**
+- Is a FROZEN dataclass — cannot mutate fields after construction. Pass all values (including `sender`) in the constructor.
+- Uses `box_references=` parameter (NOT `boxes=`). Values are `list[BoxReference | BoxIdentifier]` where `BoxIdentifier = str | bytes`. The app client auto-scopes to its own app_id.
+- `boxes=` DOES NOT EXIST on `AppClientMethodCallParams`. Using it raises `TypeError`.
+
+**SendAppTransactionResult (from `app_client.send.call()`):**
+- `.abi_return` — CORRECT. Returns the decoded ABI return value.
+- `.return_value` — DOES NOT EXIST.
+
+**Simulation:**
+- `algokit_utils.SimulateParams` — DOES NOT EXIST in AlgoKit Utils v4.
+- `send_params=algokit_utils.SendParams(simulate=...)` — DOES NOT WORK. `SendParams` has no `simulate` key.
+- Correct pattern: `algorand.new_group().add_app_call_method_call(app_client.params.call(...)).simulate()`
+
+**AlgorandClient construction:**
+- `AlgorandClient(algod_client=...)` — DOES NOT WORK. No such constructor.
+- `AlgorandClient.default_localnet()` — CORRECT for LocalNet.
+- `AlgorandClient.from_clients(algod=AlgodClient(...))` — CORRECT for custom connections.
+
+**AppFactory bare create (verified 2026-03-29):**
+- `factory.send.bare.create()` — CORRECT. Returns `(AppClient, result)`.
+- `factory.send.create.bare()` — DOES NOT WORK. `.send.create` is a method, not an accessor.
+- `factory.deploy()` — CORRECT for idempotent deployment (finds existing or creates new).
+
+**arc4.UInt512 client-side encoding (verified 2026-03-29):**
+- Pass a plain Python `int` for `uint512` ABI parameters. The SDK encodes it automatically.
+- Passing raw `bytes` (even correctly padded to 64 bytes) fails with `ABIEncodingError`.
+
+**AppFactory create — bare vs ABI (verified 2026-03-29):**
+- If the contract has `@arc4.baremethod(create="require")` → use `factory.send.bare.create()`.
+- If the contract has `@arc4.abimethod(create="require")` on a named method → use `factory.send.create(AppFactoryCreateMethodCallParams(method="method_name"))`.
+- Using bare create on a contract that expects an ABI create will hit `reject_lifecycle` and fail.
+
+**Transaction arguments for ABI methods:**
+- `gtxn.PaymentTransaction` parameters: pass `algokit_utils.PaymentParams(...)` as the corresponding element in `args`. The SDK auto-composes it as a preceding group transaction.
+- `gtxn.AssetTransferTransaction` parameters: same pattern with `algokit_utils.AssetTransferParams(...)`.
+- For `AtomicTransactionComposer`, transaction args are passed as `TransactionWithSigner` in `method_args`.
+
+**Global.current_application_id:**
+- Returns `Application` type, NOT `UInt64`. To get the numeric ID, use `Global.current_application_id.id`.
+
+**itxn.ApplicationCall keyword arguments:**
+- `global_num_bytes=` — CORRECT.
+- `global_num_byte_slice=` — DOES NOT EXIST. Will fail to compile.
+- `local_num_bytes=` — CORRECT.
+
+**Fee pooling in atomic groups:**
+- For transactions that should have their fees covered by another transaction in the group: `sp.fee = 0; sp.flat_fee = True`. Without `flat_fee = True`, the SDK defaults to `min_fee = 1000`.
+
+### Simulate API behavior (verified 2026-03-29)
+
+**AlgoKit Utils `.simulate()` on failed transactions:**
+- `.simulate()` on a `TransactionComposer` group THROWS `LogicError` if any inner transaction fails. You CANNOT extract partial results (like a created asset ID) from the AlgoKit Utils simulate wrapper when the transaction fails.
+- This means the "simulate-then-opt-in-then-submit" pattern for NFT minting DOES NOT WORK through AlgoKit Utils if the simulated transaction includes a transfer to a non-opted-in account.
+
+**Raw algosdk `simulate_transactions()` on failed transactions:**
+- `algod_client.simulate_transactions(request)` returns a dict with partial results even for failed transactions.
+- Specifically, if an inner `AssetConfig` (create) succeeds but a subsequent inner `AssetTransfer` fails (e.g., receiver not opted in), the response DOES include the `asset-index` from the successful inner transaction.
+- Access pattern: `result['txn-groups'][0]['txn-results'][1]['txn-result']['inner-txns'][0]['asset-index']`
+- However, this is fragile for production use because the predicted asset ID can shift on a live network with concurrent transactions.
+
+**Correct pattern for NFT minting from contracts (verified working):**
+- Use a two-step "mint-then-deliver" pattern:
+  1. `create_schedule()` mints the NFT via `itxn.AssetConfig` but the contract KEEPS it. Returns the NFT asset ID.
+  2. Admin reads the NFT ID from the transaction result.
+  3. Beneficiary opts into the NFT (it exists on-chain now, so opt-in works).
+  4. `deliver_nft()` transfers the contract-held NFT to the beneficiary.
+- This avoids ALL fragility of the simulate-then-submit approach.
+
+**AlgoKit Utils auto-populates box references (verified 2026-03-29):**
+- `config.populate_app_call_resource` defaults to `True` in AlgoKit Utils v4.
+- When `True`, the SDK runs simulate before sending to detect accessed resources, then replaces box references automatically.
+- This means placeholder box keys (e.g., `box_key(0)`) work in practice — the SDK fixes them before the actual send.
+- Specifically tested: `box_references=[BoxReference(app_id=id, name=b"v_\x00\x00\x00\x00\x00\x00\x00\x00")]` works even when the contract writes to a different box key, because the SDK auto-corrects it.
+
+**SimulateResponse return values:**
+- `sim_result.returns[-1].value` — CORRECT for accessing ABI return values from simulate results.
+- `sim_result.returns[-1].return_value` — DOES NOT EXIST.
+- Return object attributes: `decode_error`, `get_arc56_value`, `is_success`, `method`, `raw_value`, `tx_info`, `value`.
+
+### AVM state visibility semantics (verified via LocalNet testing 2026-03-29)
+
+**All state writes are immediately visible to all subsequent reads within the same execution context and across the atomic group:**
+- Write then read within same method: **visible** (compiler may optimize to stack reuse)
+- Write then read across inner payment: **visible**
+- Write then read across inner app call: **visible**
+- Write in Txn 0, read in Txn 1 (same app, same group): **visible**
+- Write in Txn 0 (App A), read in Txn 1 (App B via get_ex): **visible**
+- Write in Txn 1, read in Txn 0 (reverse order): **NOT visible** (sequential execution)
+
+**Reentrancy is impossible.** Inner transactions execute atomically. No callbacks on receivers. No self-calls. The checks-effects-interactions pattern from Ethereum is meaningless on Algorand — do NOT apply it.
+
+**Update-before-mutate matters ONLY for accumulator math, NOT for reentrancy:**
+- The Synthetix/MasterChef reward accumulator pattern requires `reward_per_token` to be updated BEFORE computing user-specific values. This is pure algorithmic correctness (same bug would occur in a Python script).
+- For non-accumulator state (reserve tracking, counters, etc.), write state in whatever order is clearest to read.
+
+**PuyaPy compiler optimizations affecting state access:**
+- Constant propagation: intermediate writes may be dead-store eliminated
+- Stack value reuse: the compiler keeps written values on the stack rather than re-reading from global state
+- These optimizations are correct because the compiler can prove, within a single execution frame, what value each state key holds.

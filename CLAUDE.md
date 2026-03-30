@@ -62,6 +62,8 @@ Collect the reviews from all three agents. Look for:
 
 If fixes from step 3 are themselves substantive, run a targeted re-review with the most relevant agent(s).
 
+**Continuous agent improvement:** Any time a review or walkthrough catches a mistake made by the algorand-expert agent, ask: "What could be added to the agent so it gets this right the first time?" Identify the root cause (missing knowledge, unchecked assumption, skipped verification step) and update the algorand-expert agent file (`.claude/agents/algorand-expert.md`) with a concrete prevention rule — either in the Pre-completion Verification Checklist, the Verified API Ground Truth, or the Code Style Philosophy section. This compounds over time: each mistake makes the agent permanently better.
+
 #### 4. Validate code with a walkthrough test
 After reviews are incorporated, use the **algorand-expert** agent to perform an end-to-end walkthrough validation of the chapter. The agent must:
 
@@ -77,6 +79,8 @@ The agent should return a structured report:
 - **Revisions needed**: Exact list of gaps, missing imports, wrong APIs, compilation errors, or unclear instructions -- with suggested fixes
 
 Apply all revisions to the manuscript. If revisions are substantive, re-run the relevant review agent(s) from step 2.
+
+**Knowledge base update requirement:** When the walkthrough discovers a compilation error or incorrect API usage, the algorand-expert agent must update its own knowledge base (the "Verified API Ground Truth" section in `.claude/agents/algorand-expert.md`) with the correct information, including the verification date and PuyaPy version. This prevents future reviews from re-introducing the same error. The update should include both the wrong form (so future agents recognize it) and the correct form (so they know the fix). If the error reveals a pattern (e.g., a PuyaPy 5.x breaking change from 4.x), document the pattern, not just the individual instance.
 
 This step can be skipped for trivial changes (typos, formatting) at the user's discretion.
 
@@ -108,9 +112,10 @@ After the walkthrough passes, use the **algorand-expert** agent to audit every s
 - [ ] LP tokens, reward tokens, etc. verified against stored/cross-contract-read IDs
 
 **State consistency:**
-- [ ] Accumulators updated BEFORE any balance mutation (the update-before-mutate invariant)
+- [ ] Accumulators (reward-per-token, TWAP cumulatives) updated BEFORE computing user-specific values (algorithmic correctness -- the global accumulator must reflect current state before individual positions are calculated against it). This is NOT a reentrancy guard -- Algorand has no reentrancy. It is a mathematical ordering requirement.
 - [ ] No code path where state is partially updated (e.g., balance changed but accumulator not updated)
 - [ ] Box creation/deletion paired with correct MBR funding/refunding
+- NOTE: Do NOT enforce checks-effects-interactions ordering for reentrancy prevention. Algorand's AVM has no reentrancy (inner transactions don't trigger callbacks). Write state in whatever order is clearest to read.
 
 **Economic exploits:**
 - [ ] No flash-loan-style attacks possible (single-group manipulation)
@@ -143,8 +148,8 @@ For large changes spanning multiple sections, give each agent the full scope of 
 
 ### When Agents Disagree
 
-- **algorand-expert wins** on Algorand technical correctness (code, AVM behavior, protocol facts)
+- **algorand-expert wins** on ALL technical matters: PuyaPy APIs, AVM behavior, protocol facts, smart contract correctness, security patterns, ecosystem claims. teaching-pro and publishing-pro must defer to algorand-expert on these topics without exception.
 - **teaching-pro wins** on pedagogical structure (how to sequence and present information)
 - **publishing-pro wins** on formatting and editorial standards
 - When two agents give conflicting advice on the same dimension, flag the conflict for the user to resolve
-
+- **Empirical compile-testing** (`algokit compile py`) should be used when: (a) two algorand-expert agents disagree and no official documentation settles it, or (b) a proposed fix reverses a previous fix (thrashing). See the "Verified API Ground Truth" section in the algorand-expert agent file for already-settled facts.
