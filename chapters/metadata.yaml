@@ -7,7 +7,7 @@ documentclass: report
 classoption:
   - 11pt
   - twoside
-  - openright
+  - openany
 geometry:
   - margin=1in
   - top=1.2in
@@ -28,15 +28,14 @@ header-includes:
   - |
     ```{=latex}
     \usepackage{graphicx}
-    \newcommand\CoverPage{%
-      \begin{titlepage}
-      \centering
-      \vspace*{\fill}
-      \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{building-on-algo.jpg}
-      \vspace*{\fill}
-      \end{titlepage}
+    \usepackage{eso-pic}
+    \AtBeginDocument{%
+      \thispagestyle{empty}
+      \AddToShipoutPictureBG*{%
+        \includegraphics[width=\paperwidth,height=\paperheight]{building-on-algo.jpg}%
+      }%
+      \null\clearpage
     }
-    \AtBeginDocument{\CoverPage}
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
     \usepackage{fancyhdr}
