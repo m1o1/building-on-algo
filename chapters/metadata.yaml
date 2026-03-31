@@ -37,6 +37,14 @@ header-includes:
     \fancyfoot[C]{\thepage}
     \renewcommand{\headrulewidth}{0.4pt}
     \setlength{\headheight}{14pt}
+    \usepackage[titles]{tocloft}
+    \setlength{\cftsecnumwidth}{3.5em}
+    \setlength{\cftsubsecindent}{5em}
+    \setlength{\cftsubsecnumwidth}{5em}
+    \makeatletter
+    \renewcommand{\@pnumwidth}{2.5em}
+    \renewcommand{\@tocrmarg}{3.5em}
+    \makeatother
     \usepackage{titlesec}
     \titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
     \titlespacing*{\chapter}{0pt}{-20pt}{40pt}

@@ -8,9 +8,9 @@ Testing is not optional. It is the most important skill in this book after the m
 
 In Chapter 1 you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You deployed a HelloAlgorand contract and called it from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
 
-This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: positive tests that verify correct behavior, negative tests that verify security checks, and simulate-based tests that construct attacks without submitting them. Finally, we write tests that *fail* --- tests that expose the simplified contract's limitations. Those failing tests become the specification for the production contract we build in Chapter 3.
+This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: *positive tests* that verify correct behavior, *negative tests* that verify security checks, and simulate-based tests that construct attacks without submitting them. Most unusually, we will also write tests that deliberately fail --- those failing tests reveal exactly what the simplified contract cannot handle, and those gaps become the specification for the production contract in Chapter 3.
 
-An important distinction before we begin: smart contract testing has two layers. **Contract logic testing** verifies that the on-chain code behaves correctly --- the right assertions fire, the math is accurate, state transitions are safe. **Client code testing** verifies that your off-chain scripts compose transactions correctly, encode ABI arguments properly, and handle errors gracefully. This chapter focuses on contract logic testing, which is the blockchain-specific skill. Client code testing is standard Python testing (pytest, mocking, assertions) and does not require special tooling. The integration tests we write here test *both layers simultaneously* --- when one fails, the bug could be in the contract or in the client code that calls it. The unit tests test *contract logic only*.
+An important distinction before we begin: smart contract testing has two layers. **Contract logic testing** verifies that the on-chain code behaves correctly --- the right assertions fire, the math is accurate, state transitions are safe. **Client code testing** verifies that your off-chain scripts compose transactions correctly, encode ABI arguments properly, and handle errors gracefully. This chapter focuses on contract logic testing, which is the blockchain-specific skill. Client code testing is standard Python testing (pytest, mocking, assertions) and does not require special tooling. The *integration tests* we write here test *both layers simultaneously* --- when one fails, the bug could be in the contract or in the client code that calls it. The *unit tests* test *contract logic only*.
 
 By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
 
@@ -21,7 +21,7 @@ We need a contract to test. Rather than testing HelloAlgorand (too trivial to te
 
 Here is what "simplified" means in practice. The production contract in Chapter 3 uses box storage for unlimited beneficiaries, wide arithmetic for overflow safety, a separate `revoke` method, schedule cleanup with MBR refunds, and read-only query methods. Our simplified version uses global state (one beneficiary only), plain `UInt64` arithmetic, no revocation, and a combined initialize-and-deposit method. It is roughly 90 lines of PuyaPy compared to Chapter 3's 200+.
 
-Here is the complete contract. Read it through, then we will discuss the key points:
+Here is the complete contract. It has five methods: `create` stores the deployer as admin, `opt_in_to_asset` prepares the contract to hold tokens, `initialize` accepts a token deposit and records the vesting schedule, `claim` releases tokens proportional to elapsed time, and `get_claimable` lets anyone check how many tokens are currently available. A sixth bare method, `reject_lifecycle`, makes the contract immutable by rejecting update and delete calls. Read the contract through, then we will discuss the key points:
 
 ```python
 from algopy import (
@@ -317,6 +317,8 @@ There are several important things to understand about this setup.
 
 **`note=os.urandom(8)` on every transaction.** LocalNet produces blocks on demand, and identical transactions submitted in rapid succession can produce identical transaction IDs, causing "transaction already in ledger" errors. Adding 8 random bytes to the note field guarantees uniqueness. This costs nothing and prevents intermittent test failures that are maddening to debug. Add it to every `PaymentParams`, `AssetTransferParams`, `AssetCreateParams`, and `AppClientMethodCallParams` in your test code.
 
+*Here is a puzzle: if you call `time.sleep(10)` in your test and then check the block timestamp, it has not changed. Why?*
+
 > **Note:** The `advance_time` helper is the single most confusing aspect of LocalNet testing for newcomers. On a live network, block timestamps advance with wall-clock time because blocks are produced continuously. On LocalNet, blocks are only produced when you submit a transaction. If you `time.sleep(10)` but do not submit a transaction, the block timestamp stays where it was. You need both the sleep (to advance wall-clock time) and the dummy transaction (to produce a block reflecting that time).
 
 **Session-scoped fixtures.** The `algorand` and `admin` fixtures use `scope="session"` so they are created once and reused across all tests. Each test deploys its own fresh contract instance, so tests do not interfere with each other despite sharing the same LocalNet connection.
@@ -389,8 +391,11 @@ def setup_initialized_contract(
         )
     )
 
-    # Step 5: Fund the contract for MBR
-    # (base + ASA opt-in)
+    # Step 5: Fund the contract for MBR.
+    # 300,000 microAlgo covers base MBR (100,000)
+    # plus ASA opt-in (100,000), with headroom for
+    # inner transaction fees. See Chapter 1 for
+    # MBR details.
     algorand.send.payment(
         algokit_utils.PaymentParams(
             sender=admin.address,
@@ -458,7 +463,7 @@ The `setup_initialized_contract` helper follows a 7-step sequence. Each step has
 6. **Contract opts into ASA** --- must happen *before* the deposit. On Algorand, an asset transfer to an account that has not opted in fails immediately.
 7. **Grouped deposit + initialize** sends the tokens and configures the vesting schedule atomically.
 
-*Before reading the tests below, pause and list three behaviors you would want to test in this contract. What is the most important security check?*
+*Before reading the following tests, pause and list three behaviors you would want to test in this contract. What is the most important security check?*
 
 Each test targets one specific behavior. We test time-dependent logic with invariants (greater than zero, less than total) rather than exact values because LocalNet timestamps are precise only to the second. We write separate tests for each security assertion so a failure tells us exactly which check broke. Now the seven tests --- each one tells a story.
 
@@ -477,7 +482,11 @@ class TestSimpleVesting:
             )
         )
         assert result.abi_return == admin.address
+```
 
+*Before reading the next test, try predicting what `test_initialize_opts_into_asset` needs to do. What setup steps are required before you can verify that the contract holds tokens?*
+
+```python
     def test_initialize_opts_into_asset(
         self, algorand, admin
     ):
@@ -585,7 +594,11 @@ class TestSimpleVesting:
             )
         )
         assert result.abi_return == total
+```
 
+The first five tests verified correct behavior --- the contract does what it should. The next two verify security --- the contract rejects what it should reject.
+
+```python
     def test_only_admin_can_initialize(
         self, algorand, admin
     ):
@@ -597,9 +610,8 @@ class TestSimpleVesting:
             algorand, admin, imposter.address
         )
 
-        # Admin opts imposter into the ASA so the
-        # asset transfer does not fail before the
-        # app call
+        # Imposter opts into the ASA so they can
+        # hold tokens for the deposit
         algorand.send.asset_transfer(
             algokit_utils.AssetTransferParams(
                 sender=imposter.address,
@@ -622,13 +634,29 @@ class TestSimpleVesting:
         )
 
         # Fund the contract for MBR
+        # (base + ASA opt-in)
         algorand.send.payment(
             algokit_utils.PaymentParams(
                 sender=admin.address,
                 receiver=app_client.app_address,
                 amount=(
                     algokit_utils.AlgoAmount
-                    .from_micro_algo(200_000)
+                    .from_micro_algo(300_000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+
+        # Admin opts the contract into the ASA so
+        # the deposit transfer does not fail before
+        # the initialize app call
+        app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="opt_in_to_asset",
+                args=[token_id],
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
                 ),
                 note=os.urandom(8),
             )
@@ -710,9 +738,9 @@ You should see all seven pass. The total runtime will be 30--50 seconds, dominat
 *Self-check: can you trace each test back to a specific contract method and explain what behavior it validates? If a test fails, can you predict which `assert` in the contract was triggered?*
 
 
-## Using simulate for Negative Tests
+## Using Simulate for Negative Tests
 
-The tests above use `pytest.raises(Exception)` to verify that unauthorized calls fail. This works, but it is a blunt instrument --- you know the call failed, but not *why*. Maybe it failed for the wrong reason (insufficient funds, a missing ASA opt-in, a different assertion). You want to verify that the *specific security check* caught the attack.
+The preceding tests use `pytest.raises(Exception)` to verify that unauthorized calls fail. This works, but it is a blunt instrument --- you know the call failed, but not *why*. Maybe it failed for the wrong reason (insufficient funds, a missing ASA opt-in, a different assertion). You want to verify that the *specific security check* caught the attack.
 
 Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. The response includes the failure reason if the transaction would have been rejected. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
 
@@ -788,14 +816,29 @@ Here is the same pattern applied to the admin-only `initialize` check:
             algorand, admin, imposter.address
         )
 
-        # Fund contract for MBR
+        # Fund contract for MBR (base + ASA opt-in)
         algorand.send.payment(
             algokit_utils.PaymentParams(
                 sender=admin.address,
                 receiver=app_client.app_address,
                 amount=(
                     algokit_utils.AlgoAmount
-                    .from_micro_algo(200_000)
+                    .from_micro_algo(300_000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+
+        # Admin opts the contract into the ASA so
+        # the deposit transfer does not fail before
+        # the initialize app call
+        app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="opt_in_to_asset",
+                args=[token_id],
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
                 ),
                 note=os.urandom(8),
             )
@@ -849,9 +892,9 @@ The simulate approach is especially valuable during development. When a test fai
 
 ## Tests That Fail --- Revealing the Gaps
 
-The tests above prove the simplified contract works correctly within its design scope. But that scope is deliberately narrow. The following tests expose limitations that would matter in production --- and each one motivates a specific feature in Chapter 3's full implementation.
+The preceding tests prove the simplified contract works correctly within its design scope. But that scope is deliberately narrow. The following tests expose limitations that would matter in production --- and each one motivates a specific feature in Chapter 3's full implementation.
 
-### Gap 1: Arithmetic overflow with large amounts
+### Gap 1: Arithmetic Overflow with Large Amounts
 
 The simplified contract computes `total_amount * elapsed // duration` using plain `UInt64` arithmetic. What happens with production-scale amounts?
 
@@ -904,7 +947,7 @@ The comment explains what *would* happen with production parameters. We cannot e
 
 *Chapter 3 solves this with wide arithmetic: `op.mulw(total, elapsed)` produces a 128-bit intermediate product as two `UInt64` values, and `op.divmodw` divides it back to `UInt64`. The intermediate product never overflows.*
 
-### Gap 2: Only one beneficiary
+### Gap 2: Only One Beneficiary
 
 ```python
     def test_cannot_add_second_beneficiary(
@@ -962,7 +1005,7 @@ The "Already initialized" assertion fires because `self.asset_id.value` is no lo
 
 *Chapter 3 introduces `BoxMap(Account, VestingSchedule, key_prefix=b"v_")` for per-beneficiary storage. Each schedule gets its own box, independently created and deleted. The `initialize` method sets up the contract and token; a separate `create_schedule` method adds individual beneficiaries.*
 
-### Gap 3: No revocation
+### Gap 3: No Revocation
 
 ```python
     def test_no_revocation_mechanism(
@@ -991,6 +1034,10 @@ The "Already initialized" assertion fires because `self.asset_id.value` is no lo
                     algokit_utils
                     .AppClientMethodCallParams(
                         method="claim",
+                        static_fee=(
+                            algokit_utils.AlgoAmount
+                            .from_micro_algo(2000)
+                        ),
                         note=os.urandom(8),
                     )
                 )
@@ -1013,7 +1060,7 @@ Even the admin cannot retrieve unvested tokens. Once deposited, tokens are fully
 
 *Chapter 3 adds a `revoke` method: it calculates how many tokens are vested at revocation time, caps the beneficiary's `total_amount` at the vested amount, and returns the unvested remainder to the admin via an inner transaction.*
 
-### Gap 4: Rounding behavior across multiple claims
+### Gap 4: Rounding Behavior Across Multiple Claims
 
 ```python
     def test_multiple_claims_sum_to_total(
@@ -1071,6 +1118,8 @@ These four gaps --- overflow, single-beneficiary limitation, missing revocation,
 
 
 ## Unit Testing with algorand-python-testing
+
+You have now written a complete integration test suite. The remainder of this chapter introduces a faster, lighter alternative for testing business logic during development.
 
 Every test so far is an *integration test*: it deploys a real contract to LocalNet, submits real transactions, and verifies real on-chain state. Integration tests are the gold standard for smart contracts because they test the actual compiled TEAL, the ABI encoding, the opcode budget, and the network interaction. But they are slow --- the `advance_time` sleeps alone add up to 30+ seconds per run.
 
@@ -1245,17 +1294,17 @@ The `algopy_testing_context()` context manager provides a mock AVM environment. 
 
 **When to use each approach:**
 
-| | Integration Tests | Unit Tests |
-|-|---|---|
+| Aspect | Integration Tests | Unit Tests |
+|--------|---|---|
 | **Speed** | Slow (seconds) | Fast (milliseconds) |
 | **Fidelity** | Tests compiled TEAL on real AVM | Tests Python source |
 | **What it tests** | Contract logic + client code + ABI encoding | Contract logic only |
 | **Catches** | Opcode budget, ABI encoding, real network behavior | Business logic bugs, math errors |
 | **When a test fails** | Bug could be in the contract OR the client code | Bug is in the contract logic |
-| **Dependencies** | LocalNet + Docker | None |
+| **Requires** | LocalNet + Docker | None |
 | **Best for** | Final validation, security | Rapid logic iteration |
 
-Use unit tests for rapid development of business logic (especially math-heavy calculations), then write integration tests for the full contract lifecycle and all security paths. Both belong in your test suite.
+In practice, start with unit tests for math and business logic --- the parts where a wrong number means lost funds --- then write integration tests for the full lifecycle: deploy, initialize, interact, and verify on-chain state. When a unit test passes but an integration test fails, the bug is in ABI encoding, opcode budget, or a deployment detail that only surfaces on-chain.
 
 > **Note:** In production applications, you will also have client-side code that deserves its own tests --- SDK wrappers, frontend transaction composers, error handling, retry logic. That is standard Python (or TypeScript) testing with no blockchain-specific tooling. This chapter covers the blockchain-specific skill: testing the smart contract itself.
 
@@ -1264,7 +1313,7 @@ Use unit tests for rapid development of business logic (especially math-heavy ca
 
 As your project grows to multiple contracts, a consistent structure keeps things manageable:
 
-```
+```text
 tests/
     __init__.py
     conftest.py                  # Shared fixtures
@@ -1289,6 +1338,16 @@ tests/
 
 
 ## Summary
+
+In this chapter you learned to:
+
+- Write integration tests that deploy a contract to LocalNet, submit real transactions, and verify on-chain state
+- Use `advance_time` (sleep + dummy transaction) to test time-dependent contract logic on LocalNet
+- Write negative tests using `pytest.raises` and verify exact rejection reasons with the simulate endpoint
+- Write unit tests with `algorand-python-testing` for rapid iteration on business logic
+- Distinguish integration tests from unit tests and choose which to write first
+- Structure a test suite with fixtures, helpers, and descriptive naming conventions
+- Write tests that deliberately fail to expose a simplified contract's limitations and define a production specification
 
 | Concept | Key Takeaway |
 |---------|-------------|
