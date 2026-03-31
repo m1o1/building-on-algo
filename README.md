@@ -4,6 +4,16 @@
 
 [**Read the book online**](https://m1o1.github.io/building-on-algo/)
 
+1. [The Algorand Mental Model](https://m1o1.github.io/building-on-algo/01-the-algorand-mental-model.html)
+2. [Testing Smart Contracts](https://m1o1.github.io/building-on-algo/02-testing-smart-contracts.html)
+3. [A Token Vesting Contract](https://m1o1.github.io/building-on-algo/03-a-token-vesting-contract.html)
+4. [NFTs — Extending the Vesting Contract with Transferability](https://m1o1.github.io/building-on-algo/04-nfts.html)
+5. [A Constant Product AMM](https://m1o1.github.io/building-on-algo/05-a-constant-product-amm.html)
+6. [Yield Farming — Extending the AMM with Staking Rewards](https://m1o1.github.io/building-on-algo/06-yield-farming.html)
+7. [Common Patterns and Idioms](https://m1o1.github.io/building-on-algo/07-common-patterns-and-idioms.html)
+8. [Delegated Limit Order Book with LogicSig Agents](https://m1o1.github.io/building-on-algo/08-delegated-limit-order-book.html)
+9. [Private Governance Voting with Zero-Knowledge Proofs](https://m1o1.github.io/building-on-algo/09-private-governance-voting.html)
+
 ---
 
 A hands-on guide that takes a senior software engineer from zero smart contract knowledge to deploying production-quality DeFi applications on Algorand. Written for developers who know Python well but have never built a smart contract.
@@ -25,10 +35,6 @@ All contracts use **[Algorand Python (Puya)](https://dev.algorand.co/concepts/sm
 | 9 | **Private Governance Voting** | Zero-knowledge proofs, elliptic curve operations (BN254), MiMC hash, post-quantum security |
 
 Plus two appendices: a **Smart Contract Cookbook** with 50+ standalone recipes, and a **Gotchas Cheat Sheet** of common mistakes and how to avoid them.
-
-## Reading the Book
-
-The easiest way to read is the [online version](https://m1o1.github.io/building-on-algo/) hosted on GitHub Pages.
 
 ## Building Locally
 
