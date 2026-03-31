@@ -15,7 +15,7 @@ By the end of this chapter you will have a working staking contract, deployed on
 > **Note:** This chapter assumes you have a working AMM from the previous chapter. The farming contract reads the AMM's global state and accepts its LP tokens. If you skipped the AMM chapter, go back and build it first --- the farming contract will not compile or deploy without it.
 
 
-## The Junior Version --- A Simple Staking Contract
+## A Simplified Staking Contract
 
 Before tackling the real accumulator math, let us build the simplest possible staking contract. This version has a fixed 30-day lock period, a single reward pool, and straightforward proportional math. It will work for a handful of stakers, and building it first makes the problems that motivate the accumulator pattern concrete rather than abstract.
 
@@ -32,7 +32,7 @@ mv smart_contracts/hello_world smart_contracts/lp_farming
 
 Delete the template-generated `deploy_config.py` inside the renamed directory. Your contract code goes in `smart_contracts/lp_farming/contract.py`.
 
-Here is the junior version. Replace the contents of `contract.py`:
+Here is the simplified version. Replace the contents of `contract.py`:
 
 ```python
 from algopy import (
@@ -228,7 +228,7 @@ This contract works. You can deploy it, stake LP tokens, claim rewards after som
 
 ## The Reward Accumulator Pattern
 
-The junior version's core flaw is that it tries to compute each user's reward share from scratch every time. This requires knowing the exact staking history of every participant --- who was staked, how much, and for how long. With two stakers, the math is manageable. With ten thousand, it is impossible within the AVM's opcode budget.
+The simplified version's core flaw is that it tries to compute each user's reward share from scratch every time. This requires knowing the exact staking history of every participant --- who was staked, how much, and for how long. With two stakers, the math is manageable. With ten thousand, it is impossible within the AVM's opcode budget.
 
 ### Why Per-User Tracking Fails
 
@@ -447,7 +447,7 @@ app_client.send.call(
 
 ## Project Setup and Full Contract
 
-Now we build the production staking contract, incorporating the accumulator pattern, duration multipliers, and cross-contract verification. This replaces the junior version entirely.
+Now we build the production staking contract, incorporating the accumulator pattern, duration multipliers, and cross-contract verification. This replaces the simplified version entirely.
 
 The contract file is `smart_contracts/lp_farming/contract.py`. Compile with:
 
