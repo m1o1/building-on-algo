@@ -69,23 +69,25 @@ This book is *not* for you if you are looking for Solidity or EVM development (A
 
 ### How This Book Is Organized
 
-The book is structured around seven progressively complex chapters, each built incrementally so that every concept is introduced at the moment you need it:
+The book is structured around nine progressively complex chapters, each built incrementally so that every concept is introduced at the moment you need it:
 
 - **Chapter 1 --- The Algorand Mental Model.** The execution model, account system, and constraints every developer must internalize, plus setting up your development environment and deploying your first contract.
 
-- **Chapter 2 --- Project 1: A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of Chapter 2 you can build and deploy a production-quality smart contract from scratch.
+- **Chapter 2 --- Testing Smart Contracts.** You build a simplified vesting contract, write comprehensive tests against it, and discover through failing tests exactly what the full implementation in Chapter 3 must solve. This chapter establishes the testing patterns used throughout the rest of the book.
 
-- **Chapter 3 --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
+- **Chapter 3 --- Project 1: A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of Chapter 3 you can build and deploy a production-quality smart contract from scratch.
 
-- **Chapter 4 --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
+- **Chapter 4 --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
 
-- **Chapter 5 --- Yield Farming: Extending the AMM with Staking Rewards.** You extend the AMM with a staking contract where LPs lock LP tokens to earn reward tokens, introducing the Synthetix-style reward accumulator pattern, duration multipliers, and smart contract composition via cross-contract state reads.
+- **Chapter 5 --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
 
-- **Chapter 6 --- Common Patterns and Idioms.** A patterns chapter covers cross-cutting production concerns: fee subsidization, MBR lifecycle, canonical ordering, event emission, and opcode budget management.
+- **Chapter 6 --- Yield Farming: Extending the AMM with Staking Rewards.** You extend the AMM with a staking contract where LPs lock LP tokens to earn reward tokens, introducing the Synthetix-style reward accumulator pattern, duration multipliers, and smart contract composition via cross-contract state reads.
 
-- **Chapter 7 --- Project 3: A Delegated Limit Order Book with LogicSig Agents.** Algorand's second execution model --- Logic Signatures --- applied to a delegated limit order book. This introduces the hybrid stateful/stateless architecture, template variables, keeper bots, packed binary data, and composability with the AMM from Chapter 4.
+- **Chapter 7 --- Common Patterns and Idioms.** A patterns chapter covers cross-cutting production concerns: fee subsidization, MBR lifecycle, canonical ordering, event emission, and opcode budget management.
 
-- **Chapter 8 --- Project 4: Private Governance Voting with Zero-Knowledge Proofs.** Pushing the AVM to its limits with a private governance voting system using zero-knowledge proofs, elliptic curve operations (BN254), and the MiMC hash. Also covers Algorand's Falcon-based post-quantum security roadmap.
+- **Chapter 8 --- Project 3: A Delegated Limit Order Book with LogicSig Agents.** Algorand's second execution model --- Logic Signatures --- applied to a delegated limit order book. This introduces the hybrid stateful/stateless architecture, template variables, keeper bots, packed binary data, and composability with the AMM from Chapter 5.
+
+- **Chapter 9 --- Project 4: Private Governance Voting with Zero-Knowledge Proofs.** Pushing the AVM to its limits with a private governance voting system using zero-knowledge proofs, elliptic curve operations (BN254), and the MiMC hash. Also covers Algorand's Falcon-based post-quantum security roadmap.
 
 Two appendices provide lasting reference value: the **Algorand Smart Contract Cookbook** contains 50+ standalone code examples organized by topic, and the **Consolidated Gotchas Cheat Sheet** catalogs the most common mistakes and how to avoid them.
 
@@ -101,9 +103,11 @@ Code examples are presented incrementally --- each section adds to the contract 
 
 ### Test Helpers and Client-Side Code
 
-Test outlines in each chapter show *what* to test and *how* to assert. The helper functions referenced in tests (e.g., `advance_time`, `create_test_asa`, `fund_account`, `deploy_vesting`) are straightforward wrappers around the AlgoKit Utils and algosdk calls shown in each chapter's deployment and interaction scripts. When you encounter a helper in a test outline, implement it using the patterns demonstrated earlier in that chapter. The client-side scripts in this book use the **AlgoKit Utils v4 API** --- `AppFactory` for deployment, `app_client.send.call()` for method invocations, and `algorand.send.*` for standalone transactions. For production projects, you can also generate **typed clients** via `algokit generate client` (see Cookbook recipe 16.3) for compile-time type safety.
+Chapter 2 introduces the foundational testing setup --- pytest fixtures, reusable helpers (`advance_time`, `create_test_asa`, `fund_account`), and the integration testing patterns used throughout the book. Each subsequent chapter includes test outlines specific to its contract. The helper functions referenced in tests are straightforward wrappers around the AlgoKit Utils and algosdk calls shown in each chapter's deployment and interaction scripts. The client-side scripts in this book use the **AlgoKit Utils v4 API** --- `AppFactory` for deployment, `app_client.send.call()` for method invocations, and `algorand.send.*` for standalone transactions. For production projects, you can also generate **typed clients** via `algokit generate client` (see Cookbook recipe 16.3) for compile-time type safety.
 
 > **Note:** Admonitions like this one provide supplementary information, tips, or context that is useful but not essential to following the main narrative.
+
+Both types appear throughout the book.
 
 > **Warning:** Warning admonitions highlight security concerns, common mistakes, or behavior that could cause loss of funds in a production contract. Do not skip these.
 
@@ -122,7 +126,7 @@ The toolchain reflects the state of Algorand development as of early 2026: AlgoK
 
 \part{Foundations}
 
-Part I establishes the mental model and core skills you need for everything that follows. You will learn how Algorand's execution model differs from traditional programming, set up your development environment, and build your first two smart contracts --- a token vesting system and an NFT extension --- that introduce every foundational concept.
+Part I establishes the mental model, tooling, and core skills you need for everything that follows. You will learn how Algorand's execution model differs from traditional programming, set up your development environment, learn how to test smart contracts, and build your first two smart contracts --- a token vesting system and an NFT extension --- that introduce every foundational concept.
 
 # The Algorand Mental Model
 
@@ -145,7 +149,7 @@ class HelloAlgorand(ARC4Contract):
         return "Hello, " + name
 ```
 
-This is a complete smart contract. It has one method that takes a string and returns a greeting. We will understand every line of this by the end of Chapter 2. For now, notice three things: it is plain Python with type annotations, it inherits from `ARC4Contract`, and methods are decorated with `@arc4.abimethod`. That is all it takes.
+This is a complete smart contract. It has one method that takes a string and returns a greeting. We will understand every line of this by the end of Chapter 3. For now, notice three things: it is plain Python with type annotations, it inherits from `ARC4Contract`, and methods are decorated with `@arc4.abimethod`. That is all it takes.
 
 ## Execution Model: Smart Contracts Are Transaction Validators
 
@@ -198,7 +202,7 @@ Smart contracts need to persist data between transactions. Algorand provides thr
 
 **Box storage** is application-controlled key-value storage. Each entry is an independent "box" with a name (1--64 bytes) containing up to 32,768 bytes of data. Only the application's code can create, read, modify, or delete its own boxes --- users cannot unilaterally remove them. This makes boxes the correct choice for any per-user data the application must control: balances, vesting schedules, order records, vote commitments.
 
-Box storage introduces one concept that surprises newcomers: **box references**. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. Each declared reference grants 1,024 bytes (1KB) of I/O budget. If a box's name plus contents exceed 1KB, you need multiple references to the same box. Forgetting to declare box references produces a "box read/write budget exceeded" error. We will see this in practice when we build the vesting contract in Chapter 2.
+Box storage introduces one concept that surprises newcomers: **box references**. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. Each declared reference grants 1,024 bytes (1KB) of I/O budget. If a box's name plus contents exceed 1KB, you need multiple references to the same box. Forgetting to declare box references produces a "box read/write budget exceeded" error. We will see this in practice when we build the vesting contract in Chapter 3.
 
 | Storage Type | Capacity | Who Controls Deletion | Best For |
 |-------------|----------|----------------------|----------|
@@ -238,16 +242,16 @@ The minimum [transaction fee](https://dev.algorand.co/concepts/transactions/fees
 
 So far we have described transactions submitted by users (off-chain). Smart contracts can also issue [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) --- transactions sent from within contract code during execution. When your contract needs to send Algos, transfer an ASA, or call another contract, it does so by emitting an inner transaction. Inner transactions execute atomically within the outer transaction: if the outer transaction fails, all inner transactions are rolled back too.
 
-The distinction from atomic groups is important: atomic groups are assembled *off-chain* by a client and submitted as a bundle, while inner transactions are created *on-chain* by contract logic during execution. A contract can issue up to 256 inner transactions per group. We will use inner transactions extensively starting in Chapter 2.
+The distinction from atomic groups is important: atomic groups are assembled *off-chain* by a client and submitted as a bundle, while inner transactions are created *on-chain* by contract logic during execution. A contract can issue up to 256 inner transactions per group. We will use inner transactions extensively starting in Chapter 3.
 
 ## What You Cannot Do
 
 Understanding limits is as important as understanding capabilities:
 
 - **No floating point.** The AVM has only `uint64` and `bytes` types. All math is integer-only. Prices must be represented as rational numbers (numerator/denominator). (See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).)
-- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction costs a fixed number of units (called opcodes), and your contract gets a budget of 700 per application call --- roughly enough for several hundred arithmetic operations and dozens of state reads, but not enough for expensive cryptographic operations like signature verification. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a more generous 20,000 per transaction.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
+- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction costs a fixed number of units (called opcodes), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in Chapter 7). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
 - **No callbacks or fallback functions.** When your contract sends tokens via an inner transaction, no code executes on the receiving side. This eliminates classical reentrancy attacks. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a comparison of security models.)
-- **No cross-contract state reads within an atomic group.** If contract A and contract B are both called in the same atomic group, contract B sees contract A's state as it was *before* the group started executing, not any mid-group modifications. State changes from all transactions in the group are only committed together at the end, after every transaction succeeds.
+- **Cross-contract state is read-only from within TEAL.** Your contract can read another contract's global state via `app_global_get_ex`, but cannot write to it. Modifications to another contract's state require calling that contract via an inner transaction. State changes from earlier transactions in a group ARE visible to later transactions in the same group --- they share a single copy-on-write state object. The group's aggregate changes are committed to the ledger only after every transaction succeeds.
 - **No private on-chain data.** All state (global, local, boxes) is publicly readable off-chain via algod and indexer APIs. Boxes are private *on-chain* (only the owning app can read them in TEAL), but anyone can read them via the REST API.
 - **No upgradeable contracts by default.** If you reject `UpdateApplication`, the code is immutable. This is the recommended default for DeFi contracts. (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)
 
@@ -521,9 +525,1353 @@ The official Algorand developer documentation at [dev.algorand.co](https://dev.a
 
 \newpage
 
+# Testing Smart Contracts
+
+On a blockchain, deployed code is immutable. A bug in a web application means a hotfix and an apology. A bug in a smart contract means funds locked or stolen --- permanently. There is no rollback, no patch, no "we'll fix it in the next release." The Tinyman V1 exploit drained $3 million because a single validation check was missing. The code was deployed, the exploit was discovered, and the funds were gone before anyone could react.
+
+Testing is not optional. It is the most important skill in this book after the mental model itself.
+
+In Chapter 1 you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You deployed a HelloAlgorand contract and called it from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
+
+This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: positive tests that verify correct behavior, negative tests that verify security checks, and simulate-based tests that construct attacks without submitting them. Finally, we write tests that *fail* --- tests that expose the simplified contract's limitations. Those failing tests become the specification for the production contract we build in Chapter 3.
+
+An important distinction before we begin: smart contract testing has two layers. **Contract logic testing** verifies that the on-chain code behaves correctly --- the right assertions fire, the math is accurate, state transitions are safe. **Client code testing** verifies that your off-chain scripts compose transactions correctly, encode ABI arguments properly, and handle errors gracefully. This chapter focuses on contract logic testing, which is the blockchain-specific skill. Client code testing is standard Python testing (pytest, mocking, assertions) and does not require special tooling. The integration tests we write here test *both layers simultaneously* --- when one fails, the bug could be in the contract or in the client code that calls it. The unit tests test *contract logic only*.
+
+By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
+
+
+## The Simplified Vesting Contract
+
+We need a contract to test. Rather than testing HelloAlgorand (too trivial to teach anything transferable), we will build a simplified version of the token vesting contract that Chapter 3 covers in full. This version strips away everything that is not essential to the core idea: one beneficiary, linear vesting with a cliff, admin deposits tokens, beneficiary claims.
+
+Here is what "simplified" means in practice. The production contract in Chapter 3 uses box storage for unlimited beneficiaries, wide arithmetic for overflow safety, a separate `revoke` method, schedule cleanup with MBR refunds, and read-only query methods. Our simplified version uses global state (one beneficiary only), plain `UInt64` arithmetic, no revocation, and a combined initialize-and-deposit method. It is roughly 90 lines of PuyaPy compared to Chapter 3's 200+.
+
+Here is the complete contract. Read it through, then we will discuss the key points:
+
+```python
+from algopy import (
+    ARC4Contract,
+    Asset,
+    Bytes,
+    Global,
+    GlobalState,
+    Txn,
+    UInt64,
+    arc4,
+    gtxn,
+    itxn,
+)
+
+
+class SimpleVesting(ARC4Contract):
+    """A simplified vesting contract for one beneficiary.
+    Tokens vest linearly from start to vesting_end,
+    with nothing claimable before cliff_end."""
+
+    def __init__(self) -> None:
+        self.admin = GlobalState(Bytes())
+        self.asset_id = GlobalState(UInt64(0))
+        self.beneficiary = GlobalState(Bytes())
+        self.total_amount = GlobalState(UInt64(0))
+        self.claimed_amount = GlobalState(UInt64(0))
+        self.start_time = GlobalState(UInt64(0))
+        self.cliff_end = GlobalState(UInt64(0))
+        self.vesting_end = GlobalState(UInt64(0))
+
+    @arc4.baremethod(create="require")
+    def create(self) -> None:
+        """Record who deployed this contract."""
+        self.admin.value = Txn.sender.bytes
+
+    @arc4.baremethod(
+        allow_actions=[
+            "UpdateApplication",
+            "DeleteApplication",
+        ]
+    )
+    def reject_lifecycle(self) -> None:
+        """Make the contract immutable."""
+        assert False, "Contract is immutable"
+
+    @arc4.abimethod
+    def opt_in_to_asset(self, asset: UInt64) -> None:
+        """Opt the contract into an ASA.
+        Must be called before the deposit group."""
+        assert Txn.sender.bytes == self.admin.value, \
+            "Only admin"
+        itxn.AssetTransfer(
+            xfer_asset=Asset(asset),
+            asset_receiver=(
+                Global.current_application_address
+            ),
+            asset_amount=0,
+            fee=UInt64(0),
+        ).submit()
+
+    @arc4.abimethod
+    def initialize(
+        self,
+        asset: UInt64,
+        beneficiary: arc4.Address,
+        total_amount: UInt64,
+        cliff_duration: UInt64,
+        vesting_duration: UInt64,
+        deposit_txn: gtxn.AssetTransferTransaction,
+    ) -> None:
+        """Set up the vesting schedule and accept the
+        token deposit in one atomic group."""
+        assert Txn.sender.bytes == self.admin.value, \
+            "Only admin"
+        assert self.asset_id.value == UInt64(0), \
+            "Already initialized"
+        assert vesting_duration > cliff_duration, \
+            "Vesting must exceed cliff"
+        assert total_amount > UInt64(0), \
+            "Amount must be positive"
+
+        # Verify the grouped deposit
+        assert deposit_txn.xfer_asset == Asset(asset)
+        assert deposit_txn.asset_receiver \
+            == Global.current_application_address
+        assert deposit_txn.asset_amount == total_amount
+
+        self.asset_id.value = asset
+        self.beneficiary.value = beneficiary.bytes
+        self.total_amount.value = total_amount
+        now = Global.latest_timestamp
+        self.start_time.value = now
+        self.cliff_end.value = now + cliff_duration
+        self.vesting_end.value = now + vesting_duration
+
+    @arc4.abimethod
+    def claim(self) -> UInt64:
+        """Beneficiary claims vested tokens."""
+        assert Txn.sender.bytes \
+            == self.beneficiary.value, "Only beneficiary"
+
+        now = Global.latest_timestamp
+        if now < self.cliff_end.value:
+            return UInt64(0)
+
+        if now >= self.vesting_end.value:
+            vested = self.total_amount.value
+        else:
+            elapsed = now - self.start_time.value
+            duration = (
+                self.vesting_end.value
+                - self.start_time.value
+            )
+            vested = (
+                self.total_amount.value
+                * elapsed
+                // duration
+            )
+
+        claimable = vested - self.claimed_amount.value
+        if claimable == UInt64(0):
+            return UInt64(0)
+
+        itxn.AssetTransfer(
+            xfer_asset=Asset(self.asset_id.value),
+            asset_receiver=Txn.sender,
+            asset_amount=claimable,
+            fee=UInt64(0),
+        ).submit()
+
+        self.claimed_amount.value = (
+            self.claimed_amount.value + claimable
+        )
+        return claimable
+
+    @arc4.abimethod(readonly=True)
+    def get_claimable(self) -> UInt64:
+        """How many tokens can the beneficiary
+        claim right now?"""
+        now = Global.latest_timestamp
+        if now < self.cliff_end.value:
+            return UInt64(0)
+
+        if now >= self.vesting_end.value:
+            vested = self.total_amount.value
+        else:
+            elapsed = now - self.start_time.value
+            duration = (
+                self.vesting_end.value
+                - self.start_time.value
+            )
+            vested = (
+                self.total_amount.value
+                * elapsed
+                // duration
+            )
+
+        return vested - self.claimed_amount.value
+
+    @arc4.abimethod(readonly=True)
+    def get_admin(self) -> arc4.Address:
+        """Return the admin address."""
+        return arc4.Address.from_bytes(
+            self.admin.value
+        )
+```
+
+Let us walk through the design decisions.
+
+**Global state for everything.** The vesting parameters --- `total_amount`, `start_time`, `cliff_end`, `vesting_end`, `claimed_amount` --- are all global state fields. This limits us to a single beneficiary (one set of parameters), but it avoids the complexity of box storage, box references, and MBR management. That is 2 byte-slice slots (`admin` and `beneficiary`, stored as raw address bytes) and 6 uint slots --- well within the 64-slot limit.
+
+**Separate opt-in, then initialize-and-deposit.** The contract needs to opt into the ASA before it can receive the deposit. On Algorand, an asset transfer to an account that has not opted in will fail. So we call `opt_in_to_asset` first, then send a grouped transaction: an asset transfer (the deposit) followed by the `initialize` app call. The contract verifies the deposit matches the declared amount and asset. This is simpler than Chapter 3's approach but less flexible --- you cannot add more tokens after initialization.
+
+**No wide arithmetic.** The vesting calculation `total_amount * elapsed // duration` uses plain `UInt64` arithmetic. If `total_amount * elapsed` exceeds `UInt64` max (~1.8 x 10^19), the AVM panics. With small test amounts this is fine. With production amounts (100M tokens at 6 decimals = 10^14 base units times months of elapsed time), it overflows. We will test this gap explicitly.
+
+**`claim` returns zero instead of asserting.** If nothing is claimable (before cliff, or everything already claimed), the method returns 0 rather than failing. This is a design choice --- the Chapter 3 version asserts because a zero-claim is likely a user error and should fail loudly. Here we return zero for simplicity.
+
+**`fee=UInt64(0)` on every inner transaction.** This makes the fee pooling intent explicit --- the outer transaction overpays to cover inner fees. In PuyaPy, the default inner transaction fee is already 0, but writing it explicitly ensures anyone reading the code immediately sees the intent. If a non-zero fee were set (or if a lower-level language left the field defaulting to the minimum fee), that amount would be deducted from the contract's Algo balance. An attacker could then call your contract repeatedly, draining its balance through accumulated fees.
+
+Save this contract as `smart_contracts/simple_vesting/contract.py`. If you are using a project from `algokit init`, rename the template's `hello_world/` directory to `simple_vesting/` first. Compile it:
+
+```bash
+algokit project run build
+```
+
+You should see `SimpleVesting.approval.teal`, `SimpleVesting.clear.teal`, and `SimpleVesting.arc56.json` in `smart_contracts/artifacts/simple_vesting/`.
+
+
+## Setting Up pytest
+
+The project template from `algokit init` includes pytest in its dependencies, but you need a `tests/` directory with proper fixtures. Create `tests/conftest.py` in your project root (next to `pyproject.toml`):
+
+```python
+# tests/conftest.py
+import os
+import time
+import pytest
+import algokit_utils
+
+
+@pytest.fixture(scope="session")
+def algorand() -> algokit_utils.AlgorandClient:
+    """AlgorandClient connected to LocalNet.
+    Session-scoped: one client for all tests."""
+    return (
+        algokit_utils.AlgorandClient.default_localnet()
+    )
+
+
+@pytest.fixture(scope="session")
+def admin(algorand: algokit_utils.AlgorandClient):
+    """The LocalNet dispenser account. Pre-funded
+    with millions of Algo."""
+    return algorand.account.localnet_dispenser()
+
+
+def fund_account(
+    algorand: algokit_utils.AlgorandClient,
+    sender,
+    receiver_address: str,
+    amount: int = 500_000,
+) -> None:
+    """Send Algo to an account so it meets MBR."""
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=sender.address,
+            receiver=receiver_address,
+            amount=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(amount)
+            ),
+            note=os.urandom(8),
+        )
+    )
+
+
+def create_test_asa(
+    algorand: algokit_utils.AlgorandClient,
+    creator,
+    total: int = 10_000_000_000,
+    decimals: int = 6,
+) -> int:
+    """Create a test ASA and return its ID."""
+    result = algorand.send.asset_create(
+        algokit_utils.AssetCreateParams(
+            sender=creator.address,
+            total=total,
+            decimals=decimals,
+            default_frozen=False,
+            asset_name="TestToken",
+            unit_name="TST",
+            note=os.urandom(8),
+        )
+    )
+    return result.asset_id
+
+
+def advance_time(
+    algorand: algokit_utils.AlgorandClient,
+    seconds: int,
+) -> None:
+    """Advance the LocalNet block timestamp.
+
+    On LocalNet, blocks are produced on demand --- only
+    when a transaction is submitted. time.sleep() alone
+    does NOT advance the block timestamp. This helper
+    sleeps for the requested duration (so the system
+    clock advances), then sends a dummy self-payment
+    (so a new block is produced with the updated
+    timestamp).
+    """
+    time.sleep(seconds)
+    dispenser = algorand.account.localnet_dispenser()
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=dispenser.address,
+            receiver=dispenser.address,
+            amount=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(0)
+            ),
+            note=os.urandom(8),
+        )
+    )
+```
+
+Also create an empty `tests/__init__.py` so pytest treats the directory as a package.
+
+There are several important things to understand about this setup.
+
+**`localnet_dispenser()` vs `account.random()`.** The dispenser is a pre-funded account that comes with LocalNet --- it has millions of Algo and can pay for anything. `account.random()` creates a brand-new account with zero balance. Every random account needs explicit funding before it can do anything (even a simple payment requires 0.1 Algo MBR plus fee headroom). Use the dispenser as your admin/deployer and `account.random()` for beneficiaries and other secondary accounts.
+
+**`note=os.urandom(8)` on every transaction.** LocalNet produces blocks on demand, and identical transactions submitted in rapid succession can produce identical transaction IDs, causing "transaction already in ledger" errors. Adding 8 random bytes to the note field guarantees uniqueness. This costs nothing and prevents intermittent test failures that are maddening to debug. Add it to every `PaymentParams`, `AssetTransferParams`, `AssetCreateParams`, and `AppClientMethodCallParams` in your test code.
+
+> **Note:** The `advance_time` helper is the single most confusing aspect of LocalNet testing for newcomers. On a live network, block timestamps advance with wall-clock time because blocks are produced continuously. On LocalNet, blocks are only produced when you submit a transaction. If you `time.sleep(10)` but do not submit a transaction, the block timestamp stays where it was. You need both the sleep (to advance wall-clock time) and the dummy transaction (to produce a block reflecting that time).
+
+**Session-scoped fixtures.** The `algorand` and `admin` fixtures use `scope="session"` so they are created once and reused across all tests. Each test deploys its own fresh contract instance, so tests do not interfere with each other despite sharing the same LocalNet connection.
+
+> **Note:** For testing, use short durations --- seconds instead of months. Set a cliff of 5 seconds and total vesting of 20 seconds instead of 90 days and 365 days. This keeps your test suite fast while still exercising the time-dependent logic faithfully.
+
+
+## Writing Tests That Pass
+
+Create `tests/test_simple_vesting.py`. Every test follows the same rhythm: **deploy** the contract, **set up** the required state, **act** (call the method under test), and **assert** on the result.
+
+We start with two helper functions that eliminate repetition:
+
+```python
+# tests/test_simple_vesting.py
+import os
+from pathlib import Path
+import pytest
+import algokit_utils
+
+from tests.conftest import (
+    advance_time,
+    create_test_asa,
+    fund_account,
+)
+
+APP_SPEC = Path(
+    "smart_contracts/artifacts/simple_vesting/"
+    "SimpleVesting.arc56.json"
+).read_text()
+
+
+def deploy(algorand, admin):
+    """Deploy a fresh SimpleVesting contract."""
+    factory = algorand.client.get_app_factory(
+        app_spec=APP_SPEC,
+        default_sender=admin.address,
+    )
+    app_client, _ = factory.deploy()
+    return app_client
+
+
+def setup_initialized_contract(
+    algorand, admin, cliff, vesting, total
+):
+    """Deploy, fund, initialize, and return
+    (app_client, token_id, beneficiary)."""
+
+    # Step 1: Deploy a fresh contract
+    app_client = deploy(algorand, admin)
+
+    # Step 2: Create a test ASA with enough supply
+    token_id = create_test_asa(
+        algorand, admin, total=max(total, 10_000_000_000)
+    )
+
+    # Step 3: Create and fund beneficiary account
+    beneficiary = algorand.account.random()
+    fund_account(algorand, admin, beneficiary.address)
+
+    # Step 4: Beneficiary opts into the ASA
+    # (required before they can receive tokens)
+    algorand.send.asset_transfer(
+        algokit_utils.AssetTransferParams(
+            sender=beneficiary.address,
+            receiver=beneficiary.address,
+            asset_id=token_id,
+            amount=0,
+            note=os.urandom(8),
+        )
+    )
+
+    # Step 5: Fund the contract for MBR
+    # (base + ASA opt-in)
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=admin.address,
+            receiver=app_client.app_address,
+            amount=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(300_000)
+            ),
+            note=os.urandom(8),
+        )
+    )
+
+    # Step 6: Contract opts into the ASA
+    # (must happen BEFORE the deposit transfer)
+    app_client.send.call(
+        algokit_utils.AppClientMethodCallParams(
+            method="opt_in_to_asset",
+            args=[token_id],
+            static_fee=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(2000)
+            ),
+            note=os.urandom(8),
+        )
+    )
+
+    # Step 7: Group the deposit + initialize call
+    composer = algorand.new_group()
+    composer.add_asset_transfer(
+        algokit_utils.AssetTransferParams(
+            sender=admin.address,
+            receiver=app_client.app_address,
+            asset_id=token_id,
+            amount=total,
+            note=os.urandom(8),
+        )
+    )
+    composer.add_app_call_method_call(
+        app_client.params.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="initialize",
+                args=[
+                    token_id,
+                    beneficiary.address,
+                    total,
+                    cliff,
+                    vesting,
+                ],
+                note=os.urandom(8),
+            )
+        )
+    )
+    composer.send()
+
+    return app_client, token_id, beneficiary
+```
+
+The `setup_initialized_contract` helper follows a 7-step sequence. Each step has a specific purpose:
+
+1. **Deploy** creates a fresh contract instance (so tests do not interfere).
+2. **Create ASA** makes a test token with sufficient supply.
+3. **Fund beneficiary** gives the new account enough Algo for MBR and fees.
+4. **Beneficiary opts into ASA** --- required before they can receive tokens via `claim`.
+5. **Fund contract** covers the contract's MBR (base account + ASA opt-in).
+6. **Contract opts into ASA** --- must happen *before* the deposit. On Algorand, an asset transfer to an account that has not opted in fails immediately.
+7. **Grouped deposit + initialize** sends the tokens and configures the vesting schedule atomically.
+
+*Before reading the tests below, pause and list three behaviors you would want to test in this contract. What is the most important security check?*
+
+Each test targets one specific behavior. We test time-dependent logic with invariants (greater than zero, less than total) rather than exact values because LocalNet timestamps are precise only to the second. We write separate tests for each security assertion so a failure tells us exactly which check broke. Now the seven tests --- each one tells a story.
+
+```python
+class TestSimpleVesting:
+
+    def test_create_sets_admin(
+        self, algorand, admin
+    ):
+        """Deployer should be recorded as admin."""
+        app_client = deploy(algorand, admin)
+        result = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="get_admin",
+                note=os.urandom(8),
+            )
+        )
+        assert result.abi_return == admin.address
+
+    def test_initialize_opts_into_asset(
+        self, algorand, admin
+    ):
+        """After initialize, the contract should hold
+        the deposited tokens."""
+        total = 1_000_000
+        app_client, token_id, _ = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=5, vesting=20, total=total,
+            )
+        )
+
+        # Verify via algod API
+        info = algorand.client.algod.account_asset_info(
+            app_client.app_address, token_id
+        )
+        balance = info["asset-holding"]["amount"]
+        assert balance == total
+
+    def test_claim_before_cliff_returns_zero(
+        self, algorand, admin
+    ):
+        """Claiming before the cliff should return 0
+        and transfer nothing."""
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=8, vesting=30, total=1_000_000,
+            )
+        )
+
+        result = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        assert result.abi_return == 0
+
+    def test_claim_after_cliff_returns_proportional(
+        self, algorand, admin
+    ):
+        """After the cliff, vested tokens should be
+        claimable proportionally."""
+        total = 1_000_000
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=5, vesting=20, total=total,
+            )
+        )
+
+        advance_time(algorand, 7)  # Past 5s cliff
+
+        result = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        claimed = result.abi_return
+        assert claimed > 0
+        assert claimed < total
+
+        # Verify on-chain balance
+        info = algorand.client.algod.account_asset_info(
+            beneficiary.address, token_id
+        )
+        assert info["asset-holding"]["amount"] == claimed
+
+    def test_claim_after_full_vesting_returns_total(
+        self, algorand, admin
+    ):
+        """After vesting_end, all tokens are claimable."""
+        total = 1_000_000
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=3, vesting=10, total=total,
+            )
+        )
+
+        advance_time(algorand, 12)  # Past vesting_end
+
+        result = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        assert result.abi_return == total
+
+    def test_only_admin_can_initialize(
+        self, algorand, admin
+    ):
+        """A non-admin caller should be rejected."""
+        app_client = deploy(algorand, admin)
+        token_id = create_test_asa(algorand, admin)
+        imposter = algorand.account.random()
+        fund_account(
+            algorand, admin, imposter.address
+        )
+
+        # Admin opts imposter into the ASA so the
+        # asset transfer does not fail before the
+        # app call
+        algorand.send.asset_transfer(
+            algokit_utils.AssetTransferParams(
+                sender=imposter.address,
+                receiver=imposter.address,
+                asset_id=token_id,
+                amount=0,
+                note=os.urandom(8),
+            )
+        )
+        # Transfer tokens to imposter so they can
+        # deposit
+        algorand.send.asset_transfer(
+            algokit_utils.AssetTransferParams(
+                sender=admin.address,
+                receiver=imposter.address,
+                asset_id=token_id,
+                amount=1_000_000,
+                note=os.urandom(8),
+            )
+        )
+
+        # Fund the contract for MBR
+        algorand.send.payment(
+            algokit_utils.PaymentParams(
+                sender=admin.address,
+                receiver=app_client.app_address,
+                amount=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(200_000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+
+        with pytest.raises(Exception):
+            composer = algorand.new_group()
+            composer.add_asset_transfer(
+                algokit_utils.AssetTransferParams(
+                    sender=imposter.address,
+                    receiver=app_client.app_address,
+                    asset_id=token_id,
+                    amount=1_000_000,
+                    note=os.urandom(8),
+                )
+            )
+            composer.add_app_call_method_call(
+                app_client.params.call(
+                    algokit_utils
+                    .AppClientMethodCallParams(
+                        method="initialize",
+                        args=[
+                            token_id,
+                            imposter.address,
+                            1_000_000, 5, 20,
+                        ],
+                        sender=imposter.address,
+                        static_fee=(
+                            algokit_utils.AlgoAmount
+                            .from_micro_algo(2000)
+                        ),
+                        note=os.urandom(8),
+                    )
+                )
+            )
+            composer.send()
+
+    def test_only_beneficiary_can_claim(
+        self, algorand, admin
+    ):
+        """A non-beneficiary should be rejected."""
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=3, vesting=15, total=1_000_000,
+            )
+        )
+
+        advance_time(algorand, 5)
+
+        attacker = algorand.account.random()
+        fund_account(
+            algorand, admin, attacker.address
+        )
+
+        with pytest.raises(Exception):
+            app_client.send.call(
+                algokit_utils
+                .AppClientMethodCallParams(
+                    method="claim",
+                    sender=attacker.address,
+                    static_fee=(
+                        algokit_utils.AlgoAmount
+                        .from_micro_algo(2000)
+                    ),
+                    note=os.urandom(8),
+                )
+            )
+```
+
+Run the tests:
+
+```bash
+pytest tests/test_simple_vesting.py -v
+```
+
+You should see all seven pass. The total runtime will be 30--50 seconds, dominated by the `advance_time` calls. If any test fails, check these common issues: LocalNet not running (`algokit localnet start`), contract not compiled (`algokit project run build`), or the ARC-56 spec path not matching your directory layout.
+
+*Self-check: can you trace each test back to a specific contract method and explain what behavior it validates? If a test fails, can you predict which `assert` in the contract was triggered?*
+
+
+## Using simulate for Negative Tests
+
+The tests above use `pytest.raises(Exception)` to verify that unauthorized calls fail. This works, but it is a blunt instrument --- you know the call failed, but not *why*. Maybe it failed for the wrong reason (insufficient funds, a missing ASA opt-in, a different assertion). You want to verify that the *specific security check* caught the attack.
+
+Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. The response includes the failure reason if the transaction would have been rejected. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
+
+```python
+    def test_simulate_unauthorized_claim(
+        self, algorand, admin
+    ):
+        """Use simulate to verify the specific
+        rejection reason for unauthorized claims."""
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=3, vesting=15, total=1_000_000,
+            )
+        )
+        advance_time(algorand, 5)
+
+        attacker = algorand.account.random()
+        fund_account(
+            algorand, admin, attacker.address
+        )
+
+        # Build the attack, simulate instead of sending
+        result = (
+            algorand.new_group()
+            .add_app_call_method_call(
+                app_client.params.call(
+                    algokit_utils
+                    .AppClientMethodCallParams(
+                        method="claim",
+                        sender=attacker.address,
+                        static_fee=(
+                            algokit_utils.AlgoAmount
+                            .from_micro_algo(2000)
+                        ),
+                        note=os.urandom(8),
+                    )
+                )
+            )
+            .simulate()
+        )
+
+        # The simulate response tells us WHY it failed
+        txn_result = (
+            result.simulate_response[
+                "txn-groups"
+            ][0]
+        )
+        assert "failure-message" in txn_result
+        assert "Only beneficiary" in (
+            txn_result["failure-message"]
+        )
+```
+
+The key difference is `.simulate()` instead of `.send()`. The transaction is constructed identically --- same method, same arguments, same sender --- but simulate executes it in a sandbox. The `simulate_response` dictionary contains detailed information about what happened, including the exact failure message from the contract's `assert` statement.
+
+This is far more precise than `pytest.raises(Exception)`. You are not just testing that the call fails --- you are testing that it fails *because of the authorization check*, not because of insufficient funds, a missing box reference, or some other unrelated error.
+
+> **Tip:** For every security assertion in your contract, write a test that constructs the specific attack and simulates it. Verify the failure message matches the assertion you intended. This builds a library of negative tests that proves each security check works for the right reason.
+
+Here is the same pattern applied to the admin-only `initialize` check:
+
+```python
+    def test_simulate_non_admin_initialize(
+        self, algorand, admin
+    ):
+        """Verify initialize rejects non-admin callers
+        with the correct error message."""
+        app_client = deploy(algorand, admin)
+        token_id = create_test_asa(algorand, admin)
+        imposter = algorand.account.random()
+        fund_account(
+            algorand, admin, imposter.address
+        )
+
+        # Fund contract for MBR
+        algorand.send.payment(
+            algokit_utils.PaymentParams(
+                sender=admin.address,
+                receiver=app_client.app_address,
+                amount=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(200_000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+
+        result = (
+            algorand.new_group()
+            .add_asset_transfer(
+                algokit_utils.AssetTransferParams(
+                    sender=admin.address,
+                    receiver=app_client.app_address,
+                    asset_id=token_id,
+                    amount=1_000_000,
+                    note=os.urandom(8),
+                )
+            )
+            .add_app_call_method_call(
+                app_client.params.call(
+                    algokit_utils
+                    .AppClientMethodCallParams(
+                        method="initialize",
+                        args=[
+                            token_id,
+                            imposter.address,
+                            1_000_000, 5, 20,
+                        ],
+                        sender=imposter.address,
+                        static_fee=(
+                            algokit_utils.AlgoAmount
+                            .from_micro_algo(2000)
+                        ),
+                        note=os.urandom(8),
+                    )
+                )
+            )
+            .simulate()
+        )
+
+        txn_result = (
+            result.simulate_response[
+                "txn-groups"
+            ][0]
+        )
+        assert "Only admin" in (
+            txn_result["failure-message"]
+        )
+```
+
+The simulate approach is especially valuable during development. When a test fails unexpectedly, simulating the same transaction gives you the exact failure reason and program counter, which you can map back to your source code using the ARC-56 source map.
+
+
+## Tests That Fail --- Revealing the Gaps
+
+The tests above prove the simplified contract works correctly within its design scope. But that scope is deliberately narrow. The following tests expose limitations that would matter in production --- and each one motivates a specific feature in Chapter 3's full implementation.
+
+### Gap 1: Arithmetic overflow with large amounts
+
+The simplified contract computes `total_amount * elapsed // duration` using plain `UInt64` arithmetic. What happens with production-scale amounts?
+
+```python
+class TestSimpleVestingGaps:
+
+    def test_overflow_with_production_amounts(
+        self, algorand, admin
+    ):
+        """100M tokens at 6 decimals produces an
+        intermediate product that overflows UInt64 when
+        combined with production-length time durations.
+
+        With short test durations, the math works.
+        With real durations (months), it would overflow.
+        This test documents the vulnerability."""
+        # 10^14 base units (100M tokens, 6 decimals)
+        total = 100_000_000_000_000
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=3, vesting=20, total=total,
+            )
+        )
+
+        # With 20-second vesting, 10^14 * 10 = 10^15
+        # fits in UInt64. This claim succeeds.
+        advance_time(algorand, 10)
+        result = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        assert result.abi_return > 0
+
+        # But if vesting_duration were 31,536,000
+        # (one year in seconds), the product
+        # 10^14 * 31,536,000 = 3.15 * 10^21 would
+        # exceed UInt64 max of ~1.8 * 10^19.
+        # The AVM would panic with an overflow error.
+```
+
+The comment explains what *would* happen with production parameters. We cannot easily test the overflow with integration tests (we would need to sleep for a year), but we can document it as a known limitation.
+
+*Chapter 3 solves this with wide arithmetic: `op.mulw(total, elapsed)` produces a 128-bit intermediate product as two `UInt64` values, and `op.divmodw` divides it back to `UInt64`. The intermediate product never overflows.*
+
+### Gap 2: Only one beneficiary
+
+```python
+    def test_cannot_add_second_beneficiary(
+        self, algorand, admin
+    ):
+        """The contract supports exactly one
+        beneficiary. Calling initialize again fails
+        because asset_id is already set."""
+        app_client, token_id, first_ben = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=5, vesting=20, total=500_000,
+            )
+        )
+
+        second_ben = algorand.account.random()
+        fund_account(
+            algorand, admin, second_ben.address
+        )
+
+        # Attempt to initialize again
+        with pytest.raises(Exception):
+            composer = algorand.new_group()
+            composer.add_asset_transfer(
+                algokit_utils.AssetTransferParams(
+                    sender=admin.address,
+                    receiver=app_client.app_address,
+                    asset_id=token_id,
+                    amount=500_000,
+                    note=os.urandom(8),
+                )
+            )
+            composer.add_app_call_method_call(
+                app_client.params.call(
+                    algokit_utils
+                    .AppClientMethodCallParams(
+                        method="initialize",
+                        args=[
+                            token_id,
+                            second_ben.address,
+                            500_000, 5, 20,
+                        ],
+                        static_fee=(
+                            algokit_utils.AlgoAmount
+                            .from_micro_algo(2000)
+                        ),
+                        note=os.urandom(8),
+                    )
+                )
+            )
+            composer.send()
+```
+
+The "Already initialized" assertion fires because `self.asset_id.value` is no longer zero. A real vesting contract serving a startup team needs to support dozens or hundreds of beneficiaries, each with independent schedules.
+
+*Chapter 3 introduces `BoxMap(Account, VestingSchedule, key_prefix=b"v_")` for per-beneficiary storage. Each schedule gets its own box, independently created and deleted. The `initialize` method sets up the contract and token; a separate `create_schedule` method adds individual beneficiaries.*
+
+### Gap 3: No revocation
+
+```python
+    def test_no_revocation_mechanism(
+        self, algorand, admin
+    ):
+        """There is no way for the admin to reclaim
+        unvested tokens if a team member leaves."""
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=5, vesting=20, total=1_000_000,
+            )
+        )
+
+        advance_time(algorand, 10)
+
+        # The contract has no revoke method. The only
+        # methods are initialize, claim, get_claimable,
+        # and get_admin. Once tokens are deposited,
+        # only the beneficiary can claim them.
+        # Admin tries to claim (fails: admin != beneficiary)
+        result = (
+            algorand.new_group()
+            .add_app_call_method_call(
+                app_client.params.call(
+                    algokit_utils
+                    .AppClientMethodCallParams(
+                        method="claim",
+                        note=os.urandom(8),
+                    )
+                )
+            )
+            .simulate()
+        )
+        # Admin can call claim, but the contract
+        # rejects because admin != beneficiary
+        txn_result = (
+            result.simulate_response[
+                "txn-groups"
+            ][0]
+        )
+        assert "Only beneficiary" in (
+            txn_result["failure-message"]
+        )
+```
+
+Even the admin cannot retrieve unvested tokens. Once deposited, tokens are fully committed to the beneficiary's vesting schedule, regardless of whether they leave the team on day two.
+
+*Chapter 3 adds a `revoke` method: it calculates how many tokens are vested at revocation time, caps the beneficiary's `total_amount` at the vested amount, and returns the unvested remainder to the admin via an inner transaction.*
+
+### Gap 4: Rounding behavior across multiple claims
+
+```python
+    def test_multiple_claims_sum_to_total(
+        self, algorand, admin
+    ):
+        """Intermediate claims use floor division.
+        Do they sum to exactly the total?"""
+        total = 1_000_000
+        app_client, token_id, beneficiary = (
+            setup_initialized_contract(
+                algorand, admin,
+                cliff=2, vesting=8, total=total,
+            )
+        )
+
+        # First claim mid-vesting
+        advance_time(algorand, 4)
+        r1 = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        first = r1.abi_return
+
+        # Second claim after full vesting
+        advance_time(algorand, 6)
+        r2 = app_client.send.call(
+            algokit_utils.AppClientMethodCallParams(
+                method="claim",
+                sender=beneficiary.address,
+                static_fee=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(2000)
+                ),
+                note=os.urandom(8),
+            )
+        )
+        second = r2.abi_return
+
+        # Should sum to exactly total
+        assert first + second == total
+```
+
+This test should pass because the final claim uses the `now >= vesting_end` branch, which bypasses division entirely and returns the full remaining amount (`total - claimed`). Floor division during intermediate claims means the beneficiary gets slightly less than their exact entitlement, and the final claim resolves the dust. This is correct behavior --- but it only works because the simplified contract's arithmetic does not overflow. With production-scale amounts, the overflow from Gap 1 would make the rounding behavior moot --- the program panics before it can round at all.
+
+*Chapter 3 extracts the vesting math into a `calculate_vested` subroutine using `op.mulw`/`op.divmodw`. Floor division consistently favors the contract: the beneficiary never receives more than their total allocation, and the dust resolves on the final claim when the full `total - claimed` remainder is released.*
+
+These four gaps --- overflow, single-beneficiary limitation, missing revocation, and overflow-dependent rounding --- form the specification for Chapter 3. You now know exactly *what* the production contract must solve and *why*. When Chapter 3 introduces `BoxMap` or `op.mulw`, you will understand the motivation instead of taking it on faith.
+
+
+## Unit Testing with algorand-python-testing
+
+Every test so far is an *integration test*: it deploys a real contract to LocalNet, submits real transactions, and verifies real on-chain state. Integration tests are the gold standard for smart contracts because they test the actual compiled TEAL, the ABI encoding, the opcode budget, and the network interaction. But they are slow --- the `advance_time` sleeps alone add up to 30+ seconds per run.
+
+The `algorand-python-testing` library provides a complementary approach: *unit testing* that executes your PuyaPy contract as a regular Python object, without compilation or deployment. You instantiate the contract class, set state directly, and call methods --- all in milliseconds.
+
+Install the testing library if it is not already in your dependencies:
+
+```bash
+pip install algorand-python-testing
+```
+
+Then place a copy of your contract in `tests/contracts/simple_vesting.py` (create `tests/contracts/__init__.py` as well so Python treats the directory as a package) and import from there:
+
+```python
+# tests/test_simple_vesting_unit.py
+import pytest
+from algopy_testing import algopy_testing_context
+from algopy import UInt64, OnCompleteAction
+
+from tests.contracts.simple_vesting import (
+    SimpleVesting,
+)
+
+
+class TestVestingMath:
+    """Unit tests for the vesting calculation logic."""
+
+    def test_before_cliff_returns_zero(self):
+        with algopy_testing_context() as ctx:
+            contract = SimpleVesting()
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction.NoOp
+                    )
+                }
+            ):
+                contract.create()
+
+            contract.total_amount.value = (
+                UInt64(1_000_000)
+            )
+            contract.claimed_amount.value = UInt64(0)
+            contract.start_time.value = UInt64(100)
+            contract.cliff_end.value = UInt64(200)
+            contract.vesting_end.value = UInt64(1000)
+
+            ctx.ledger.patch_global_fields(
+                latest_timestamp=150
+            )
+            result = contract.get_claimable()
+            assert result == 0
+
+    def test_midway_vesting(self):
+        with algopy_testing_context() as ctx:
+            contract = SimpleVesting()
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction.NoOp
+                    )
+                }
+            ):
+                contract.create()
+
+            contract.total_amount.value = (
+                UInt64(1_000_000)
+            )
+            contract.claimed_amount.value = UInt64(0)
+            contract.start_time.value = UInt64(0)
+            contract.cliff_end.value = UInt64(0)
+            contract.vesting_end.value = UInt64(1000)
+
+            ctx.ledger.patch_global_fields(
+                latest_timestamp=500
+            )
+            result = contract.get_claimable()
+            # 1_000_000 * 500 / 1000 = 500_000
+            assert result == 500_000
+
+    def test_after_end_returns_total(self):
+        with algopy_testing_context() as ctx:
+            contract = SimpleVesting()
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction.NoOp
+                    )
+                }
+            ):
+                contract.create()
+
+            contract.total_amount.value = (
+                UInt64(1_000_000)
+            )
+            contract.claimed_amount.value = UInt64(0)
+            contract.start_time.value = UInt64(100)
+            contract.cliff_end.value = UInt64(200)
+            contract.vesting_end.value = UInt64(1000)
+
+            ctx.ledger.patch_global_fields(
+                latest_timestamp=2000
+            )
+            result = contract.get_claimable()
+            assert result == 1_000_000
+
+    def test_floor_division_rounds_down(self):
+        """Integer division should favor the contract
+        (beneficiary gets slightly less)."""
+        with algopy_testing_context() as ctx:
+            contract = SimpleVesting()
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction.NoOp
+                    )
+                }
+            ):
+                contract.create()
+
+            contract.total_amount.value = (
+                UInt64(1_000_000)
+            )
+            contract.claimed_amount.value = UInt64(0)
+            contract.start_time.value = UInt64(0)
+            contract.cliff_end.value = UInt64(0)
+            contract.vesting_end.value = UInt64(3)
+
+            ctx.ledger.patch_global_fields(
+                latest_timestamp=1
+            )
+            result = contract.get_claimable()
+            # 1_000_000 / 3 = 333_333.33... -> 333_333
+            assert result == 333_333
+
+    def test_immutability_rejects_update(self):
+        with algopy_testing_context() as ctx:
+            contract = SimpleVesting()
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction.NoOp
+                    )
+                }
+            ):
+                contract.create()
+
+            with ctx.txn.create_group(
+                active_txn_overrides={
+                    "on_completion": (
+                        OnCompleteAction
+                        .UpdateApplication
+                    )
+                }
+            ):
+                with pytest.raises(
+                    AssertionError,
+                    match="immutable",
+                ):
+                    contract.reject_lifecycle()
+```
+
+Notice the key differences from integration tests:
+
+- **No deployment.** `SimpleVesting()` is a regular Python object.
+- **No transactions.** State is set by assigning directly to `GlobalState` properties.
+- **No sleeps.** Timestamps are set instantly via `ctx.ledger.patch_global_fields(latest_timestamp=...)`.
+- **No network.** No LocalNet, no algod, no Docker.
+- **Milliseconds per test** instead of seconds.
+
+The `algopy_testing_context()` context manager provides a mock AVM environment. `ctx.txn.create_group()` sets up the transaction context needed for methods that read `Txn.sender` or check `OnCompletion`. `ctx.ledger.patch_global_fields()` controls `Global.latest_timestamp`, `Global.round`, and other protocol-level values.
+
+**When to use each approach:**
+
+| | Integration Tests | Unit Tests |
+|-|---|---|
+| **Speed** | Slow (seconds) | Fast (milliseconds) |
+| **Fidelity** | Tests compiled TEAL on real AVM | Tests Python source |
+| **What it tests** | Contract logic + client code + ABI encoding | Contract logic only |
+| **Catches** | Opcode budget, ABI encoding, real network behavior | Business logic bugs, math errors |
+| **When a test fails** | Bug could be in the contract OR the client code | Bug is in the contract logic |
+| **Dependencies** | LocalNet + Docker | None |
+| **Best for** | Final validation, security | Rapid logic iteration |
+
+Use unit tests for rapid development of business logic (especially math-heavy calculations), then write integration tests for the full contract lifecycle and all security paths. Both belong in your test suite.
+
+> **Note:** In production applications, you will also have client-side code that deserves its own tests --- SDK wrappers, frontend transaction composers, error handling, retry logic. That is standard Python (or TypeScript) testing with no blockchain-specific tooling. This chapter covers the blockchain-specific skill: testing the smart contract itself.
+
+
+## Test Organization
+
+As your project grows to multiple contracts, a consistent structure keeps things manageable:
+
+```
+tests/
+    __init__.py
+    conftest.py                  # Shared fixtures
+    contracts/                   # Contract copies for unit tests
+        __init__.py
+        simple_vesting.py
+    test_simple_vesting.py       # Integration tests
+    test_simple_vesting_unit.py  # Unit tests
+```
+
+**One test file per contract.** `test_simple_vesting.py`, `test_vesting.py`, `test_amm.py`, `test_farming.py`. Run tests for a single contract with `pytest tests/test_simple_vesting.py -v`.
+
+**Group related tests in classes.** `TestSimpleVesting` for the happy path, `TestSimpleVestingGaps` for the limitation tests. This is organizational --- pytest discovers methods in classes the same way it discovers standalone functions.
+
+**Name tests descriptively.** Follow the pattern `test_<feature>_<expected_behavior>`. Names like `test_claim_before_cliff_returns_zero` and `test_only_admin_can_initialize` make test output readable without inspecting the code.
+
+**Fixtures for setup, helpers for operations.** Fixtures (`@pytest.fixture`) manage session-scoped resources like the `algorand` client and `admin` account. Helper functions (`deploy`, `setup_initialized_contract`, `create_test_asa`) are regular functions you call with different parameters in different tests.
+
+**Every security assertion gets a negative test.** If your contract has `assert Txn.sender.bytes == self.admin.value`, write a test where a non-admin calls that method. If it has `assert total_amount > UInt64(0)`, write a test that passes zero. One negative test per assertion. This is the single most effective practice for preventing security bugs.
+
+> **Note:** The `conftest.py` fixtures and helper functions from this chapter are reused throughout the book. When you reach Chapter 3, you will add contract-specific helpers (`create_schedule`, `deposit_tokens`) but the foundational `fund_account`, `create_test_asa`, and `advance_time` helpers remain unchanged.
+
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| Integration tests | Deploy to LocalNet, submit real transactions, verify on-chain state. High fidelity but slow. |
+| Unit tests | Instantiate contracts as Python objects, mock state, no network. Fast but does not test compiled TEAL. |
+| `advance_time` | Sleep + dummy transaction to advance LocalNet block timestamp. Neither alone is sufficient. |
+| Transaction dedup | `note=os.urandom(8)` on every test transaction prevents "already in ledger" errors. |
+| `localnet_dispenser()` | Pre-funded account for admin/deployer. `account.random()` starts with zero balance. |
+| Simulate | Execute transactions without committing. Returns failure reasons for precise negative tests. |
+| Negative tests | For every `assert` in the contract, write a test that triggers the failure path. |
+| Failing tests as specs | Tests exposing simplified contract limitations define what the production version must solve. |
+
+
+## Exercises
+
+1. **(Recall)** Explain why `time.sleep(10)` alone does not advance the LocalNet block timestamp. What additional step is required, and why?
+
+2. **(Understand)** The simplified contract uses `fee=UInt64(0)` on every inner transaction. Explain what would happen if a non-zero fee were set and how an attacker could exploit it.
+
+3. **(Apply)** Write a `@pytest.fixture` named `deployed_contract` that deploys the SimpleVesting contract, initializes it with a test ASA and beneficiary, and returns a tuple of `(app_client, token_id, beneficiary)`. Use it to simplify at least two of the existing tests.
+
+4. **(Apply)** Write a test that verifies the contract rejects `DeleteApplication`. Use the simulate endpoint and check that the failure message contains "immutable."
+
+5. **(Analyze)** The simplified contract does not check `Global.group_size` in the `initialize` method. Write a test that submits an `initialize` call with an extra payment transaction appended to the group. Does the contract reject it? If not, explain what an attacker could do with the extra transaction, and add a group size check to the contract.
+
+6. **(Evaluate)** Review the four gaps identified in "Tests That Fail." Classify each as a **security issue** (could lead to loss of funds) or a **feature gap** (limits functionality but does not create a vulnerability). Justify each classification.
+
+7. **(Create)** Add a `revoke` method to the simplified contract that lets the admin reclaim unvested tokens. Write both a positive test (admin revokes mid-vesting, receives unvested tokens) and a negative test via simulate (non-admin cannot revoke, failure message is "Only admin"). Hint: the method needs an inner `AssetTransfer` to send tokens back to the admin, and it should update `total_amount` to cap at the vested amount.
+
+
+## Further Reading
+
+- [AlgoKit Testing Patterns](https://dev.algorand.co/algokit/utils/python/testing/) --- Testing smart contracts with AlgoKit Utils
+- [algorand-python-testing](https://dev.algorand.co/algokit/unit-testing/python/overview) --- Unit testing library for PuyaPy contracts
+- [pytest documentation](https://docs.pytest.org/) --- Fixtures, parametrize, markers, and configuration
+- [Simulate endpoint](https://dev.algorand.co/reference/rest-api/algod/) --- algod REST API reference including simulate
+- [AlgoKit Utils Python](https://dev.algorand.co/algokit/utils/python/overview/) --- Client library used in all test scripts
+
+
+## Before You Continue
+
+Before starting Chapter 3, you should be able to:
+
+- [ ] Write a pytest test that deploys a contract to LocalNet and calls a method
+- [ ] Use `advance_time` to test time-dependent contract logic
+- [ ] Write a negative test using `simulate` that verifies a specific security assertion
+- [ ] Explain the difference between integration tests and unit tests for smart contracts
+- [ ] Identify the four limitations of the simplified vesting contract that Chapter 3 addresses
+
+If any of these are unclear, revisit the relevant section before proceeding. Chapter 3 assumes you are comfortable writing and running tests --- every feature we build there will be tested using the patterns established here.
+
+\newpage
+
 # A Token Vesting Contract
 
 A startup has raised funds and needs to distribute tokens to its team. The tokens should not arrive all at once --- team members receive their allocation gradually over 12 months, with nothing released during the first 3 months (the "cliff"). If someone leaves early, the company can revoke their unvested tokens. This is a **token vesting contract**, and building one will teach you every foundational concept in Algorand smart contract development.
+
+In Chapter 2, you built a simplified version of this contract and discovered its limitations through testing --- overflow on large amounts, no multi-beneficiary support, no revocation. Now we build the production version that solves every gap those tests revealed.
 
 We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
 
@@ -582,7 +1930,7 @@ from algopy import ARC4Contract, GlobalState, Txn, Bytes, UInt64, arc4, BoxMap, 
 
 class TokenVesting(ARC4Contract):
     def __init__(self) -> None:
-        self.admin = GlobalState(Bytes())          # 32-byte address stored as raw bytes
+        self.admin = GlobalState(Bytes())          # Admin address (set during creation)
         self.asset_id = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
         self.beneficiary_count = GlobalState(UInt64(0))
@@ -901,6 +2249,7 @@ app_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="create_schedule",
         args=[beneficiary_address, 1_000_000, 7_776_000, 31_536_000, mbr_txn],
+        # decode_address is from algosdk.encoding
         box_references=[b"v_" + decode_address(beneficiary_address)],
     )
 )
@@ -1025,6 +2374,8 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
 
         return claimable
 ```
+
+> **Beneficiary prerequisites:** Before calling `claim`, the beneficiary must (1) have a funded account (at least 0.2 Algo for the base MBR plus ASA opt-in MBR), and (2) have opted into the vesting ASA (a zero-amount self-transfer of the asset). Without the opt-in, the inner `AssetTransfer` will fail with "receiver not opted in." In a production system, you might add an `opt_in_beneficiary` method that handles this in one atomic group, but for this contract the beneficiary manages it themselves.
 
 Notice that we send the tokens *before* updating the schedule's `claimed_amount`. On Ethereum, this would be a critical reentrancy vulnerability --- the recipient could call back into `claim()` before `claimed_amount` is updated, draining the contract. On Algorand, this is perfectly safe.
 
@@ -1172,6 +2523,18 @@ class TestTokenVesting:
         admin = algorand.account.localnet_dispenser()
         beneficiary = algorand.account.random()
         token_id = create_test_asa(algorand, admin, total=10_000_000_000)
+
+        # Fund the beneficiary (MBR + ASA opt-in MBR + fee headroom)
+        algorand.send.payment(algokit_utils.PaymentParams(
+            sender=admin.address, receiver=beneficiary.address,
+            amount=algokit_utils.AlgoAmount.from_micro_algo(500_000),
+        ))
+        # Beneficiary opts into the vesting ASA (required before claiming)
+        algorand.send.asset_transfer(algokit_utils.AssetTransferParams(
+            sender=beneficiary.address, receiver=beneficiary.address,
+            asset_id=token_id, amount=0,
+        ))
+
         vesting = deploy_vesting(algorand, admin)
         call_method(vesting, "initialize", [token_id])
         deposit_tokens(algorand, admin, vesting, token_id, 1_000_000_000)
@@ -1302,7 +2665,7 @@ In this chapter you learned to:
 
 > **A note on typed clients.** Throughout this book, deployment and test scripts use the `AppFactory` and `app_client.send.call()` pattern with string method names. For larger production projects, use the **typed client** that `algokit project run build` generates automatically (e.g., `token_vesting_client.py` in the artifacts directory). The typed client provides method-specific functions with type-checked arguments (`app_client.send.initialize(args=InitializeArgs(vesting_asset=token_id))`), eliminating string method names and catching parameter errors at development time. See Cookbook recipe 16.3 for a complete example.
 
-In the next chapter, we extend the vesting contract with NFTs for transferability. Then in Chapter 4, these same concepts reappear in a higher-stakes context as we build a constant product AMM with multi-token accounting, price curves, and LP token mechanics.
+In the next chapter, we extend the vesting contract with NFTs for transferability. Then in Chapter 5, these same concepts reappear in a higher-stakes context as we build a constant product AMM with multi-token accounting, price curves, and LP token mechanics.
 
 ## Exercises
 
@@ -1352,7 +2715,7 @@ You have a working token vesting contract. It creates schedules, tracks claims, 
 
 In this chapter we solve that by minting an *NFT* (Non-Fungible Token) for each vesting schedule. Whoever holds the NFT can claim the vested tokens --- and transferring the NFT is just a standard asset transfer that works with any Algorand wallet or marketplace. This single architectural change makes vesting positions composable: they can be traded, used as collateral, or transferred between wallets, all without modifying the contract.
 
-We will rebuild the vesting contract from Chapter 2 with these changes. Along the way, you will learn how NFTs work on Algorand (they are just ASAs with `total=1`), how to mint assets from within a contract via inner transactions, the ARC-3 metadata standard, the ownership-by-asset verification pattern, and the clawback mechanism for revocation. Every concept from Chapter 2 carries forward --- this chapter extends your knowledge rather than replacing it.
+We will rebuild the vesting contract from Chapter 3 with these changes. Along the way, you will learn how NFTs work on Algorand (they are just ASAs with `total=1`), how to mint assets from within a contract via inner transactions, the ARC-3 metadata standard, the ownership-by-asset verification pattern, and the clawback mechanism for revocation. Every concept from Chapter 3 carries forward --- this chapter extends your knowledge rather than replacing it.
 
 ## What Is an NFT on Algorand?
 
@@ -1363,7 +2726,7 @@ On some blockchains, NFTs require a dedicated token standard with special smart 
 
 That is it. There is no separate NFT contract, no special opcode, no distinct token type. The same `AssetTransfer` transaction that moves fungible tokens also moves NFTs. The same opt-in mechanism applies. The same `AssetConfig` transaction creates them. The entire Algorand NFT ecosystem --- marketplaces, wallets, explorers --- is built on this convention.
 
-This means everything you learned about ASAs in Chapter 2 (opt-in, transfers, inner transactions) applies directly to NFTs. The only new concept is *metadata* --- how an NFT communicates what it represents.
+This means everything you learned about ASAs in Chapter 3 (opt-in, transfers, inner transactions) applies directly to NFTs. The only new concept is *metadata* --- how an NFT communicates what it represents.
 
 ## ARC-3: The NFT Metadata Standard
 
@@ -1395,7 +2758,7 @@ For our contract, the admin prepares the metadata JSON and uploads it to IPFS *b
 
 ## Project Setup
 
-We will build the NFT vesting contract as a fresh project, reusing the structure from Chapter 2. If you still have your `token-vesting` project, you can duplicate it. Otherwise, scaffold a new one:
+We will build the NFT vesting contract as a fresh project, reusing the structure from Chapter 3. If you still have your `token-vesting` project, you can duplicate it. Otherwise, scaffold a new one:
 
 ```bash
 algokit init -t python --name nft-vesting
@@ -1408,7 +2771,7 @@ Delete the template-generated `deploy_config.py` inside the renamed directory. Y
 
 ## The Modified Data Model
 
-In Chapter 2, vesting schedules were stored in a `BoxMap` keyed by the beneficiary's address. When the beneficiary called `claim`, the contract looked up `self.schedules[Txn.sender]`. This coupling between identity and ownership is what we are breaking.
+In Chapter 3, vesting schedules were stored in a `BoxMap` keyed by the beneficiary's address. When the beneficiary called `claim`, the contract looked up `self.schedules[Txn.sender]`. This coupling between identity and ownership is what we are breaking.
 
 The new design keys schedules by *NFT asset ID*. When a user calls `claim`, they pass the NFT's asset ID as an argument, and the contract verifies they hold the NFT before releasing tokens. The schedule does not care *who* holds the NFT --- only *that* the caller holds it.
 
@@ -1426,7 +2789,7 @@ class VestingSchedule(arc4.Struct):
     is_revoked: arc4.Bool
 ```
 
-The struct is unchanged from Chapter 2 --- 41 bytes. We do not need to store the NFT asset ID inside the struct because it *is* the box key. We also do not store a beneficiary address because ownership is determined by who holds the NFT, not by a stored address.
+The struct is unchanged from Chapter 3 --- 41 bytes. We do not need to store the NFT asset ID inside the struct because it *is* the box key. We also do not store a beneficiary address because ownership is determined by who holds the NFT, not by a stored address.
 
 The key difference is in the `BoxMap` declaration. (See [Algorand Python storage guide](https://dev.algorand.co/algokit/languages/python/lg-storage/) for BoxMap type parameters.) Add the contract class below the struct:
 
@@ -1446,13 +2809,13 @@ class NftVesting(ARC4Contract):
         self.schedules = BoxMap(arc4.UInt64, VestingSchedule, key_prefix=b"v_")
 ```
 
-Compare with Chapter 2's `BoxMap(Account, VestingSchedule, key_prefix=b"v_")`. The key type changed from `Account` (32 bytes) to `arc4.UInt64` (8 bytes). This means box names are shorter: `b"v_"` prefix (2 bytes) + 8-byte key = 10 bytes total, compared to 34 bytes previously. The MBR per box drops accordingly: 2,500 + 400 × (10 + 41) = **22,900 microAlgos** per schedule box (down from 32,500).
+Compare with Chapter 3's `BoxMap(Account, VestingSchedule, key_prefix=b"v_")`. The key type changed from `Account` (32 bytes) to `arc4.UInt64` (8 bytes). This means box names are shorter: `b"v_"` prefix (2 bytes) + 8-byte key = 10 bytes total, compared to 34 bytes previously. The MBR per box drops accordingly: 2,500 + 400 × (10 + 41) = **22,900 microAlgos** per schedule box (down from 32,500).
 
 However, each schedule now also requires an NFT, and creating an ASA from the contract adds **100,000 microAlgos** to the contract's MBR. So the total per-schedule cost is 122,900 microAlgos --- higher than before, but we gain transferability.
 
 ## Creation, Immutability, and Initialization
 
-These methods are nearly identical to Chapter 2. The only change is in `initialize`, where we no longer need to worry about the contract opting into created NFTs (the creator automatically holds the full supply of assets it creates). (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/) for the creation and OnCompletion actions.)
+These methods are nearly identical to Chapter 3. The only change is in `initialize`, where we no longer need to worry about the contract opting into created NFTs (the creator automatically holds the full supply of assets it creates). (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/) for the creation and OnCompletion actions.)
 
 ```python
     @arc4.baremethod(create="require")
@@ -1478,11 +2841,11 @@ These methods are nearly identical to Chapter 2. The only change is in `initiali
         ).submit()
 ```
 
-These are the same patterns from Chapter 2: bare methods for lifecycle control, admin authorization via `Txn.sender.bytes == self.admin.value`, and an inner transaction with `fee=UInt64(0)` for the ASA opt-in. If any of this is unfamiliar, revisit the corresponding sections in Chapter 2 before continuing.
+These are the same patterns from Chapter 3: bare methods for lifecycle control, admin authorization via `Txn.sender.bytes == self.admin.value`, and an inner transaction with `fee=UInt64(0)` for the ASA opt-in. If any of this is unfamiliar, revisit the corresponding sections in Chapter 3 before continuing.
 
 ## Depositing Tokens
 
-The deposit method is unchanged from Chapter 2 --- the admin transfers vesting tokens to the contract in an [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/):
+The deposit method is unchanged from Chapter 3 --- the admin transfers vesting tokens to the contract in an [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/):
 
 ```python
     @arc4.abimethod
@@ -1498,9 +2861,9 @@ The deposit method is unchanged from Chapter 2 --- the admin transfers vesting t
 
 ## Minting the Vesting NFT
 
-This is where the contract diverges from Chapter 2. Instead of simply writing a schedule to box storage, `create_schedule` now mints an NFT that represents ownership of the vesting position. The NFT stays with the contract until the beneficiary opts in and the admin delivers it --- a two-step pattern we will explore shortly.
+This is where the contract diverges from Chapter 3. Instead of simply writing a schedule to box storage, `create_schedule` now mints an NFT that represents ownership of the vesting position. The NFT stays with the contract until the beneficiary opts in and the admin delivers it --- a two-step pattern we will explore shortly.
 
-*Inner transactions* are the mechanism. You used them in Chapter 2 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
+*Inner transactions* are the mechanism. You used them in Chapter 3 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
 
 ```python
     @arc4.abimethod
@@ -1620,7 +2983,7 @@ Each `create_schedule` call requires the caller to send a payment covering two M
 1. **Box MBR**: 2,500 + 400 × (10 + 41) = 22,900 microAlgos for the schedule box
 2. **NFT ASA MBR**: 100,000 microAlgos because creating an ASA from the contract increases the contract's minimum balance
 
-The total is 122,900 microAlgos per schedule. The `mbr_payment` grouped transaction must cover at least this amount. Compare with Chapter 2's 32,500 microAlgos per schedule --- the NFT adds significant cost, but transferability is the tradeoff.
+The total is 122,900 microAlgos per schedule. The `mbr_payment` grouped transaction must cover at least this amount. Compare with Chapter 3's 32,500 microAlgos per schedule --- the NFT adds significant cost, but transferability is the tradeoff.
 
 ### Inner Transaction Fees
 
@@ -1632,7 +2995,7 @@ The `deliver_nft` call adds one more inner transaction (asset transfer), needing
 
 ## Claiming with NFT Ownership Verification
 
-In Chapter 2, `claim()` took no arguments --- it identified the caller by `Txn.sender` and looked up `self.schedules[Txn.sender]`. Now the caller passes the NFT asset ID, and the contract verifies ownership:
+In Chapter 3, `claim()` took no arguments --- it identified the caller by `Txn.sender` and looked up `self.schedules[Txn.sender]`. Now the caller passes the NFT asset ID, and the contract verifies ownership:
 
 ```python
     @arc4.abimethod
@@ -1681,7 +3044,7 @@ In Chapter 2, `claim()` took no arguments --- it identified the caller by `Txn.s
         return claimable
 ```
 
-The core claim logic follows Chapter 2 --- `calculate_vested` computes how much has vested, subtracts what was already claimed, and transfers the difference. One important addition is the balance cap: if the admin created more schedules than the deposited token supply can cover, the `claimable` amount is capped to whatever the contract actually holds. This prevents a hard protocol-level failure and lets the holder claim whatever remains gracefully. The key architectural change is in the first two lines:
+The core claim logic follows Chapter 3 --- `calculate_vested` computes how much has vested, subtracts what was already claimed, and transfers the difference. One important addition is the balance cap: if the admin created more schedules than the deposited token supply can cover, the `claimable` amount is capped to whatever the contract actually holds. This prevents a hard protocol-level failure and lets the holder claim whatever remains gracefully. The key architectural change is in the first two lines:
 
 1. `nft_asset.balance(Txn.sender) == 1` --- this checks that the caller's account holds exactly one unit of the NFT. If the caller transferred the NFT to someone else, this check fails. If someone else transferred it *to* the caller, it succeeds. Ownership is determined by asset balance, not by a stored address.
 
@@ -1695,7 +3058,7 @@ This is the *ownership-by-asset* pattern: instead of binding rights to an addres
 
 ## The Vesting Calculation
 
-The same `calculate_vested` subroutine from Chapter 2, unchanged. It uses [wide arithmetic](https://dev.algorand.co/reference/algorand-teal/opcodes/) (`mulw`/`divmodw`) to avoid overflow when multiplying large token amounts by time durations:
+The same `calculate_vested` subroutine from Chapter 3, unchanged. It uses [wide arithmetic](https://dev.algorand.co/reference/algorand-teal/opcodes/) (`mulw`/`divmodw`) to avoid overflow when multiplying large token amounts by time durations:
 
 ```python
 @subroutine
@@ -1717,7 +3080,7 @@ def calculate_vested(
     return vested
 ```
 
-Place this function outside the class, between the `VestingSchedule` struct and the `NftVesting` class. Recall from Chapter 2 that `@subroutine` functions are compiled inline by PuyaPy --- they are not ABI methods and cannot be called externally. Extracting this logic into a subroutine saves program bytes because it is called in three places: `claim`, `revoke`, and `get_claimable`.
+Place this function outside the class, between the `VestingSchedule` struct and the `NftVesting` class. Recall from Chapter 3 that `@subroutine` functions are compiled inline by PuyaPy --- they are not ABI methods and cannot be called externally. Extracting this logic into a subroutine saves program bytes because it is called in three places: `claim`, `revoke`, and `get_claimable`.
 
 ## Revocation with Clawback
 
@@ -1811,7 +3174,7 @@ This is a protocol-level capability --- it does not require any special logic in
 
 The contract needs to know who currently holds the NFT so it can clawback from that specific account. But the AVM cannot enumerate who holds an asset --- there is no "find holder of asset X" opcode. The admin must provide this information, and the contract validates it: `nft_asset.balance(current_holder) == 1`. If the admin provides the wrong address, the assertion fails.
 
-The `current_holder` must also be included in the transaction's `accounts` foreign array on the client side. This is the same resource reference pattern you saw with box references in Chapter 2.
+The `current_holder` must also be included in the transaction's `accounts` foreign array on the client side. This is the same resource reference pattern you saw with box references in Chapter 3.
 
 > **Warning --- Known Limitation:** The settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 5 asks you to design the solution.
 
@@ -1825,7 +3188,7 @@ Destroying the NFT frees 100,000 microAlgos of MBR from the contract's account. 
 
 ## Cleanup
 
-After a beneficiary has fully claimed their tokens (or after revocation has settled everything), the schedule [box](https://dev.algorand.co/concepts/smart-contracts/storage/box/) can be deleted to free its MBR. Unlike Chapter 2, we do not need to worry about the NFT during cleanup for revoked schedules --- it was already destroyed during revocation. For fully-claimed schedules, the NFT still exists but is functionally complete.
+After a beneficiary has fully claimed their tokens (or after revocation has settled everything), the schedule [box](https://dev.algorand.co/concepts/smart-contracts/storage/box/) can be deleted to free its MBR. Unlike Chapter 3, we do not need to worry about the NFT during cleanup for revoked schedules --- it was already destroyed during revocation. For fully-claimed schedules, the NFT still exists but is functionally complete.
 
 ```python
     @arc4.abimethod
@@ -1856,7 +3219,7 @@ After a beneficiary has fully claimed their tokens (or after revocation has sett
 
 ## Read-Only Queries
 
-These methods let clients query vesting status without submitting a transaction via [simulate](https://dev.algorand.co/algokit/utils/python/app-client/). They are nearly identical to Chapter 2, but take an NFT asset ID instead of a beneficiary address:
+These methods let clients query vesting status without submitting a transaction via [simulate](https://dev.algorand.co/algokit/utils/python/app-client/). They are nearly identical to Chapter 3, but take an NFT asset ID instead of a beneficiary address:
 
 ```python
     @arc4.abimethod(readonly=True)
@@ -1999,9 +3362,10 @@ nft_url = b"ipfs://QmExample#arc3"
 metadata_hash = b"\x00" * 32  # Placeholder hash for testing
 
 # Phase A: Create the schedule (contract mints and keeps the NFT)
-# We don't know the NFT ID yet, so we use a placeholder box key.
-# AlgoKit Utils auto-populates the correct reference before sending.
-placeholder_box_key = b"v_" + struct.pack(">Q", 0)
+# The box key depends on the NFT asset ID, which is unknown until the inner
+# transaction executes. AlgoKit Utils handles this automatically: it simulates
+# the transaction first to discover which resources are needed, then rebuilds
+# it with the correct box references before submitting.
 create_result = algorand.new_group().add_app_call_method_call(
     app_client.params.call(
         algokit_utils.AppClientMethodCallParams(
@@ -2444,7 +3808,7 @@ In this chapter you learned to:
 | 7 | Balance-capped claims | Defensive `Asset.balance()` check prevents hard failure if contract is under-funded |
 | 8 | Box key design | Keying by asset ID instead of address, MBR tradeoffs |
 
-In the next chapter, we build a constant product AMM (Chapter 4) where multi-token accounting, price curves, and LP token mechanics introduce a new level of complexity. The inner transaction and ASA creation patterns from this chapter will reappear --- the AMM mints its own LP token using the same `itxn.AssetConfig` approach.
+In the next chapter, we build a constant product AMM (Chapter 5) where multi-token accounting, price curves, and LP token mechanics introduce a new level of complexity. The inner transaction and ASA creation patterns from this chapter will reappear --- the AMM mints its own LP token using the same `itxn.AssetConfig` approach.
 
 ## Exercises
 
@@ -2533,11 +3897,11 @@ The $997/1000$ factor represents a 0.3\% fee --- 0.3\% of every swap's input sta
 
 $$\Delta y = \frac{100 \times 997 \times 10{,}000}{10{,}000 \times 1{,}000 + 100 \times 997} = \frac{9{,}970{,}000}{10{,}099{,}700} \approx 98.71\ \textrm{ALGO}$$
 
-Alice sends 100 USDC and receives 98.71 ALGO --- not 100, because of the 0.3% fee (0.3 USDC stays in the pool) and *price impact* (each marginal unit of USDC she adds makes ALGO slightly more expensive). After the swap, reserves are 10,100 USDC and 9,901.29 ALGO, giving a new spot price of $9{,}901.29 / 10{,}100 \approx 0.98$ ALGO per USDC. The product $k$ increased slightly (to $\approx 100{,}003{,}029$) because the fee was retained. A larger trade --- say 1,000 USDC --- would move the price much more (receiving only about 906 ALGO, a 9.4% price impact), which is why AMMs work best for trades that are small relative to the pool's reserves.
+Alice sends 100 USDC and receives 98.71 ALGO --- not 100, because of the 0.3% fee (0.3 USDC stays in the pool) and *price impact* (each marginal unit of USDC she adds makes ALGO slightly more expensive). After the swap, reserves are 10,100 USDC and 9,901.29 ALGO, giving a new spot price of $9{,}901.29 / 10{,}100 \approx 0.98$ ALGO per USDC. The product $k$ increased slightly (to $\approx 100{,}003{,}029$) because the fee was retained. A larger trade --- say 1,000 USDC --- would move the price much more (receiving only about 906 ALGO, a 9.3% price impact), which is why AMMs work best for trades that are small relative to the pool's reserves.
 
 For initial liquidity, the number of LP tokens minted equals:
 
-$$LP_{initial} = \sqrt{\Delta x \times \Delta y} - MINIMUM\_LIQUIDITY$$
+$$LP_{\text{initial}} = \sqrt{\Delta x \times \Delta y} - \text{MINIMUM\_LIQUIDITY}$$
 
 For subsequent deposits:
 
@@ -2545,7 +3909,7 @@ $$LP_{new} = \min\left(\frac{\Delta x}{x}, \frac{\Delta y}{y}\right) \times LP_{
 
 Taking the minimum of both ratios penalizes unbalanced deposits --- any excess tokens beyond the current ratio are effectively donated to the pool.
 
-The $MINIMUM\_LIQUIDITY$ lock (typically 1,000 LP tokens) prevents a first-depositor attack where an attacker deposits 1 wei of each token, receives 1 LP token, then donates large amounts to inflate the value per share so high that subsequent depositors cannot afford meaningful positions.
+The $\text{MINIMUM\_LIQUIDITY}$ lock (typically 1,000 LP tokens) prevents a first-depositor attack where an attacker deposits 1 wei of each token, receives 1 LP token, then donates large amounts to inflate the value per share so high that subsequent depositors cannot afford meaningful positions.
 
 These formulas are the entire economic engine of the AMM. Everything else is implementation details around making them work correctly, safely, and efficiently on the [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).
 
@@ -2662,7 +4026,7 @@ The LP token has a total supply of $2^{63}$ --- a very large number that the poo
 
 Notice the seed payment pattern: the caller sends Algo to cover the MBR for the LP token creation (100,000 microAlgos) plus two asset opt-ins (100,000 each) plus the global state MBR plus a buffer. This is the same MBR-funding-via-grouped-payment pattern from the vesting contract, but scaled up for more resources.
 
-The caller's outer transaction fee must cover the three inner transactions (1 LP creation + 2 asset opt-ins) plus the outer call itself --- that is 4 transactions total. With fee pooling, `static_fee = 5000` covers all 4 plus some headroom.
+The group has 5 transactions total: 1 seed payment + 1 app call + 3 inner transactions (LP creation + 2 asset opt-ins). With fee pooling, `static_fee = 5000` on the app call, plus the seed payment's default 1,000 fee, provides sufficient coverage.
 
 ## Deploying and Bootstrapping on LocalNet
 
@@ -2754,7 +4118,7 @@ The first liquidity provider sets the pool's initial price ratio by choosing how
 
 LP tokens minted for the first deposit use the geometric mean of the two amounts, minus the minimum liquidity lock. (See [Algorand Python ops](https://dev.algorand.co/algokit/languages/python/lg-ops/) for the `bsqrt` and wide arithmetic opcodes used here.)
 
-$$LP = \sqrt{amount_A \times amount_B} - MINIMUM\_LIQUIDITY$$
+$$LP = \sqrt{\text{amount\_A} \times \text{amount\_B}} - \text{MINIMUM\_LIQUIDITY}$$
 
 The geometric mean ensures the LP amount is independent of the price level --- depositing 1 USDC + 1,000 ALGO mints the same LP tokens as 1,000 USDC + 1 ALGO. The minimum liquidity lock permanently removes 1,000 LP tokens from circulation (the contract holds them and never transfers them), preventing the first-depositor attack described earlier.
 
@@ -2972,7 +4336,7 @@ With liquidity in the pool, we can execute a swap. The user sends 100 Token A an
 
 ```python
 # Now execute a swap: send 100 Token A, receive Token B
-# The asset transfer is a method argument, just like deposit_tokens in Chapter 2
+# The asset transfer is a method argument, just like deposit_tokens in Chapter 3
 swap_result = app_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="swap",
@@ -3078,7 +4442,7 @@ Impermanent loss is the difference in value between holding tokens in a pool ver
 
 The loss is called "impermanent" because it reverses if the price returns to its original ratio. But if Alice withdraws while the price is different, the loss becomes permanent.
 
-The IL formula for a price change of ratio $r$ (where $r = \text{new\_price} / \text{original\_price}$):
+The IL formula for a price change of ratio $r$ (where $r = \text{new price} / \text{original price}$):
 
 $$IL = \frac{2\sqrt{r}}{1 + r} - 1$$
 
@@ -3207,11 +4571,11 @@ Production price oracles solve this with a **Time-Weighted Average Price (TWAP)*
 
 A TWAP oracle tracks the cumulative sum of prices over time. The *cumulative price* at any moment is:
 
-$$cumulative\_price_t = cumulative\_price_{t-1} + spot\_price \times \Delta t$$
+$$\text{cumulative\_price}_t = \text{cumulative\_price}_{t-1} + \text{spot\_price} \times \Delta t$$
 
 The TWAP between two timestamps $t_1$ and $t_2$ is:
 
-$$TWAP = \frac{cumulative\_price_{t_2} - cumulative\_price_{t_1}}{t_2 - t_1}$$
+$$\text{TWAP} = \frac{\text{cumulative\_price}_{t_2} - \text{cumulative\_price}_{t_1}}{t_2 - t_1}$$
 
 > *Quick check: if the cumulative price at t=100 is 500,000 and at t=200 is 1,200,000, what is the TWAP over that interval?*
 
@@ -3227,7 +4591,7 @@ The cumulative price grows without bound. With a spot price of 1,000,000 (scaled
 
 $$1{,}000{,}000{,}000 \times 31{,}536{,}000 = 3.15 \times 10^{16}$$
 
-This fits in `UInt64`. But at higher prices or over longer periods --- or with a higher precision scale factor --- the cumulative value can exceed $2^{64}$. Uniswap V2's TWAP famously uses `uint224` for cumulative prices precisely because `uint256` overflow would corrupt the average.
+This fits in `UInt64`. But at higher prices or over longer periods --- or with a higher precision scale factor --- the cumulative value can exceed $2^{64}$. Uniswap V2 accumulates prices encoded as `UQ112.112` fixed-point values (224 bits) in `uint256` accumulators, intentionally allowing overflow --- the TWAP is computed via modular subtraction, which handles wrapping correctly.
 
 On Algorand, `BigUInt` supports up to 512 bits --- more than enough for any practical TWAP accumulation. The tradeoff is that `BigUInt` arithmetic costs roughly 10x more opcodes than `UInt64`. For a single TWAP update per transaction (two multiplications, one addition), this is approximately 30 extra opcodes --- negligible within a 700-opcode budget. Compare this with the EVM, where Solidity's `uint256` arithmetic handles intermediate products natively and Uniswap V2 uses `uint224` as a deliberate overflow boundary. On the AVM, `UInt64` would overflow within days at moderate prices, so `BigUInt` is not optional --- it is a required design choice. The AVM's constraints force you to think about overflow earlier in the design process, which is arguably a safety benefit.
 
@@ -3287,9 +4651,10 @@ A read-only method returns the average price over a caller-specified window. The
     ) -> UInt64:
         """Returns TWAP of asset A in terms of B (how many B per one A)."""
         # Accumulate any pending price data up to the current block.
-        # This is readonly, so state writes will not persist --- but the
-        # computed `current` value reflects the true cumulative price
-        # even if no swap/add/remove has occurred recently.
+        # The inline accumulation computes the up-to-date cumulative value
+        # into a local variable without writing to state.  Because the method
+        # is read-only, it can be called via simulate with no fees or on-chain
+        # side effects.
         now = Global.latest_timestamp
         last = self.twap_last_update.value
         current = self.cumulative_price_a.value
@@ -3411,13 +4776,13 @@ class TestConstantProductPool:
 
 Once your contract works on LocalNet, the next step is TestNet --- Algorand's public test network where you can interact with other contracts, test with real network conditions (block times, transaction propagation), and share your deployment with others for testing.
 
-To deploy on TestNet, you need a funded TestNet account. Get free TestNet Algo from the Algorand faucet at https://dispenser.testnet.aws.algodev.network/ or by running `algokit dispenser login` and `algokit dispenser fund`.
+To deploy on TestNet, you need a funded TestNet account. Get free TestNet Algo from the faucet at https://lora.algokit.io/testnet/fund or by running `algokit dispenser login` and `algokit dispenser fund`.
 
 Switch your `AlgorandClient` to TestNet. This is a client-side configuration change:
 
 ```python
 # Instead of default_localnet():
-algorand = AlgorandClient.default_testnet()
+algorand = AlgorandClient.testnet()
 # Or connect to a specific algod endpoint:
 algorand = AlgorandClient.from_clients(
     algod=AlgodClient("", "https://testnet-api.4160.nodely.dev"),
@@ -3722,7 +5087,7 @@ Even if you could iterate, the math is wrong. When Bob stakes at time 50, the pe
 
 The solution is a global accumulator that answers the question: "How many reward tokens has one unit of LP earned since the beginning of time?" This number is called `reward_per_token`. Each user stores a snapshot of `reward_per_token` at the time they last interacted with the contract. Their pending reward is simply:
 
-$$reward = lp\_amount \times (reward\_per\_token_{now} - reward\_per\_token_{snapshot})$$
+$$\text{reward} = \text{lp\_amount} \times (\text{reward\_per\_token}_{\text{now}} - \text{reward\_per\_token}_{\text{snapshot}})$$
 
 This is O(1) per operation. No iteration over stakers. No historical tracking. The global value accumulates continuously, and each user's snapshot captures "where they got on."
 
@@ -3730,7 +5095,7 @@ This is O(1) per operation. No iteration over stakers. No historical tracking. T
 
 The accumulator updates on every state-changing call (stake, unstake, claim). The update adds the rewards that have accrued since the last update:
 
-$$reward\_per\_token += \frac{reward\_rate \times \Delta t \times PRECISION}{total\_staked}$$
+$$\text{reward\_per\_token} \mathrel{+}= \frac{\text{reward\_rate} \times \Delta t \times \text{PRECISION}}{\text{total\_staked}}$$
 
 Where:
 - `reward_rate` is tokens per second distributed to the entire pool
@@ -3782,7 +5147,7 @@ Before Bob's stake, update the accumulator:
 
 $$increment = \frac{10 \times 100 \times 10^9}{100} = 10{,}000{,}000{,}000$$
 
-$$reward\_per\_token = 0 + 10{,}000{,}000{,}000 = 10{,}000{,}000{,}000$$
+$$\text{reward\_per\_token} = 0 + 10{,}000{,}000{,}000 = 10{,}000{,}000{,}000$$
 
 | Event | `reward_per_token` | Alice snapshot | Bob snapshot | Alice pending | Bob pending |
 |-------|-------------------|----------------|-------------|---------------|------------|
@@ -3800,7 +5165,7 @@ Update the accumulator:
 
 $$increment = \frac{10 \times 100 \times 10^9}{300} = 3{,}333{,}333{,}333$$
 
-$$reward\_per\_token = 10{,}000{,}000{,}000 + 3{,}333{,}333{,}333 = 13{,}333{,}333{,}333$$
+$$\text{reward\_per\_token} = 10{,}000{,}000{,}000 + 3{,}333{,}333{,}333 = 13{,}333{,}333{,}333$$
 
 | Event | `reward_per_token` | Alice snapshot | Bob snapshot | Alice pending | Bob pending |
 |-------|-------------------|----------------|-------------|---------------|------------|
@@ -3834,13 +5199,13 @@ A flat reward rate treats a 30-day lock the same as a 365-day lock. To incentivi
 
 We use a linear scale from 1x (30 days) to 4x (365 days):
 
-$$multiplier = SCALE + \frac{(duration - MIN\_LOCK) \times 3 \times SCALE}{MAX\_LOCK - MIN\_LOCK}$$
+$$\text{multiplier} = \text{SCALE} + \frac{(\text{duration} - \text{MIN\_LOCK}) \times 3 \times \text{SCALE}}{\text{MAX\_LOCK} - \text{MIN\_LOCK}}$$
 
 Where `SCALE = 1000` (giving us 0.1% precision), `MIN_LOCK = 30 days`, and `MAX_LOCK = 365 days`. A 30-day lock gets multiplier 1000 (1.0x). A 365-day lock gets 4000 (4.0x). A 197-day lock (halfway) gets 2500 (2.5x).
 
 The user's *effective balance* --- the value used in the accumulator --- is:
 
-$$effective = \frac{lp\_amount \times multiplier}{SCALE}$$
+$$\text{effective} = \frac{\text{lp\_amount} \times \text{multiplier}}{\text{SCALE}}$$
 
 **Worked example.** Alice locks 100 LP for 365 days (multiplier = 4000). Bob locks 200 LP for 30 days (multiplier = 1000).
 
@@ -4460,7 +5825,7 @@ This is more complex than it appears --- the effective balance changes, which af
         self.stakes[key] = pos.copy()
 ```
 
-The 8-step sequence is critical. Steps 1--2 settle all rewards at the old effective balance. Steps 3--4 change the effective balance and global total. Step 5 resets the snapshot so future rewards accrue at the new effective rate. Steps 6--8 persist everything atomically. If you swap steps 2 and 4 (changing the total before settling), the user's rewards for the current period would be calculated against the wrong total.
+The 8-step sequence is critical. Steps 1--2 settle all rewards at the old effective balance. Steps 3--4 change the effective balance and global total. Step 5 resets the snapshot so future rewards accrue at the new effective rate. Steps 6--8 persist everything atomically. The critical ordering constraint is between steps 1 and 4: `_update_reward()` must execute before `total_effective` changes, because the accumulator update uses `total_effective` as its denominator. If you changed the total *before* updating the accumulator, the increment would be calculated against the wrong total, distributing too many or too few rewards for the period before the effective balance changed.
 
 *Without looking at the code above, list the steps that `extend_lock` must perform and explain why the ordering matters. Then compare your list to the 8-step sequence. The ordering constraint is the same invariant from the accumulator section: update before mutate.*
 
@@ -4725,7 +6090,7 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 2. **(Apply)** Add an `emergency_withdraw` method that lets users retrieve their LP tokens before the lock expires, but forfeits all unclaimed rewards. The forfeited rewards should remain in the contract for distribution to other stakers. What state updates are needed, and in what order?
 
-3. **(Analyze)** The linear multiplier gives 1x at 30 days and 4x at 365 days. Consider an alternative: a square-root multiplier where $multiplier = \sqrt{duration / MIN\_LOCK} \times SCALE$. A 30-day lock gets 1x, a 120-day lock gets 2x, a 365-day lock gets ~3.49x. What are the game-theoretic implications? Does this favor short-term or long-term stakers compared to linear?
+3. **(Analyze)** The linear multiplier gives 1x at 30 days and 4x at 365 days. Consider an alternative: a square-root multiplier where $\text{multiplier} = \sqrt{\text{duration} / \text{MIN\_LOCK}} \times \text{SCALE}$. A 30-day lock gets 1x, a 120-day lock gets 2x, a 365-day lock gets ~3.49x. What are the game-theoretic implications? Does this favor short-term or long-term stakers compared to linear?
 
 4. **(Create)** Add an on-chain randomness bonus using `op.Block.blk_seed`. Every time a user claims, the contract reads the block seed from 2 rounds ago and hashes it with the user's address. If the resulting hash (mod 100) is less than 5, the user receives a 10% bonus on their claim. Implement the method and explain why reading the seed from 2 rounds ago (rather than the current round) prevents the user from choosing when to submit their claim based on a known seed.
 
@@ -4853,10 +6218,12 @@ A backend service (the "relayer") co-signs and pays for transactions on behalf o
 # The relayer's payment transaction overpays its own fee
 # to cover transactions [1], [2], and any inner transactions
 relayer_txn = algorand.create_transaction.payment(
-    sender=relayer.address,
-    receiver=relayer.address,  # Self-payment (or to pool for MBR)
-    amount=0,
-    suggested_params=sp_with_fee_4000,  # Covers all 3 outer + 1 inner
+    algokit_utils.PaymentParams(
+        sender=relayer.address,
+        receiver=relayer.address,  # Self-payment (or to pool for MBR)
+        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),  # Covers all 3 outer + 1 inner
+    )
 )
 ```
 
@@ -4912,7 +6279,7 @@ The most user-friendly pattern for users who have zero Algo but hold ASA tokens.
 
 This is architecturally complex but provides the best UX for onboarding users who arrive with only bridged tokens and no native Algo.
 
-We used Approach A in the vesting contract's `initialize` method (Chapter 2) and the AMM's `swap` method (Chapter 4). The keeper bot in Chapter 7 uses Approach C (relayer).
+We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). The keeper bot in Chapter 8 uses Approach C (relayer).
 
 
 ## Pattern 2: The "Fund-Then-Call" Atomic Group
@@ -4975,7 +6342,7 @@ Group:
     ↳ Inner: Contract opts into asset_b
 ```
 
-Both the vesting contract (Chapter 2) and the AMM pool (Chapter 4) use this escrow pattern. The limit order system (Chapter 7) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
+Both the vesting contract (Chapter 3) and the AMM pool (Chapter 5) use this escrow pattern. The limit order system (Chapter 8) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
 
 
 ## Pattern 4: MBR Funding as Part of User Operations
@@ -5033,7 +6400,7 @@ def close_position(self) -> None:
 
 This creates a complete lifecycle: user pays MBR on entry, gets it back on exit. It's the Algorand equivalent of Ethereum's gas refund for clearing storage slots, except it's explicit, deterministic, and the user gets real Algo back rather than a gas discount. Users appreciate getting their deposit back --- it signals a well-designed protocol. (See [Accounts Overview](https://dev.algorand.co/concepts/accounts/overview/) for MBR mechanics.)
 
-The vesting contract's `cleanup_schedule` method (Chapter 2) implements this pattern.
+The vesting contract's `cleanup_schedule` method (Chapter 3) implements this pattern.
 
 
 ## Pattern 6: Canonical Asset Ordering to Prevent Duplicate Pools
@@ -5070,7 +6437,7 @@ def get_pool(asset_x: int, asset_y: int) -> int:
 
 This pattern applies everywhere pairs appear: LP token names (`"LP-{min_id}-{max_id}"`), analytics keys, router lookups. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/) for ASA ID assignment.)
 
-The AMM's `bootstrap` method (Chapter 4) enforces `asset_a.id < asset_b.id` for exactly this reason.
+The AMM's `bootstrap` method (Chapter 5) enforces `asset_a.id < asset_b.id` for exactly this reason.
 
 
 *Before reading on: your AMM contract needs to send LP tokens to liquidity providers, but they might not have opted into the LP token yet. How would you handle this? Should the contract check and fail, or should it handle the opt-in automatically?*
@@ -5199,20 +6566,22 @@ Algorand doesn't have Ethereum-style events, but you can emit structured data by
 def swap(self, ...) -> UInt64:
     # ... swap logic ...
 
-    # Emit structured event data for indexers
-    # Convention: 4-byte event selector + ARC-4 encoded data
-    event = b"swap"                               # Event identifier (4 bytes)
-    event = op.concat(event, op.itob(input_amount))         # 8 bytes
-    event = op.concat(event, op.itob(output_amount))        # 8 bytes
-    event = op.concat(event, op.itob(self.reserve_a.value)) # 8 bytes (post-swap reserve)
-    event = op.concat(event, op.itob(self.reserve_b.value)) # 8 bytes (post-swap reserve)
-    event = op.concat(event, Txn.sender.bytes)              # 32 bytes
-    log(event)
+    # Emit an ARC-28 event for indexers.
+    # arc4.emit() computes the 4-byte selector (SHA-512/256 of the event
+    # signature) and ARC-4-encodes the arguments automatically.
+    arc4.emit(
+        "Swap(address,uint64,uint64,uint64,uint64)",
+        arc4.Address(Txn.sender),
+        arc4.UInt64(input_amount),
+        arc4.UInt64(output_amount),
+        arc4.UInt64(self.reserve_a.value),
+        arc4.UInt64(self.reserve_b.value),
+    )
 
     return output_amount
 ```
 
-**Note on ARC-4 return values:** When you return a value from an `@arc4.abimethod`, PuyaPy automatically logs it with the `0x151f7c75` prefix. Your additional `log()` calls produce separate log entries in the same transaction. Indexers can distinguish return values from event logs by checking the prefix.
+**Note on ARC-4 return values:** When you return a value from an `@arc4.abimethod`, PuyaPy automatically logs it with the `0x151f7c75` prefix. `arc4.emit()` produces separate log entries with ARC-28-compliant selectors. Indexers can distinguish return values from event logs by checking the prefix.
 
 For production, follow the [ARC-28 event specification](https://dev.algorand.co/arc-standards/arc-0028/) for standardized event definitions and parsing across the ecosystem.
 
@@ -5311,10 +6680,11 @@ def get_swap_quote(
         "fee_paid": input_amount * fee_bps // 10_000,
     }
 
-# Read reserves from global state (free, no transaction needed)
-app_state = algorand.client.algod.application_info(pool_app_id)
-reserve_a = decode_uint64(app_state["params"]["global-state"], "reserve_a")
-reserve_b = decode_uint64(app_state["params"]["global-state"], "reserve_b")
+# Read reserves from global state (free, no transaction needed).
+# AlgoKit Utils provides a typed state reader:
+state = app_client.get_global_state()
+reserve_a = state["reserve_a"]
+reserve_b = state["reserve_b"]
 
 quote = get_swap_quote(1_000_000, reserve_a, reserve_b)
 print(f"Expected output: {quote['output']}")
@@ -5495,7 +6865,7 @@ puyapy limit_order.py \
   --template-var EXPIRY_ROUND=35000000
 ```
 
-Or programmatically (this is an illustrative example of the PuyaPy API; the actual runtime workflow is described below):
+Or from within another PuyaPy contract at compile time (this function runs during PuyaPy compilation, not at runtime on the client side; the actual client-side workflow is described in the next section):
 
 ```python
 from algopy import compile_logicsig
@@ -5590,7 +6960,7 @@ LogicSigs have a distinct security surface. Every LogicSig you write must enforc
 
 ### Opcode Budget and Pooling
 
-Each top-level transaction with a LogicSig contributes **20,000 opcodes** to a shared LogicSig pool. In a 16-transaction group, that's 320,000 pooled opcodes. This budget is **separate** from the smart contract opcode budget (700 per app call). The two pools don't interfere with each other.
+Every transaction in the group contributes **20,000 opcodes** to a shared LogicSig pool, regardless of whether that particular transaction uses a LogicSig. In a 16-transaction group, that's 320,000 pooled opcodes. In our 3-transaction limit order group, the LogicSig has 60,000 opcodes available. This budget is **separate** from the smart contract opcode budget (700 per app call). The two pools don't interfere with each other.
 
 For our limit order system, a simple order validation LogicSig uses well under 1,000 opcodes. The generous budget becomes relevant in Project 4 when we use LogicSigs for ZK proof verification.
 
@@ -5787,7 +7157,7 @@ class LimitOrderBook(ARC4Contract):
     def __init__(self) -> None:
         self.admin = GlobalState(Bytes())
         self.next_order_id = GlobalState(UInt64(1))
-        self.fee_bps = GlobalState(UInt64(10))  # 0.1% keeper fee
+        self.fee_bps = GlobalState(UInt64(10))  # 0.1% keeper fee (reserved for future use)
         self.paused = GlobalState(UInt64(0))
 
         # Order storage: order_id -> packed order data
@@ -6630,8 +8000,8 @@ See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/
 | Opcode Budget Management | [dev.algorand.co/algokit/languages/python/lg-opcode-budget/](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/) |
 | Transaction Reference | [dev.algorand.co/concepts/transactions/reference/](https://dev.algorand.co/concepts/transactions/reference/) |
 | AVM Opcodes | [dev.algorand.co/reference/algorand-teal/opcodes/](https://dev.algorand.co/reference/algorand-teal/opcodes/) |
-| SDK: LogicSigAccount | developer.algorand.org/docs/get-details/dapps/smart-contracts/frontend/smartsigs/ |
-| AVM specification | developer.algorand.org/docs/get-details/dapps/avm/teal/specification/ |
+| SDK: LogicSigAccount | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
+| AVM specification | [dev.algorand.co/concepts/smart-contracts/avm/](https://dev.algorand.co/concepts/smart-contracts/avm/) |
 
 ## Before You Continue
 
@@ -6683,13 +8053,13 @@ Your contract code goes in `smart_contracts/governance_voting/contract.py`. Dele
 
 ## LogicSig Recap: Why They Are the ZK Engine
 
-This project builds on the LogicSig foundation from Chapter 7. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
+This project builds on the LogicSig foundation from Chapter 8. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
 
 The critical property for this chapter is the [opcode budget](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/). Each top-level transaction with a LogicSig contributes 20,000 opcodes to a pooled budget (since AVM v10). In a group of 8 LogicSig transactions, that is 160,000 opcodes --- enough to verify a BN254 PLONK proof that costs approximately 145,000 opcodes. Smart contracts, at 700 opcodes per app call, would need over 200 calls for the same verification, making them prohibitively expensive.
 
 The LogicSig and smart contract opcode pools are independent. This means we can use LogicSigs for the cryptographic heavy lifting (proof verification) while preserving the full smart contract budget for application logic (recording votes, managing phases, tallying results). This separation is the architectural foundation of the system we are about to build.
 
-For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it simply needs enough opcode budget to run the elliptic curve operations. The security rules from Chapter 7 (close-to, rekey-to, fee caps, group validation) all apply and are enforced in our verifier implementation.
+For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it simply needs enough opcode budget to run the elliptic curve operations. The security rules from Chapter 8 (close-to, rekey-to, fee caps, group validation) all apply and are enforced in our verifier implementation.
 
 ## Part 2: The AVM's Cryptographic Toolkit
 
@@ -6705,13 +8075,13 @@ The available opcodes:
 
 | Opcode | Cost (BN254 G1) | Description |
 |--------|-----------------|-------------|
-| `ec_add` | 10 | Point addition: P + Q |
-| `ec_scalar_mul` | 3,600 + 90/32B | Scalar multiplication: sP |
-| `ec_multi_scalar_mul` | 3,600 + 90/32B | Multi-scalar: s₁P₁ + s₂P₂ + ... |
-| `ec_pairing_check` | 8,000 + 7,400/64B | Pairing verification: e(A,B) = 1? |
+| `ec_add` | 125 | Point addition: P + Q |
+| `ec_scalar_mul` | 1,810 | Scalar multiplication: sP |
+| `ec_multi_scalar_mul` | 3,600 + 90 per 32B of scalar | Multi-scalar: s₁P₁ + s₂P₂ + ... |
+| `ec_pairing_check` | 8,000 + 7,400 per 64B of B | Pairing verification: e(A,B) = 1? |
 | `ec_subgroup_check` | 20 | Verify point is in prime-order subgroup |
-| `ec_map_to` | varies | Hash-to-curve mapping |
-| `mimc` | varies | MiMC hash (ZK-friendly, known collisions outside ZK) |
+| `ec_map_to` | 630 | Hash-to-curve mapping |
+| `mimc` | 10 + 550 per 32B of input | MiMC hash (ZK-friendly, known collisions outside ZK) |
 
 The `ec_pairing_check` opcode is the workhorse for SNARK verification. A Groth16 verification requires checking:
 
@@ -6973,16 +8343,12 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
         assert voter in self.commitments
         assert voter not in self.proof_status
 
-        # WARNING: INCOMPLETE for production. In production, this method
-        # MUST verify that a transaction from the ZK verifier LogicSig's
-        # known address exists in the current atomic group AND that the
-        # proof's public inputs match the stored commitment. Without this
-        # check, anyone can mark any voter's proof as verified directly.
-        # A production implementation would:
-        # 1. Store the verifier LogicSig address in global state
-        # 2. Iterate over gtxn.Transaction to find a txn from that address
-        # 3. Verify the LogicSig args contain the correct commitment hash
-        # 4. Verify the LogicSig args contain the correct num_choices
+        # SECURITY: Restrict to admin for the simplified version.
+        # A production implementation would verify that a transaction from the
+        # ZK verifier LogicSig's known address exists in the current atomic
+        # group AND that the proof's public inputs match the stored commitment.
+        # Without this check, anyone could mark any voter's proof as verified.
+        assert Txn.sender == Global.creator_address, "Only admin"
 
         self.proof_status[voter] = UInt64(1)
         self.verified_proofs.value += UInt64(1)
@@ -7003,9 +8369,13 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
         assert sender in self.proof_status
         assert self.proof_status[sender] == UInt64(1)
 
+        # MiMC requires input to be a multiple of 32 bytes (one BN254 field
+        # element per 32-byte chunk).  op.itob returns 8 bytes, so we pad
+        # the choice to 32 bytes to match gnark's native field-element size.
+        choice_bytes = op.concat(op.bzero(24), op.itob(choice))
         computed_hash = op.mimc(
             MiMCConfigurations.BN254Mp110,
-            op.concat(op.itob(choice), randomness),
+            op.concat(choice_bytes, randomness),
         )
         stored_commitment = self.commitments[sender]
         assert computed_hash == stored_commitment
@@ -7232,7 +8602,7 @@ Key properties that make Falcon suitable for Algorand:
 
 **Deterministic signing mode:** Algorand's implementation uses a deterministic signing mode (developed by David Lazar and Chris Peikert), meaning signing the same message with the same key always produces the same signature. This eliminates a class of side-channel attacks related to randomness quality.
 
-The Algorand connection runs deep: Chris Peikert (Head of Cryptography at Algorand Technologies) and Craig Gentry (former Algorand Foundation research fellow) co-authored the foundational GPV framework (Gentry-Peikert-Vaikuntanathan, 2008) that Falcon is built on.
+The Algorand connection runs deep: Chris Peikert (CSO, Algorand Foundation; formerly Head of Cryptography, Algorand Technologies) and Craig Gentry (former Algorand Foundation research fellow) co-authored the foundational GPV framework (Gentry-Peikert-Vaikuntanathan, 2008) that Falcon is built on.
 
 ### How Algorand Uses Falcon Today: State Proofs
 
@@ -7263,12 +8633,12 @@ Algorand has demonstrated Falcon-signed transactions on MainNet using LogicSigs 
 3. The LogicSig's contract account address becomes the user's "quantum-safe" address
 4. Transactions from this address are authorized by the LogicSig, which verifies the Falcon signature passed as an argument
 
-The experimental AVM opcode `falcon_verify` (currently in `vFuture`, not yet live on MainNet) would make this verification native, reducing costs significantly. Until then, Falcon verification can be implemented using the AVM's byte arithmetic and hashing opcodes, though at substantial opcode cost.
+The AVM opcode `falcon_verify` (shipped in AVM v12, September 2024) makes Falcon verification native at a cost of 1,700 opcodes. The first Falcon-signed transaction on Algorand MainNet was executed on November 3, 2025, using a LogicSig-based Falcon account.
 
 The full post-quantum transition roadmap involves:
 
 1. **History protection (done):** State Proofs with Falcon-1024
-2. **Transaction protection (in progress):** Falcon-based LogicSig accounts + native `falcon_verify` opcode
+2. **Transaction protection (done):** Falcon-based LogicSig accounts using the native `falcon_verify` opcode (AVM v12). First MainNet transaction: November 3, 2025.
 3. **Consensus protection (research):** Replace the Ed25519-based VRF with a post-quantum VRF. Active research includes ZKBoo/ZKB++ based constructions and lattice-based VRF proposals.
 
 ### Implications for Our Voting System
@@ -7500,19 +8870,19 @@ Costs from the [AVM opcodes reference](https://dev.algorand.co/reference/algoran
 
 | Operation | Curve | Cost (opcodes) |
 |-----------|-------|----------------|
-| ec_add | BN254 G1 | 10 |
-| ec_add | BLS12-381 G1 | 55 |
-| ec_scalar_mul | BN254 G1 | 3,600 + 90 per 32B of scalar |
-| ec_scalar_mul | BLS12-381 G1 | 6,500 + 95 per 32B of scalar |
+| ec_add | BN254 G1 | 125 |
+| ec_add | BLS12-381 G1 | 205 |
+| ec_scalar_mul | BN254 G1 | 1,810 |
+| ec_scalar_mul | BLS12-381 G1 | 2,950 |
 | ec_multi_scalar_mul | BN254 G1 | 3,600 + 90 per 32B of B |
 | ec_multi_scalar_mul | BLS12-381 G1 | 6,500 + 95 per 32B of B |
 | ec_pairing_check | BN254 | 8,000 + 7,400 per 64B of B |
-| ec_pairing_check | BLS12-381 | 8,000 + 7,400 per 128B of B |
+| ec_pairing_check | BLS12-381 | 13,000 + 10,000 per 128B of B |
 | ec_subgroup_check | BN254 G1 | 20 |
 | ec_subgroup_check | BLS12-381 G2 | 2,340 |
-| mimc | BN254 | varies with input size |
+| mimc | BN254 | 10 + 550 per 32B of input |
 | ed25519verify | --- | 1,900 |
-| falcon_verify (vFuture) | --- | TBD |
+| falcon_verify | --- | 1,700 |
 
 ## Appendix B: Key Differences Between Smart Contracts and LogicSigs
 
@@ -7521,7 +8891,7 @@ See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full sp
 | Property | Smart Contract | LogicSig |
 |----------|---------------|----------|
 | Opcode budget per txn | 700 (pooled) | 20,000 (pooled separately) |
-| Max pooled budget | ~190,400 (16 outer × 700 + up to 256 inner × 700) | 320,000 (16 × 20,000) |
+| Max pooled budget | ~190,400 (16 outer × 700 + up to 256 inner × 700) | 320,000 (16 × 20,000; all txns contribute, not just those with LogicSigs) |
 | Has state | Yes (global, local, boxes) | No |
 | Can issue inner transactions | Yes | No |
 | Persistent address | App ID → deterministic address | Program hash → deterministic address |
@@ -7967,26 +9337,28 @@ class BalanceMap(ARC4Contract):
         del self.balances[sender]  # Deletes the box, frees MBR
 ```
 
-### 6.3 --- Raw box access (BoxRef)
+### 6.3 --- Raw box access (Box with low-level methods)
+
+> **Note:** `BoxRef` is deprecated in current PuyaPy. The same methods (`create`, `delete`, `extract`, `replace`, `resize`, `splice`) are now available directly on `Box`. Prefer `Box` over `BoxRef`.
 
 ```python
-from algopy import ARC4Contract, BoxRef, Bytes, UInt64, arc4
+from algopy import ARC4Contract, Box, Bytes, UInt64, arc4
 
 class RawBoxAccess(ARC4Contract):
+    def __init__(self) -> None:
+        self.data = Box(Bytes, key=b"data")
+
     @arc4.abimethod
     def create_data_box(self) -> None:
-        ref = BoxRef(key=b"data")
-        ref.create(size=UInt64(256))  # 256 bytes, zero-filled
+        self.data.create(size=UInt64(256))  # 256 bytes, zero-filled
 
     @arc4.abimethod
     def write_at_offset(self, offset: UInt64, data: Bytes) -> None:
-        ref = BoxRef(key=b"data")
-        ref.replace(offset, data)
+        self.data.replace(offset, data)
 
     @arc4.abimethod
     def read_at_offset(self, offset: UInt64, length: UInt64) -> Bytes:
-        ref = BoxRef(key=b"data")
-        return ref.extract(offset, length)
+        return self.data.extract(offset, length)
 
     @arc4.abimethod
     def delete_box(self) -> None:
@@ -8500,7 +9872,7 @@ class TypeDemo(ARC4Contract):
         # arc4 types are ABI-encoded (wire format)
         # .native converts to Python-usable form:
         native_x = x.native   # → UInt64
-        native_s = s.native   # → String (Bytes)
+        native_s = s.native   # → algopy.String
         return arc4.String("Got: " + native_s)
 
     @arc4.abimethod
@@ -8635,7 +10007,7 @@ class ECExample(ARC4Contract):
     @arc4.abimethod
     def add_points(self, point_a: Bytes, point_b: Bytes) -> Bytes:
         # BN254 G1 points are 64 bytes each
-        return op.ec_add(op.EC.BN254g1, point_a + point_b)
+        return op.EllipticCurve.add(op.EC.BN254g1, point_a, point_b)
 ```
 
 
@@ -8724,16 +10096,19 @@ class TxnFields(ARC4Contract):
 ### 16.1 --- Compiling with PuyaPy
 
 ```bash
-# Compile all contracts in a file
+# Compile via AlgoKit (recommended)
+algokit compile py contract.py
+
+# Or directly via PuyaPy
 puyapy contract.py
 
 # Output: contract.approval.teal, contract.clear.teal, contract.arc56.json
 
 # Compile with template variables
-puyapy contract.py --template-var MY_VAR=42
+algokit compile py contract.py --template-var MY_VAR=42
 
 # Compile to bytecode directly (skip TEAL)
-puyapy contract.py --output-bytecode
+algokit compile py contract.py --output-bytecode
 ```
 
 ### 16.2 --- Using compile_contract in Algorand Python
@@ -8830,7 +10205,7 @@ algorand.client.algod.send_transactions([signed_pay, signed_app])
 | Max group size | 16 transactions |
 | Opcode budget per app call | 700 (pooled) |
 | Opcode budget per LogicSig txn | 20,000 (pooled, separate pool) |
-| Max inner transactions per call | 256 |
+| Max inner transactions per group | 256 (16 per app call, pooled across group) |
 | Inner call depth | 8 |
 | Program size (approval + clear combined) | 2,048 bytes (base); up to 8,192 bytes with 3 extra pages (each adds 2,048) |
 | Global state pairs | 64 max |
@@ -8839,7 +10214,7 @@ algorand.client.algod.send_transactions([signed_pay, signed_app])
 | Box size | 0–32,768 bytes |
 | Box name | 1–64 bytes |
 | Box MBR | 2,500 + 400 × (name_len + data_size) μAlgo |
-| Foreign refs per txn | 8 (shared across group since AVM v9) |
+| Foreign refs per txn | 8 per type (accounts, assets, apps); shared across group since AVM v9 |
 | ASA opt-in MBR | 100,000 μAlgo |
 | Min account balance | 100,000 μAlgo |
 | Min transaction fee | 1,000 μAlgo |
@@ -8871,10 +10246,10 @@ Every gotcha from every chapter in one scannable list.
 
 - **Always** set `fee=UInt64(0)` on inner transactions; otherwise the contract's Algo balance pays
 - Budget adds +700 opcodes per inner app call when submitted
-- Maximum 256 inner transactions per application call
+- Maximum 16 inner transactions per application call (pooled to 256 across the group)
 - Maximum call depth of 8 --- the 8th contract cannot make further app calls
 - ClearState programs cannot issue inner transactions
-- State changes from one top-level transaction in a group are not visible to other top-level transactions until the group finalizes. Within a single app call, inner transactions DO see state changes from earlier inner transactions in that same execution.
+- State changes from earlier transactions in a group ARE visible to later transactions in the same group (they share a single copy-on-write state object). The group's aggregate changes commit to the ledger only after every transaction succeeds.
 
 ## Local State
 
@@ -8965,11 +10340,11 @@ Look at what you have accomplished. You started with no smart contract knowledge
 
 Here is where to go next.
 
-**Concentrated liquidity AMMs.** The constant product AMM in Chapter 4 is the Uniswap V2 model. The broader DeFi industry has moved toward concentrated liquidity (V3), where LPs choose price ranges for dramatically higher capital efficiency. No Algorand DEX has yet implemented a full V3-style concentrated liquidity AMM --- this is an open opportunity. Porting V3 concepts to the AVM would require creative use of box storage for tick data and careful opcode budget management for tick-crossing math.
+**Concentrated liquidity AMMs.** The constant product AMM in Chapter 5 is the Uniswap V2 model. The broader DeFi industry has moved toward concentrated liquidity (V3), where LPs choose price ranges for dramatically higher capital efficiency. No Algorand DEX has yet implemented a full V3-style concentrated liquidity AMM --- this is an open opportunity. Porting V3 concepts to the AVM would require creative use of box storage for tick data and careful opcode budget management for tick-crossing math.
 
 **Lending and borrowing protocols.** Folks Finance and the now-sunset Algofi demonstrated that full lending/borrowing is possible on Algorand. Key concepts to study: overcollateralization, health factors, liquidation mechanics (calling AMM swaps via inner transactions to convert seized collateral), and interest rate models (utilization curves). These protocols compose heavily with AMMs for price oracles and liquidation execution.
 
-**Cross-chain bridges and State Proofs.** Chapter 8 introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
+**Cross-chain bridges and State Proofs.** Chapter 9 introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
 
 **Ecosystem integration.** This book built everything from scratch. Production applications integrate with existing protocols. Study the ABIs of Tinyman, Pact, and Folks Finance to understand how to call their contracts from yours. The ARC-56 specs for deployed contracts are your entry point --- load them with AlgoKit Utils and call methods directly.
 

@@ -43,6 +43,15 @@ Three specialized agents live in `.claude/agents/`. **Every substantive change t
 
 When making changes to `Building-on-Algorand.md`, follow this process:
 
+#### 0. Run unit tests for any code changes
+Before proceeding with reviews, if the change involves contract code or test code, run the unit tests to catch compilation errors and regressions early:
+
+```bash
+cd /Users/andrew/coding/building-on-algo && python3 -m pytest tests/ -v 2>&1 | head -80
+```
+
+If tests fail, fix the code before moving to the review step. Do not proceed with agent reviews on code that does not pass tests.
+
 #### 1. Make the edit
 Edit the manuscript as requested. All changes go in `Building-on-Algorand.md`.
 
