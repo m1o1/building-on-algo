@@ -120,8 +120,22 @@ def _is_math_content(content: str) -> bool:
 
 
 def _protect_math_escapes(content: str) -> str:
-    r"""Double backslashes before _ so they survive pulldown-cmark."""
-    return content.replace("\\_", "\\\\_")
+    r"""Adjust \_ escapes so math renders correctly in MathJax via pulldown-cmark.
+
+    Inside \text{...}: strip the backslash (MathJax text mode treats _ as literal,
+    and \_ would render with a visible backslash).
+    Outside \text{...}: double the backslash so pulldown-cmark produces \_ in HTML,
+    which MathJax interprets as a literal underscore in math mode.
+    """
+    # Step 1: Inside \text{...}, just remove \_ → _ (text mode _ is literal)
+    content = re.sub(
+        r"\\text\{[^}]*\}",
+        lambda m: m.group(0).replace("\\_", "_"),
+        content,
+    )
+    # Step 2: Remaining \_ (math mode) → \\_ so pulldown-cmark yields \_
+    content = content.replace("\\_", "\\\\_")
+    return content
 
 
 def _convert_math_delimiters(text: str) -> str:
