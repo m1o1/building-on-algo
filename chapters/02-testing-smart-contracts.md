@@ -2,7 +2,7 @@
 
 # Testing Smart Contracts
 
-On a blockchain, deployed code is immutable. A bug in a web application means a hotfix and an apology. A bug in a smart contract means funds locked or stolen --- permanently. There is no rollback, no patch, no "we'll fix it in the next release." The Tinyman V1 exploit drained $3 million because a single validation check was missing. The code was deployed, the exploit was discovered, and the funds were gone before anyone could react.
+On a blockchain, deployed code is immutable. A bug in a web application means a hotfix and an apology. A bug in a smart contract means funds locked or stolen --- permanently. There is no rollback, no patch, no "we'll fix it in the next release." A single missing validation check can drain millions before anyone reacts --- and once deployed, the contract cannot be fixed.
 
 Testing is not optional. It is the most important skill in this book after the mental model itself.
 

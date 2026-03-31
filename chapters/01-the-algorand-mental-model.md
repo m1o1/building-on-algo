@@ -9,7 +9,7 @@ Part I establishes the mental model, tooling, and core skills you need for every
 
 # The Algorand Mental Model
 
-Every smart contract bug that lost real money on Algorand --- from the $3 million Tinyman exploit to common MBR miscalculations that lock funds forever --- traces back to a flawed mental model of how the blockchain works. This chapter gives you the accurate model that prevents those mistakes.
+Every smart contract bug that lost real money on Algorand --- from DEX exploits that drained millions to common MBR miscalculations that lock funds forever --- traces back to a flawed mental model of how the blockchain works. This chapter gives you the accurate model that prevents those mistakes.
 
 Before writing a single line of contract code, you need a mental model of how Algorand works that is accurate enough to reason about what your contracts can and cannot do.
 
