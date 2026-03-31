@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Building-on-Algorand.md'
+      - 'chapters/**'
+      - 'build.py'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
           sudo mv mdbook /usr/local/bin/
 
       - name: Build mdbook
-        run: python3 build_mdbook.py
+        run: python3 build.py mdbook
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

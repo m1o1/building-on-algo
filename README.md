@@ -27,18 +27,31 @@ Plus two appendices: a **Smart Contract Cookbook** with 50+ standalone recipes, 
 
 ## Reading the Book
 
-The easiest way to read is the [online version](https://m1o1.github.io/building-on-algo/) hosted on GitHub Pages. A PDF can also be built from the build.sh script in this repository.
+The easiest way to read is the [online version](https://m1o1.github.io/building-on-algo/) hosted on GitHub Pages.
 
 ## Building Locally
 
-The canonical source is `Building-on-Algorand.md`. All other formats are derived from it.
+The canonical source is the `chapters/` directory — each chapter is a separate `.md` file. All other formats are derived from these files via `build.py`.
+
+### Prerequisites
+
+- **mdbook** (for HTML): `brew install mdbook`
+- **pandoc + xelatex** (for PDF): `brew install pandoc` and a TeX distribution (e.g. [MacTeX](https://www.tug.org/mactex/))
+
+### Build Commands
 
 ```bash
 # Build the mdbook (static HTML site) → outputs to mdbook/book/
-python3 build_mdbook.py
+python3 build.py mdbook
 
-# Build the PDF (requires pandoc + xelatex)
-bash build.sh
+# Build the PDF via pandoc + xelatex
+python3 build.py pdf
+
+# Build both
+python3 build.py all
+
+# Reconstruct single Building-on-Algorand.md from chapters
+python3 build.py concat
 ```
 
 ## Disclaimer

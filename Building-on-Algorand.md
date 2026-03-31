@@ -4844,7 +4844,6 @@ In the next chapter, we extend this AMM with a yield farming contract --- a stak
 - [Transaction Composer](https://dev.algorand.co/algokit/utils/python/transaction-composer/) --- building atomic groups with AlgoKit Utils
 - [Testing](https://dev.algorand.co/algokit/utils/python/testing/) --- pytest patterns for Algorand contracts
 
-
 \newpage
 
 # Yield Farming --- Extending the AMM with Staking Rewards
@@ -6116,7 +6115,6 @@ Before starting the next chapter, you should be able to:
 - [ ] Manage box lifecycle with creation, updates, deletion, and MBR refund
 
 If any of these are unclear, revisit the relevant section before proceeding.
-
 
 \newpage
 
@@ -8919,7 +8917,6 @@ See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full sp
 | PLONK Paper | eprint.iacr.org/2019/953 |
 | Groth16 Paper | eprint.iacr.org/2016/260 |
 
-
 \newpage
 
 
@@ -10218,7 +10215,6 @@ algorand.client.algod.send_transactions([signed_pay, signed_app])
 | ASA opt-in MBR | 100,000 μAlgo |
 | Min account balance | 100,000 μAlgo |
 | Min transaction fee | 1,000 μAlgo |
-
 
 \newpage
 

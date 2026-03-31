@@ -1,0 +1,44 @@
+---
+title: "Building on Algorand"
+subtitle: "Smart Contracts from First Principles to Production DeFi"
+author: "Generated with Claude"
+date: "March 2026"
+documentclass: report
+classoption:
+  - 11pt
+  - twoside
+  - openright
+geometry:
+  - margin=1in
+  - top=1.2in
+  - bottom=1.2in
+mainfont: "DejaVu Serif"
+sansfont: "DejaVu Sans"
+monofont: "DejaVu Sans Mono"
+fontsize: 11pt
+linestretch: 1.15
+toc: true
+toc-depth: 2
+numbersections: true
+colorlinks: true
+linkcolor: "blue!60!black"
+urlcolor: "blue!60!black"
+toccolor: "blue!60!black"
+header-includes:
+  - |
+    ```{=latex}
+    \usepackage{fvextra}
+    \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
+    \usepackage{fancyhdr}
+    \pagestyle{fancy}
+    \fancyhf{}
+    \fancyhead[LE]{\leftmark}
+    \fancyhead[RO]{\rightmark}
+    \fancyfoot[C]{\thepage}
+    \renewcommand{\headrulewidth}{0.4pt}
+    \setlength{\headheight}{14pt}
+    \usepackage{titlesec}
+    \titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+    \titlespacing*{\chapter}{0pt}{-20pt}{40pt}
+    ```
+---

@@ -2,29 +2,40 @@
 
 ## Source of Truth
 
-**`Building-on-Algorand.md`** is the single canonical source for the book. All edits go here. The mdbook chapters and PDF are derived outputs.
+**`chapters/`** is the canonical source for the book. Each chapter is a separate `.md` file. The mdbook HTML site and PDF are derived outputs.
+
+- `chapters/metadata.yaml` -- Pandoc YAML frontmatter (title, fonts, LaTeX config)
+- `chapters/F*.md` -- Front matter (Legal Notice, Preface)
+- `chapters/01-*.md` through `chapters/09-*.md` -- Numbered chapters
+- `chapters/A*.md` -- Appendices (Cookbook, Gotchas)
+- `chapters/Z*.md` -- Back matter (What's Next, Glossary, Bibliography)
 
 ## Build Commands
 
 ```bash
 # Build the mdbook (static HTML site) - outputs to mdbook/book/
-python3 build_mdbook.py
+python3 build.py mdbook
 
-# Build the PDF (requires xelatex)
-bash build.sh
+# Build the PDF (requires pandoc + xelatex)
+python3 build.py pdf
+
+# Build both
+python3 build.py all
+
+# Reconstruct single Building-on-Algorand.md from chapters
+python3 build.py concat
 ```
 
 ## Workflow
 
-1. Edit `Building-on-Algorand.md`
-2. Run `python3 build_mdbook.py` to regenerate the HTML site
+1. Edit the relevant file in `chapters/`
+2. Run `python3 build.py mdbook` to regenerate the HTML site
 3. Never edit files under `mdbook/src/` directly -- they are overwritten on each build
 
 ## Project Structure
 
-- `Building-on-Algorand.md` -- The complete book manuscript
-- `build_mdbook.py` -- Splits the manuscript into chapters and builds the mdbook
-- `build.sh` -- Builds the PDF via pandoc + xelatex
+- `chapters/` -- Chapter source files (the canonical book content)
+- `build.py` -- Unified build script (mdbook, pdf, concat)
 - `.claude/agents/` -- Specialized review agents (see below)
 
 ## Agent-Based Quality Assurance
@@ -41,7 +52,7 @@ Three specialized agents live in `.claude/agents/`. **Every substantive change t
 
 ### Review Workflow for Book Changes
 
-When making changes to `Building-on-Algorand.md`, follow this process:
+When making changes to chapter files in `chapters/`, follow this process:
 
 #### 0. Run unit tests for any code changes
 Before proceeding with reviews, if the change involves contract code or test code, run the unit tests to catch compilation errors and regressions early:
@@ -53,7 +64,7 @@ cd /Users/andrew/coding/building-on-algo && python3 -m pytest tests/ -v 2>&1 | h
 If tests fail, fix the code before moving to the review step. Do not proceed with agent reviews on code that does not pass tests.
 
 #### 1. Make the edit
-Edit the manuscript as requested. All changes go in `Building-on-Algorand.md`.
+Edit the relevant chapter file in `chapters/`.
 
 #### 2. Run the three-agent review
 After the edit is drafted, run all three agents **in parallel** against the changed section(s). Each agent should review the specific content that was added or modified, with enough surrounding context to evaluate it properly.
@@ -87,7 +98,7 @@ The agent should return a structured report:
 - **Passes**: Steps that worked as written
 - **Revisions needed**: Exact list of gaps, missing imports, wrong APIs, compilation errors, or unclear instructions -- with suggested fixes
 
-Apply all revisions to the manuscript. If revisions are substantive, re-run the relevant review agent(s) from step 2.
+Apply all revisions to the chapter file. If revisions are substantive, re-run the relevant review agent(s) from step 2.
 
 **Knowledge base update requirement:** When the walkthrough discovers a compilation error or incorrect API usage, the algorand-expert agent must update its own knowledge base (the "Verified API Ground Truth" section in `.claude/agents/algorand-expert.md`) with the correct information, including the verification date and PuyaPy version. This prevents future reviews from re-introducing the same error. The update should include both the wrong form (so future agents recognize it) and the correct form (so they know the fix). If the error reveals a pattern (e.g., a PuyaPy 5.x breaking change from 4.x), document the pattern, not just the individual instance.
 
@@ -140,12 +151,12 @@ After the walkthrough passes, use the **algorand-expert** agent to audit every s
 - [ ] Initialization can only happen once
 - [ ] No state accessible before initialization
 
-The agent should return a checklist with pass/fail for each item and a description of any failing checks with suggested fixes. **All checks must pass before the chapter is considered complete.** Any failing check is a blocking issue that must be fixed in the manuscript.
+The agent should return a checklist with pass/fail for each item and a description of any failing checks with suggested fixes. **All checks must pass before the chapter is considered complete.** Any failing check is a blocking issue that must be fixed in the chapter file.
 
 This step can be skipped for changes that do not include smart contract code.
 
 #### 6. Build
-Run `python3 build_mdbook.py` to regenerate the HTML site and verify the output.
+Run `python3 build.py mdbook` to regenerate the HTML site and verify the output.
 
 ### Agent Invocation Examples
 
