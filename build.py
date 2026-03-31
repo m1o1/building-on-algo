@@ -310,6 +310,19 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
 
     summary_lines = ["# Summary\n"]
 
+    # Cover page
+    cover_img = ROOT / "building-on-algo.jpg"
+    if cover_img.exists():
+        shutil.copy2(cover_img, SRC_DIR / cover_img.name)
+        cover_md = (
+            '<div style="text-align: center; padding: 2em 0;">\n'
+            f'<img src="./{cover_img.name}" alt="Building on Algorand" '
+            'style="max-width: 100%; max-height: 80vh;" />\n'
+            "</div>\n"
+        )
+        (SRC_DIR / "cover.md").write_text(cover_md, encoding="utf-8")
+        summary_lines.append("[Cover](./cover.md)")
+
     for path in chapter_files:
         text = path.read_text(encoding="utf-8")
         heading = extract_heading(text)

@@ -27,6 +27,16 @@ toccolor: "blue!60!black"
 header-includes:
   - |
     ```{=latex}
+    \usepackage{graphicx}
+    \newcommand\CoverPage{%
+      \begin{titlepage}
+      \centering
+      \vspace*{\fill}
+      \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{building-on-algo.jpg}
+      \vspace*{\fill}
+      \end{titlepage}
+    }
+    \AtBeginDocument{\CoverPage}
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
     \usepackage{fancyhdr}

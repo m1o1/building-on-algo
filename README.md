@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="building-on-algo.jpg" alt="Building on Algorand" width="400" />
+</p>
+
 # Building on Algorand
 
 **Smart Contracts from First Principles to Production DeFi**
@@ -63,7 +67,7 @@ python3 build.py concat
 
 ## Disclaimer
 
-This book was generated with the assistance of AI (Claude, by Anthropic). While the code has been compiled, tested, and reviewed, it may contain errors or outdated information. **The smart contracts are for educational purposes** — any code intended for mainnet **must undergo a professional security audit**. See the full [Legal Notice](https://m1o1.github.io/building-on-algo/) in the book.
+This book was generated with the assistance of AI (Claude, by Anthropic). The cover image was generated with Grok (xAI). While the code has been compiled, tested, and reviewed, it may contain errors or outdated information. **The smart contracts are for educational purposes** — any code intended for mainnet **must undergo a professional security audit**. See the full [Legal Notice](https://m1o1.github.io/building-on-algo/) in the book.
 
 ## License
 
