@@ -9,6 +9,13 @@ In this chapter we solve that by minting an *NFT* (Non-Fungible Token) for each 
 
 We will rebuild the vesting contract from Chapter 3 with these changes. Along the way, you will learn how NFTs work on Algorand (they are just ASAs with `total=1`), how to mint assets from within a contract via inner transactions, the ARC-3 metadata standard, the ownership-by-asset verification pattern, and the clawback mechanism for revocation. Every concept from Chapter 3 carries forward --- this chapter extends your knowledge rather than replacing it.
 
+**Key differences from the Chapter 3 vesting contract:**
+
+- **Box key** changes from `Account` (keyed by beneficiary address) to `arc4.UInt64` (keyed by NFT asset ID). The NFT, not the address, identifies a schedule.
+- **`claim`** takes an NFT asset ID and verifies ownership via `AssetHolding`, instead of reading `Txn.sender` directly. Anyone holding the NFT can claim.
+- **`revoke`** adds clawback of the NFT, NFT destruction, and unvested token return --- a multi-step inner transaction sequence not needed in Chapter 3.
+- **`create_schedule`** mints an NFT via inner transaction and stores the schedule keyed by the new asset ID.
+
 ## What Is an NFT on Algorand?
 
 On some blockchains, NFTs require a dedicated token standard with special smart contract logic (ERC-721 on Ethereum, for example). On Algorand, NFTs are simply [Algorand Standard Assets](https://dev.algorand.co/concepts/assets/overview/) (ASAs) with specific parameters:
@@ -155,7 +162,7 @@ The deposit method is unchanged from Chapter 3 --- the admin transfers vesting t
 
 This is where the contract diverges from Chapter 3. Instead of simply writing a schedule to box storage, `create_schedule` now mints an NFT that represents ownership of the vesting position. The NFT stays with the contract until the beneficiary opts in and the admin delivers it --- a two-step pattern we will explore shortly.
 
-*Inner transactions* are the mechanism. You used them in Chapter 3 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
+*Inner transactions* are the mechanism. You used them in Chapter 3 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. The `mbr_payment` parameter follows the fund-then-call pattern (Pattern 2 in Chapter 7): the caller sends a payment to cover the MBR in the same atomic group as the app call, and the contract validates the payment amount. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
 
 ```python
     @arc4.abimethod
@@ -376,18 +383,23 @@ Place this function outside the class, between the `VestingSchedule` struct and 
 
 ## Revocation with Clawback
 
+*Before reading the implementation: when the admin revokes a vesting schedule, what happens to the NFT? What about the unvested tokens? And the vested-but-unclaimed tokens? Try to list the steps needed before reading on.*
+
 When the admin revokes a schedule, the contract must handle the NFT. We use Algorand's [clawback](https://dev.algorand.co/concepts/assets/asset-operations/) mechanism: because the contract is the NFT's designated clawback address, it can transfer the NFT out of any account without that account's permission.
 
 There is one complication: revocation *destroys the NFT*, so the holder can no longer call `claim` afterward. To handle this cleanly, the contract settles everything in one transaction --- it transfers any vested-but-unclaimed tokens to the holder, claws back and destroys the NFT, and returns the unvested tokens to the admin.
 
-The complete revocation flow:
+The complete revocation flow (with a worked example: 1,000,000 total tokens, 300,000 already claimed, revoked at 50% vested):
 
-1. Calculate how much has vested
-2. Settle vested-but-unclaimed tokens with the current holder
-3. Cap the schedule and mark it as revoked
-4. Clawback the NFT from whoever currently holds it
-5. Destroy the NFT (since the contract now holds the total supply)
-6. Return unvested tokens to the admin
+| Step | Action | State After |
+|------|--------|-------------|
+| Before | --- | Box: 1M total, 300K claimed. Contract holds 700K tokens. Holder has NFT + 300K tokens. |
+| 1 | Calculate vested: 500K | vested=500K, claimable=200K (500K−300K), unvested=500K |
+| 2 | Send 200K tokens to holder | Contract holds 500K. Holder has 500K tokens. |
+| 3 | Cap schedule, mark revoked | Box: total capped to 500K, is_revoked=True |
+| 4 | Clawback NFT from holder | Contract holds NFT + 500K tokens |
+| 5 | Destroy NFT | NFT gone. Contract holds 500K tokens. |
+| 6 | Return 500K unvested to admin | Contract holds 0 tokens. Admin has 500K back. |
 
 ```python
     @arc4.abimethod
@@ -658,6 +670,8 @@ metadata_hash = b"\x00" * 32  # Placeholder hash for testing
 # transaction executes. AlgoKit Utils handles this automatically: it simulates
 # the transaction first to discover which resources are needed, then rebuilds
 # it with the correct box references before submitting.
+# We pass an empty placeholder here; the simulate step replaces it.
+placeholder_box_key = b"\x00" * 8  # 8 bytes (uint64), replaced by simulate
 create_result = algorand.new_group().add_app_call_method_call(
     app_client.params.call(
         algokit_utils.AppClientMethodCallParams(
@@ -1113,6 +1127,10 @@ In the next chapter, we build a constant product AMM (Chapter 5) where multi-tok
 4. **(Create)** Design an extension where vesting schedules can be *split*: a holder can divide their NFT into two new NFTs, each representing a portion of the remaining allocation. What new method is needed? How do you handle the box storage (one box becomes two)? What happens to the original NFT?
 
 5. **(Create)** The Known Limitation in the Revocation section describes how a holder who has not opted into the vesting token can block revocation. Design a solution: add opt-in status checking to `revoke` so that when the holder is not opted in, vested-but-unclaimed tokens are stored in a `pending_settlements` BoxMap instead of being transferred immediately. Add a `withdraw_settlement` method the holder can call after opting in. What are the MBR implications of the extra box?
+
+6. **(Create, cross-chapter)** Design a contract that combines patterns from Chapters 3 and 4: it creates an ASA (this chapter's inner transaction pattern), accepts deposits via an atomic group (Chapter 3's fund-then-call pattern), and uses wide arithmetic for a proportional calculation (Chapter 3's `mulw`/`divmodw`). Sketch the contract's `__init__`, one state-changing method, and the deployment script.
+
+> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 7.1 (creating an ASA), 7.5 (checking asset balance), 6.4 (box MBR calculation), and 9.1 (accepting a payment in a group).
 
 ## Further Reading
 

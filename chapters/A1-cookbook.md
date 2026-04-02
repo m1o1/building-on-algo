@@ -207,6 +207,8 @@ The AVM has exactly two native types. Everything else is built on top of these.
 
 ### 3.2 --- BigUInt: up to 512-bit integers
 
+> **When to use BigUInt vs wide arithmetic (3.3):** Use `BigUInt` when the *result itself* must exceed 64 bits (e.g., cumulative accumulators like TWAP that grow unboundedly). Use `mulw`/`divmodw` (Recipe 3.3) when the final result fits in 64 bits but an intermediate product might overflow (e.g., proportional calculations like `a * b / c`).
+
 ```python
 from algopy import ARC4Contract, BigUInt, UInt64, arc4, op
 
@@ -325,6 +327,8 @@ Requires the target app ID in the transaction's foreign apps array.
 
 ### 5.1 --- Per-user state with opt-in
 
+> **When to use local state vs box storage (Section 6):** Use local state only for non-critical user preferences or caches --- data where unilateral deletion by the user is acceptable. For financial data, debts, or anything the application must control, use box storage (Section 6). Users can delete their local state via ClearState at any time; they cannot delete boxes.
+
 ```python
 from algopy import ARC4Contract, LocalState, Txn, UInt64, arc4
 
@@ -365,6 +369,8 @@ class LocalReader(ARC4Contract):
 (See [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
 
 ### 6.1 --- Simple named box (Box)
+
+> **When to use Box vs BoxMap (6.2) vs raw box (6.3):** Use `Box` for a single named value (e.g., a config struct). Use `BoxMap` for per-user or per-entity data keyed by address or ID (the most common pattern). Use raw box access (6.3) only when you need byte-level operations (`extract`, `replace`, `splice`) on packed binary data.
 
 ```python
 from algopy import ARC4Contract, Box, UInt64, arc4
@@ -417,7 +423,7 @@ class BalanceMap(ARC4Contract):
 
 ### 6.3 --- Raw box access (Box with low-level methods)
 
-> **Note:** `BoxRef` is deprecated in current PuyaPy. The same methods (`create`, `delete`, `extract`, `replace`, `resize`, `splice`) are now available directly on `Box`. Prefer `Box` over `BoxRef`.
+> **Note:** `BoxRef` is deprecated in current PuyaPy (see the `@deprecated` annotation in the [PuyaPy `_box` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/_box.pyi)). Use `Box` instead. Methods like `create`, `extract`, `replace`, `resize`, and `splice` are available directly on `Box`. Deletion uses the property deleter: `del box.value`.
 
 ```python
 from algopy import ARC4Contract, Box, Bytes, UInt64, arc4
@@ -440,11 +446,10 @@ class RawBoxAccess(ARC4Contract):
 
     @arc4.abimethod
     def delete_box(self) -> None:
-        ref = BoxRef(key=b"data")
-        ref.delete()
+        del self.data.value  # Property deleter removes the box
 ```
 
-BoxRef gives byte-level access. Essential for packed data structures.
+`Box` gives byte-level access via `create`, `extract`, `replace`, `resize`, and `splice`. Essential for packed data structures.
 
 ### 6.4 --- Box MBR calculation helper
 
@@ -948,9 +953,9 @@ class TypeDemo(ARC4Contract):
     @arc4.abimethod
     def with_arc4_types(self, x: arc4.UInt64, s: arc4.String) -> arc4.String:
         # arc4 types are ABI-encoded (wire format)
-        # .native converts to Python-usable form:
-        native_x = x.native   # → UInt64
-        native_s = s.native   # → algopy.String
+        # Convert to native types for computation:
+        native_x = x.as_uint64()  # → UInt64 (.native deprecated on numerics)
+        native_s = s.native       # → algopy.String (.native valid on non-numerics)
         return arc4.String("Got: " + native_s)
 
     @arc4.abimethod
@@ -1272,6 +1277,61 @@ signed_app = app_txn.sign(alice_key)
 # Submit as a group
 algorand.client.algod.send_transactions([signed_pay, signed_app])
 ```
+
+
+## 17. Additional Patterns {#17-additional-patterns}
+
+### 17.1 --- ASA close-out (recover MBR)
+
+When you no longer need to hold an ASA, close out to recover the 100,000 μAlgo MBR. The `asset_close_to` field sends the entire balance to a recipient and removes the ASA from the account.
+
+```python
+# Client-side: close out of an ASA to recover MBR
+algorand.send.asset_transfer(
+    algokit_utils.AssetTransferParams(
+        sender=user.address,
+        receiver=user.address,     # Send remaining balance to self
+        asset_id=token_id,
+        amount=0,                   # Amount is ignored when closing
+        close_asset_to=user.address, # This triggers the close-out
+    )
+)
+# After this, the account no longer holds the ASA
+# and recovers 100,000 μAlgo of MBR.
+```
+
+> **Warning:** The `close_asset_to` field sends the *entire* balance of that ASA, not just the `amount` field. Double-check the recipient address. If you send it to the wrong address, all tokens are lost.
+
+### 17.2 --- Account rekeying
+
+Rekeying changes which private key controls an account. The account address stays the same, but transactions must be signed by the new "auth address." This is useful for key rotation, converting a regular account into a contract-controlled account, or migrating to a new signing scheme.
+
+```python
+# Client-side: rekey an account to a new address
+algorand.send.payment(
+    algokit_utils.PaymentParams(
+        sender=old_key.address,
+        receiver=old_key.address,  # Self-payment (any destination works)
+        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+        rekey_to=new_key.address,  # The new signing authority
+    )
+)
+# After this, old_key can no longer sign for this account.
+# All future transactions must be signed by new_key.
+
+# To rekey back to the original key:
+algorand.send.payment(
+    algokit_utils.PaymentParams(
+        sender=old_key.address,      # Still the account address
+        signer=new_key,              # Must sign with current auth key
+        receiver=old_key.address,
+        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+        rekey_to=old_key.address,    # Restore original authority
+    )
+)
+```
+
+> **Warning:** Rekeying is irreversible without the new key. If you rekey to an address you do not control, the account is permanently lost. Always verify the `rekey_to` address before signing.
 
 
 ## Quick Reference: AVM Limits

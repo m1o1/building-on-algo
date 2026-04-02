@@ -37,11 +37,13 @@ Your contract code goes in `smart_contracts/governance_voting/contract.py`. Dele
 
 This project builds on the LogicSig foundation from Chapter 8. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
 
-The critical property for this chapter is the [opcode budget](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/). Each top-level transaction with a LogicSig contributes 20,000 opcodes to a pooled budget (since AVM v10). In a group of 8 LogicSig transactions, that is 160,000 opcodes --- enough to verify a BN254 PLONK proof that costs approximately 145,000 opcodes. Smart contracts, at 700 opcodes per app call, would need over 200 calls for the same verification, making them prohibitively expensive.
+The critical property for this chapter is the [opcode budget](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/). Since AVM v10, every transaction in a group contributes 20,000 opcodes to the LogicSig pool, regardless of whether it is signed by a LogicSig. In a group of 8 transactions where one or more carry a LogicSig, the pooled budget is 160,000 opcodes --- enough to verify a BN254 PLONK proof that costs approximately 145,000 opcodes. Smart contracts, at 700 opcodes per app call, would need over 200 calls for the same verification, making them prohibitively expensive.
 
 The LogicSig and smart contract opcode pools are independent. This means we can use LogicSigs for the cryptographic heavy lifting (proof verification) while preserving the full smart contract budget for application logic (recording votes, managing phases, tallying results). This separation is the architectural foundation of the system we are about to build.
 
 For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it simply needs enough opcode budget to run the elliptic curve operations. The security rules from Chapter 8 (close-to, rekey-to, fee caps, group validation) all apply and are enforced in our verifier implementation.
+
+> **What you can build with just Python.** The voting smart contract and its deployment can be compiled and tested using only the Python tools from earlier chapters. The Go toolchain (gnark, AlgoPlonk) is only needed for ZK proof generation and verifier LogicSig compilation. If you want to explore the voting contract without the ZK components, you can deploy, initialize, commit votes, and advance phases --- skipping only the prove step.
 
 ## Part 2: The AVM's Cryptographic Toolkit
 
@@ -335,6 +337,8 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
         self.proof_status[voter] = UInt64(1)
         self.verified_proofs.value += UInt64(1)
 ```
+
+> **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation would verify that a LogicSig verifier transaction exists in the current atomic group and that the proof's public inputs match the stored commitment. See the Production Hardening section below for the full verification approach.
 
 > **Warning:** The `record_verified_proof` method creates a proof status box (`p_` prefix + 32-byte address = 34-byte key, 8-byte UInt64 value). This costs `2,500 + 400 * (34 + 8) = 19,300 microAlgos` in MBR. The app account must have sufficient Algo to cover this MBR for each voter. Unlike `commit_vote`, which requires a caller-provided MBR payment, the code above does not --- either fund the app account with enough Algo before the prove phase begins, or add an `mbr_payment` parameter to `record_verified_proof` as we did for `commit_vote`.
 
@@ -636,6 +640,10 @@ For a production system that needs to be quantum-resistant end-to-end, you would
 
 ## Part 7: Testing the Complete System
 
+### Testing Without the Go Toolchain
+
+If you cannot install the Go toolchain (gnark, AlgoPlonk), you can still test the voting contract's core flow: deploy, initialize, commit votes, advance phases, and reveal votes. The commit-reveal cycle verifies commitments against MiMC hashes without needing ZK proofs. Skip the prove phase by advancing directly to reveal --- you will not be able to test the ZK proof verification path, but you can exercise the commit-reveal-tally flow end to end. The tests below include comments showing where the ZK steps would go.
+
 ### Test Scenario: 3 Voters, 3 Choices
 
 > **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `generate_vote_proof`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
@@ -824,7 +832,7 @@ In this chapter you learned to:
 - Explain why MiMC is used inside ZK circuits instead of SHA-256, and the security tradeoffs involved
 - Design a ZK circuit using gnark/AlgoPlonk that proves a vote is valid without revealing which choice was selected
 - Build a multi-phase voting smart contract with registration, commitment, reveal, and tallying phases
-- Use LogicSig opcode pooling (20,000 opcodes per transaction) to verify ZK proofs on-chain
+- Use LogicSig opcode pooling (20,000 opcodes per group transaction, since AVM v10) to verify ZK proofs on-chain
 - Describe Algorand's Falcon-based post-quantum security roadmap and its implications for long-term cryptographic design
 
 | Feature Built | New Concepts Introduced |

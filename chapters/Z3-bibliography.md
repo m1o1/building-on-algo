@@ -12,7 +12,7 @@ Algorand Foundation. "AlgoKit CLI Documentation." https://github.com/algorandfou
 
 Algorand Foundation. "Algorand Python Documentation." https://algorandfoundation.github.io/puya/
 
-AlgoPlonk. "PLONK verifier for the Algorand Virtual Machine." Algorand Foundation, 2024. https://github.com/algorand-foundation/algoplonk
+AlgoPlonk. "PLONK verifier for the Algorand Virtual Machine." Giulio Petrocchi, 2024. https://github.com/giuliop/AlgoPlonk
 
 Barton, J. et al. "Panda: Security Analysis of Algorand Smart Contracts." *Proceedings of the 32nd USENIX Security Symposium*, 2023.
 

@@ -98,6 +98,8 @@ class ConstantProductPool(ARC4Contract):
         self.asset_a = GlobalState(UInt64(0))
         self.asset_b = GlobalState(UInt64(0))
         self.lp_token_id = GlobalState(UInt64(0))
+        # We track reserves explicitly rather than reading the contract's
+        # asset balance. Pattern 11 in Chapter 7 compares both approaches.
         self.reserve_a = GlobalState(UInt64(0))
         self.reserve_b = GlobalState(UInt64(0))
         self.lp_total_supply = GlobalState(UInt64(0))
@@ -148,6 +150,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         lp_create = itxn.AssetConfig(
             asset_name=b"CPMM-LP",
             unit_name=b"LP",
+            # 2^63 ≈ 9.2 quintillion: large enough that LP math
+            # never runs out, safely below UInt64 max (2^64-1).
             total=UInt64(2**63),
             decimals=UInt64(6),
             manager=Global.current_application_address,
@@ -225,6 +229,11 @@ factory = algorand.client.get_app_factory(
     app_spec=Path("smart_contracts/artifacts/constant_product_pool/ConstantProductPool.arc56.json").read_text(),
     default_sender=admin.address,
 )
+# send.bare.create() always creates a new application.
+# Earlier chapters used factory.deploy(), which is idempotent
+# (it updates an existing app if one is found by name).
+# For one-off contracts like this AMM, we want a fresh instance
+# every time, so send.bare.create() is the right choice.
 app_client, deploy_result = factory.send.bare.create()
 print(f"Pool App ID: {app_client.app_id}")
 print(f"Pool Address: {app_client.app_address}")
@@ -358,7 +367,7 @@ def _calculate_swap_output(
     return output
 ```
 
-The wide arithmetic here is essential. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The `mulw`/`divmodw` pair keeps the intermediate product in 128 bits.
+This is the same wide arithmetic pattern from the vesting calculation in Chapter 3: `mulw` produces a 128-bit product, `divmodw` divides it back down. Here the numbers are different (trade amounts × reserves instead of token amounts × elapsed time) but the technique is identical. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The `mulw`/`divmodw` pair keeps the intermediate product in 128 bits.
 
 Note that `input_amount * UInt64(997)` can itself overflow if `input_amount` exceeds approximately 1.85 × 10^16. For a 6-decimal token, this allows single swaps up to ~18.5 billion tokens --- far beyond any realistic supply. If your token has extreme parameters, you would need to apply wide arithmetic to this multiplication as well.
 
@@ -585,36 +594,6 @@ Wide arithmetic appears again: `amount_a * total_lp` can overflow if both are la
 
 The floor division on both `lp_from_a` and `lp_from_b` means depositors receive slightly fewer LP tokens than the mathematically precise amount. This is correct: existing LPs should not be diluted by rounding errors in new deposits.
 
-## Understanding Impermanent Loss
-
-Providing liquidity to an AMM is not free money. The 0.3% trading fees are real income, but they come with a hidden cost: *impermanent loss* (IL). Every liquidity provider must understand this before depositing. (See [Why Algorand?](https://dev.algorand.co/getting-started/why-algorand/) for how Algorand's low fees make frequent rebalancing practical.)
-
-Impermanent loss is the difference in value between holding tokens in a pool versus simply holding them in your wallet. It occurs because the AMM rebalances your position as prices move --- you end up with more of whichever token became cheaper and less of whichever became more expensive.
-
-**A concrete example.** Alice deposits 1,000 USDC and 1,000 ALGO (at $1 each) into a pool. Her position is worth $2,000. ALGO doubles to $2. If Alice had just held, she would have 1,000 USDC + 1,000 ALGO = $3,000. But the pool rebalanced: the constant product formula means the pool now holds more USDC and less ALGO. Alice's share is worth approximately $2,828. She lost $172 compared to holding --- that is her impermanent loss (about 5.7%).
-
-The loss is called "impermanent" because it reverses if the price returns to its original ratio. But if Alice withdraws while the price is different, the loss becomes permanent.
-
-The IL formula for a price change of ratio $r$ (where $r = \text{new price} / \text{original price}$):
-
-$$IL = \frac{2\sqrt{r}}{1 + r} - 1$$
-
-| Price Change | IL |
-|-------------|-----|
-| 1.25x (25% up) | -0.6% |
-| 1.5x (50% up) | -2.0% |
-| 2x (double) | -5.7% |
-| 3x (triple) | -13.4% |
-| 5x (5x) | -25.5% |
-
-The same loss applies for equivalent price *decreases* (a 2x drop = same 5.7% IL as a 2x rise).
-
-**When do fees overcome IL?** If the pool generates enough trading fees to exceed the IL, providing liquidity is profitable. This depends on trading volume relative to pool size. A pool with $100K TVL and $50K daily volume generates far more fee income per LP dollar than a pool with $10M TVL and the same volume. High-volume, tight-spread pools (like major stablecoin pairs) tend to overcome IL; low-volume, volatile pairs often do not.
-
-> **Warning:** Impermanent loss is the primary risk for liquidity providers. The 0.3% swap fee partially offsets IL but does not eliminate it. Before providing liquidity in production, calculate the breakeven volume needed for your pool's volatility profile.
-
-This is the fundamental reason Uniswap V3 introduced concentrated liquidity --- by letting LPs focus capital in a narrow price range, they earn higher fees per dollar (improving the fees-vs-IL tradeoff) but amplify the loss if price moves outside their range. No Algorand DEX currently implements a full Uniswap V3-style concentrated liquidity AMM; the ecosystem uses constant product (V2-style) pools and StableSwap variants. The constant product model we built here is what Tinyman and Pact use in production.
-
 ## Removing Liquidity
 
 Withdrawal is the inverse of deposit: burn LP tokens, receive proportional shares of both reserves. The calculation is straightforward:
@@ -683,6 +662,39 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
 
 
+## Understanding Impermanent Loss
+
+Now that you understand the complete AMM lifecycle --- bootstrapping, adding liquidity, swapping, and removing liquidity --- you are ready for the most important economic concept for liquidity providers.
+
+Providing liquidity to an AMM is not free money. The 0.3% trading fees are real income, but they come with a hidden cost: *impermanent loss* (IL). Every liquidity provider must understand this before depositing. (See [Why Algorand?](https://dev.algorand.co/getting-started/why-algorand/) for how Algorand's low fees make frequent rebalancing practical.)
+
+Impermanent loss is the difference in value between holding tokens in a pool versus simply holding them in your wallet. It occurs because the AMM rebalances your position as prices move --- you end up with more of whichever token became cheaper and less of whichever became more expensive.
+
+**A concrete example.** Alice deposits 1,000 USDC and 1,000 ALGO (at $1 each) into a pool. Her position is worth $2,000. ALGO doubles to $2. If Alice had just held, she would have 1,000 USDC + 1,000 ALGO = $3,000. But the pool rebalanced: the constant product formula means the pool now holds more USDC and less ALGO. Alice's share is worth approximately $2,828. She lost $172 compared to holding --- that is her impermanent loss (about 5.7%).
+
+The loss is called "impermanent" because it reverses if the price returns to its original ratio. But if Alice withdraws while the price is different, the loss becomes permanent.
+
+The IL formula for a price change of ratio $r$ (where $r = \text{new price} / \text{original price}$):
+
+$$IL = \frac{2\sqrt{r}}{1 + r} - 1$$
+
+| Price Change | IL |
+|-------------|-----|
+| 1.25x (25% up) | -0.6% |
+| 1.5x (50% up) | -2.0% |
+| 2x (double) | -5.7% |
+| 3x (triple) | -13.4% |
+| 5x (5x) | -25.5% |
+
+The same loss applies for equivalent price *decreases* (a 2x drop = same 5.7% IL as a 2x rise).
+
+**When do fees overcome IL?** If the pool generates enough trading fees to exceed the IL, providing liquidity is profitable. This depends on trading volume relative to pool size. A pool with $100K TVL and $50K daily volume generates far more fee income per LP dollar than a pool with $10M TVL and the same volume. High-volume, tight-spread pools (like major stablecoin pairs) tend to overcome IL; low-volume, volatile pairs often do not.
+
+> **Warning:** Impermanent loss is the primary risk for liquidity providers. The 0.3% swap fee partially offsets IL but does not eliminate it. Before providing liquidity in production, calculate the breakeven volume needed for your pool's volatility profile.
+
+This is the fundamental reason Uniswap V3 introduced concentrated liquidity --- by letting LPs focus capital in a narrow price range, they earn higher fees per dollar (improving the fees-vs-IL tradeoff) but amplify the loss if price moves outside their range. No Algorand DEX currently implements a full Uniswap V3-style concentrated liquidity AMM; the ecosystem uses constant product (V2-style) pools and StableSwap variants. The constant product model we built here is what Tinyman and Pact use in production.
+
+
 ## Security Hardening and the Tinyman V1 Lesson
 
 On January 1, 2022, attackers exploited a vulnerability in Tinyman V1's burn (remove liquidity) function, extracting approximately \$3 million. The root cause: the contract failed to verify that two different assets were being returned during liquidity removal. An attacker could construct a transaction that received the same token twice, effectively doubling their withdrawal of one asset while getting nothing of the other.
@@ -709,6 +721,8 @@ Regarding MEV (Miner/Maximum Extractable Value): Algorand's block proposers are 
 Never submit an on-chain transaction just to get a price quote. The swap output can be calculated client-side using the same constant-product formula, reading reserves from [global state](https://dev.algorand.co/concepts/smart-contracts/storage/global/) (which is a free API call --- no transaction, no fee). This is how frontends display real-time quotes and price impact warnings. Pattern 12 in the Common Patterns chapter provides the complete client-side `get_swap_quote` helper function with price impact calculation and slippage defaults.
 
 ## The TWAP Price Oracle
+
+> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the farming contract in Chapter 6.
 
 Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a natural price oracle --- but one that must be used carefully.
 
@@ -879,7 +893,43 @@ Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC
 
 ## Testing the AMM
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_pool`, `transfer_usdc`, `transfer_algo`, `get_reserve_a`, `get_reserve_b`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+
+As with Chapter 3, here is one complete test helper showing how the Chapter 2 pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
+
+```python
+from pathlib import Path
+import algokit_utils
+
+APP_SPEC = Path(
+    "smart_contracts/artifacts/constant_product_pool/"
+    "ConstantProductPool.arc56.json"
+).read_text()
+
+def deploy_pool(algorand, admin):
+    """Deploy a fresh AMM pool and fund it for MBR."""
+    factory = algorand.client.get_app_factory(
+        app_spec=APP_SPEC,
+        default_sender=admin.address,
+    )
+    # send.bare.create() for a fresh instance each time
+    app_client, _ = factory.send.bare.create()
+    # Fund for MBR: base (100K) + 3 ASA opt-ins (300K)
+    # + box headroom + inner txn fees
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=admin.address,
+            receiver=app_client.app_address,
+            amount=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(500_000)
+            ),
+        )
+    )
+    return app_client
+```
+
+> **Exercise:** Implement `bootstrap_pool(algorand, admin, pool, token_a, token_b)` using the bootstrap deployment script as a template. It should call the `bootstrap` method with a seed payment and both token IDs, then return the LP token ID.
 
 The following test outlines go in `tests/test_amm.py` (not part of the contract code):
 
@@ -987,6 +1037,10 @@ In the next chapter, we extend this AMM with a yield farming contract --- a stak
     *Hint:* Add `self.protocol_fees_a = GlobalState(UInt64(0))` and `self.protocol_fees_b = GlobalState(UInt64(0))` to `__init__`. In the `swap` method, after calculating `output_amount`, compute `protocol_fee = output_amount * UInt64(5) // UInt64(10000)` (0.05%), subtract it from the output sent to the user, and add it to the appropriate protocol fee accumulator. The `withdraw_protocol_fees` method should be admin-only, send both accumulated fee balances via inner transactions, and reset the accumulators to zero.
 
 4. **(Analyze)** The TWAP oracle stops accumulating if no transactions interact with the pool. If there is a 24-hour gap with no swaps or liquidity operations, the TWAP becomes stale. Design a public `poke_twap` method that allows anyone (a keeper bot) to trigger a TWAP update without performing a swap. What should the method do, and what incentive does a keeper have to call it?
+
+5. **(Create, cross-chapter)** Write a simulate-based test (Chapter 2's pattern) that verifies the AMM rejects a swap where `min_output` exceeds the available output. Use `.simulate()` to construct the failing swap and verify the failure message contains `"Slippage exceeded"`.
+
+> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 3.2–3.3 (BigUInt and wide arithmetic), 4.3 (reading another app's state), 7.2 (ASA opt-in), 8.4 (fee pooling), and 12.1 (module-level subroutines).
 
 ## Further Reading
 

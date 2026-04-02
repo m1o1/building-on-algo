@@ -148,9 +148,9 @@ class SimpleFarm(ARC4Contract):
     @arc4.abimethod
     def claim(self) -> UInt64:
         stake = self.stakes[arc4.Address(Txn.sender)].copy()
-        lp_amount = stake.lp_amount.native
-        stake_time = stake.stake_time.native
-        claimed = stake.reward_claimed.native
+        lp_amount = stake.lp_amount.as_uint64()
+        stake_time = stake.stake_time.as_uint64()
+        claimed = stake.reward_claimed.as_uint64()
         assert lp_amount > UInt64(0), "No stake"
         assert stake_time < self.reward_end_time.value, (
             "Reward period ended"
@@ -196,8 +196,8 @@ class SimpleFarm(ARC4Contract):
     @arc4.abimethod
     def unstake(self) -> None:
         stake = self.stakes[arc4.Address(Txn.sender)].copy()
-        lp_amount = stake.lp_amount.native
-        stake_time = stake.stake_time.native
+        lp_amount = stake.lp_amount.as_uint64()
+        stake_time = stake.stake_time.as_uint64()
         assert lp_amount > UInt64(0), "No stake"
         assert Global.latest_timestamp >= (
             stake_time + UInt64(LOCK_DURATION)
@@ -238,7 +238,9 @@ Even if you could iterate, the math is wrong. When Bob stakes at time 50, the pe
 
 ### The Snapshot-and-Diff Insight
 
-The solution is a global accumulator that answers the question: "How many reward tokens has one unit of LP earned since the beginning of time?" This number is called `reward_per_token`. Each user stores a snapshot of `reward_per_token` at the time they last interacted with the contract. Their pending reward is simply:
+Think of `reward_per_token` as a running tally that answers one question: "If you had staked exactly 1 LP token since the very beginning, how many reward tokens would you have earned by now?" This number only goes up. When you stake, you snapshot where this number is. When you claim, you calculate: `(current tally - your snapshot) × your actual stake`. That is all the accumulator does --- the rest is bookkeeping.
+
+More precisely, the solution is a global accumulator that answers the question: "How many reward tokens has one unit of LP earned since the beginning of time?" This number is called `reward_per_token`. Each user stores a snapshot of `reward_per_token` at the time they last interacted with the contract. Their pending reward is simply:
 
 $$\text{reward} = \text{lp\_amount} \times (\text{reward\_per\_token}_{\text{now}} - \text{reward\_per\_token}_{\text{snapshot}})$$
 
@@ -266,7 +268,7 @@ The multiplication `reward_rate * delta_t * PRECISION` can overflow `UInt64` (ma
 
 $$1{,}000{,}000 \times 86{,}400 \times 10^9 = 8.64 \times 10^{19}$$
 
-This exceeds `UInt64`'s maximum. We must use `op.mulw` for the 128-bit intermediate product and `op.divmodw` for the 128-bit division:
+This exceeds `UInt64`'s maximum. We apply the same wide arithmetic pattern from Chapters 3 and 5 --- `op.mulw` for the 128-bit intermediate product and `op.divmodw` for the division:
 
 ```python
 # reward_rate * delta_t fits in UInt64 for realistic
@@ -497,6 +499,8 @@ MAX_LOCK = 365 * SECONDS_PER_DAY
 The contract class declaration and initialization method. The `initialize` method performs the cross-contract read to verify the LP token, then opts into both tokens.
 
 ```python
+# 5 × UInt64 = 40 bytes data. With 34-byte key (2 prefix + 32 addr),
+# box MBR = 2,500 + 400 × (34 + 40) = 32,100 μAlgo per staker.
 class StakePosition(arc4.Struct):
     effective_balance: arc4.UInt64
     lp_amount: arc4.UInt64
@@ -517,6 +521,8 @@ class LPFarm(ARC4Contract):
         self.last_update_time = GlobalState(UInt64(0))
         self.reward_per_token_stored = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
+        # arc4.Address gives a fixed 32-byte key with O(1)
+        # lookup by staker address --- ideal for per-user data.
         self.stakes = BoxMap(
             arc4.Address, StakePosition, key_prefix=b"s_"
         )
@@ -877,12 +883,12 @@ The `claim` method settles the user's accrued rewards and sends them as an inner
 
         key = arc4.Address(Txn.sender)
         pos = self.stakes[key].copy()
-        effective = pos.effective_balance.native
+        effective = pos.effective_balance.as_uint64()
         assert effective > UInt64(0), "No stake"
 
         # Calculate pending rewards
         current_rpt = self.reward_per_token_stored.value
-        paid_rpt = pos.reward_per_token_paid.native
+        paid_rpt = pos.reward_per_token_paid.as_uint64()
         diff = current_rpt - paid_rpt
 
         high, low = op.mulw(effective, diff)
@@ -890,7 +896,7 @@ The `claim` method settles the user's accrued rewards and sends them as an inner
             high, low, UInt64(0), UInt64(PRECISION)
         )
         total_pending: UInt64 = (
-            pos.accrued_rewards.native + new_rewards
+            pos.accrued_rewards.as_uint64() + new_rewards
         )
 
         assert total_pending > UInt64(0), "Nothing to claim"
@@ -930,26 +936,26 @@ This is more complex than it appears --- the effective balance changes, which af
 
         key = arc4.Address(Txn.sender)
         pos = self.stakes[key].copy()
-        old_effective = pos.effective_balance.native
-        lp_amount = pos.lp_amount.native
+        old_effective = pos.effective_balance.as_uint64()
+        lp_amount = pos.lp_amount.as_uint64()
         assert old_effective > UInt64(0), "No stake"
 
         # Step 2: Settle accrued rewards
         current_rpt = self.reward_per_token_stored.value
-        paid_rpt = pos.reward_per_token_paid.native
+        paid_rpt = pos.reward_per_token_paid.as_uint64()
         diff = current_rpt - paid_rpt
         high, low = op.mulw(old_effective, diff)
         q_hi, new_rewards, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(PRECISION)
         )
-        accrued = pos.accrued_rewards.native + new_rewards
+        accrued = pos.accrued_rewards.as_uint64() + new_rewards
 
         # Step 3: Calculate new multiplier and effective
         new_duration = new_lock_days * UInt64(SECONDS_PER_DAY)
         new_unlock = (
             Global.latest_timestamp + new_duration
         )
-        assert new_unlock > pos.unlock_time.native, (
+        assert new_unlock > pos.unlock_time.as_uint64(), (
             "New lock must extend beyond current"
         )
         new_multiplier = _calculate_multiplier(new_duration)
@@ -980,6 +986,8 @@ This is more complex than it appears --- the effective balance changes, which af
 
 The 8-step sequence is critical. Steps 1--2 settle all rewards at the old effective balance. Steps 3--4 change the effective balance and global total. Step 5 resets the snapshot so future rewards accrue at the new effective rate. Steps 6--8 persist everything atomically. The critical ordering constraint is between steps 1 and 4: `_update_reward()` must execute before `total_effective` changes, because the accumulator update uses `total_effective` as its denominator. If you changed the total *before* updating the accumulator, the increment would be calculated against the wrong total, distributing too many or too few rewards for the period before the effective balance changed.
 
+**What goes wrong with the wrong order?** Suppose Alice's effective balance increases from 100 to 400, and 1,000 reward tokens accumulated since the last update with `total_effective = 100`. The correct increment is `1000 / 100 = 10` per token. But if you update `total_effective` to 400 *before* calling `_update_reward()`, the increment becomes `1000 / 400 = 2.5` per token. Every staker would be underpaid by 75% for that period.
+
 *Without looking at the code above, list the steps that `extend_lock` must perform and explain why the ordering matters. Then compare your list to the 8-step sequence. The ordering constraint is the same invariant from the accumulator section: update before mutate.*
 
 
@@ -994,23 +1002,23 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
 
         key = arc4.Address(Txn.sender)
         pos = self.stakes[key].copy()
-        effective = pos.effective_balance.native
-        lp_amount = pos.lp_amount.native
+        effective = pos.effective_balance.as_uint64()
+        lp_amount = pos.lp_amount.as_uint64()
         assert effective > UInt64(0), "No stake"
         assert Global.latest_timestamp >= (
-            pos.unlock_time.native
+            pos.unlock_time.as_uint64()
         ), "Lock not expired"
 
         # Settle final rewards
         current_rpt = self.reward_per_token_stored.value
-        paid_rpt = pos.reward_per_token_paid.native
+        paid_rpt = pos.reward_per_token_paid.as_uint64()
         diff = current_rpt - paid_rpt
         high, low = op.mulw(effective, diff)
         q_hi, new_rewards, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(PRECISION)
         )
         total_pending: UInt64 = (
-            pos.accrued_rewards.native + new_rewards
+            pos.accrued_rewards.as_uint64() + new_rewards
         )
 
         # Update global state BEFORE inner transactions
@@ -1041,7 +1049,7 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
         # Refund box MBR to the user
         itxn.Payment(
             receiver=Txn.sender,
-            amount=UInt64(32_100),
+            amount=UInt64(32_100),  # MBR = 2,500 + 400 * (34 key + 40 data)
             fee=UInt64(0),
         ).submit()
 ```
@@ -1247,6 +1255,9 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 4. **(Create)** Add an on-chain randomness bonus using `op.Block.blk_seed`. Every time a user claims, the contract reads the block seed from 2 rounds ago and hashes it with the user's address. If the resulting hash (mod 100) is less than 5, the user receives a 10% bonus on their claim. Implement the method and explain why reading the seed from 2 rounds ago (rather than the current round) prevents the user from choosing when to submit their claim based on a known seed.
 
+5. **(Create, cross-chapter)** Write a farming contract that reads the LP token ID from the AMM contract (Chapter 5) using a cross-contract state read (`op.AppGlobal.get_ex_uint64`) and verifies that the staked token matches. This combines the composition pattern from this chapter with the AMM's global state layout from Chapter 5.
+
+> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 4.3 (reading another app's state), 6.2 (BoxMap for per-user data), 6.4 (box MBR calculation), 13.2 (ARC-4 structs), and 8.4 (fee pooling for inner transactions).
 
 ## Further Reading
 

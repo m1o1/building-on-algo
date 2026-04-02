@@ -70,8 +70,8 @@ Every gotcha from every chapter in one scannable list.
 
 (See [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/).)
 
-- 8 foreign references (accounts + assets + apps + boxes) per transaction
-- References are shared across the group since AVM v9 --- spread across multiple txns if needed
+- 8 foreign references *per type* per transaction (8 accounts, 8 assets, 8 applications, 8 box references)
+- References are pooled across the group since AVM v9 --- spread across multiple txns if needed
 - For compound references (asset holdings), both account and asset must appear in the same top-level transaction's arrays
 - The transaction sender and current application are implicitly available
 
@@ -92,7 +92,7 @@ Every gotcha from every chapter in one scannable list.
 
 (See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/).)
 
-- PuyaPy versions below 5.3.2 had a missing-assert bug --- always use v5.7.1+
+- PuyaPy versions below 5.5.0 could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0)) --- always use v5.7.1+
 - Global and local state schemas are immutable after app creation
 - `algokit localnet reset` between test suites for clean state
 - Block timestamps come from the proposer's clock, accurate only within ~25 seconds

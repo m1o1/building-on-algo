@@ -12,6 +12,8 @@ This chapter follows a deliberate arc. First, we build a simplified vesting cont
 
 An important distinction before we begin: smart contract testing has two layers. **Contract logic testing** verifies that the on-chain code behaves correctly --- the right assertions fire, the math is accurate, state transitions are safe. **Client code testing** verifies that your off-chain scripts compose transactions correctly, encode ABI arguments properly, and handle errors gracefully. This chapter focuses on contract logic testing, which is the blockchain-specific skill. Client code testing is standard Python testing (pytest, mocking, assertions) and does not require special tooling. The *integration tests* we write here test *both layers simultaneously* --- when one fails, the bug could be in the contract or in the client code that calls it. The *unit tests* test *contract logic only*.
 
+> **Tip:** Algorand Python also provides `algorand-python-testing`, a unit testing library that lets you test contract logic without running LocalNet. If you are primarily interested in testing math and assertion logic (not transaction flows), skip ahead to the unit testing section at the end of this chapter. We start with integration tests because they cover more ground and are what you will use for most production testing.
+
 By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
 
 
@@ -366,6 +368,13 @@ def setup_initialized_contract(
 ):
     """Deploy, fund, initialize, and return
     (app_client, token_id, beneficiary)."""
+
+    # This function has 7 steps. The first three
+    # (deploy, create ASA, fund beneficiary) set up
+    # the accounts. Steps 4-6 handle opt-ins and
+    # funding. Step 7 groups the deposit + initialize
+    # call atomically. Each step maps to one concept
+    # from Chapter 1.
 
     # Step 1: Deploy a fresh contract
     app_client = deploy(algorand, admin)
@@ -888,6 +897,8 @@ Here is the same pattern applied to the admin-only `initialize` check:
 ```
 
 The simulate approach is especially valuable during development. When a test fails unexpectedly, simulating the same transaction gives you the exact failure reason and program counter, which you can map back to your source code using the ARC-56 source map.
+
+> **Try it yourself:** Write a simulate-based test that verifies the `Already initialized` assertion fires when `initialize` is called twice on the same contract instance. Construct the second `initialize` call identically to the first, simulate it, and check that the failure message contains `"Already initialized"`.
 
 
 ## Tests That Fail --- Revealing the Gaps

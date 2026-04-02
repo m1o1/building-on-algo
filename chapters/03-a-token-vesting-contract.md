@@ -187,7 +187,7 @@ There are legitimate reasons to want upgradeable contracts --- bug fixes, featur
 
 Our vesting contract needs to hold the tokens it will distribute. On Algorand, fungible tokens are implemented as **Algorand Standard Assets (ASAs)** --- protocol-level primitives built directly into the blockchain. This is a fundamental architectural difference from other blockchains where every token is its own smart contract with its own transfer logic, its own potential bugs, and its own execution costs.
 
-On Algorand, the blockchain itself handles ASA creation, transfers, freezing, and destruction. Every ASA benefits from the same speed (approximately 2.8-second finality), security, and atomic transfer guarantees as native Algo. When you transfer an ASA, there is no token contract to call, no fallback function that might reenter your code, no custom transfer logic that might behave unexpectedly. It is a native protocol operation, as fundamental as sending Algo. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/).)
+On Algorand, the blockchain itself handles ASA creation, transfers, freezing, and destruction. Every ASA benefits from the same speed (approximately 2.85-second finality), security, and atomic transfer guarantees as native Algo. When you transfer an ASA, there is no token contract to call, no fallback function that might reenter your code, no custom transfer logic that might behave unexpectedly. It is a native protocol operation, as fundamental as sending Algo. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/).)
 
 Every ASA has four configurable role addresses that determine who can manage it. The **Manager** can reconfigure the other three roles; setting this to the zero address makes the asset permanently immutable. The **Reserve** is purely informational --- some block explorers display it, but it has no protocol-level power. The **Freeze** address can freeze or unfreeze any account's holdings of this asset, preventing transfers; setting to zero means no one can ever freeze the asset. The **Clawback** address can transfer tokens from any account without the account owner's consent; this enables regulatory compliance use cases but also custodial control, and setting to zero makes the token fully permissionless. For vesting tokens and LP tokens, you almost always want no freeze and no clawback.
 
@@ -438,11 +438,13 @@ Consider a 100 million token allocation with 6 decimal places: that is 10 to the
 
 The solution is **wide arithmetic**. `op.mulw(a, b)` returns a 128-bit product as two `UInt64` values (high and low 64 bits). `op.divmodw` divides a 128-bit value by another. The intermediate product never overflows, and the final result fits in `UInt64` because vested is always less than or equal to total_amount.
 
+**Worked example.** With `total_amount = 1,000,000`, `elapsed = 500`, `duration = 1000`: `op.mulw(1_000_000, 500)` returns `(high=0, low=500_000_000)`. Then `op.divmodw(0, 500_000_000, 0, 1000)` returns `(q_hi=0, vested=500_000, r_hi=0, r_lo=0)`. Result: 500,000 tokens vested --- exactly half, as expected. If `total_amount` were 10^14 and `elapsed` were 31 million seconds, `mulw` would produce a `high` value above zero, but `divmodw` still handles it correctly.
+
 Integer division rounds down (floor). This means beneficiaries get slightly less than their exact entitlement at each intermediate claim. This is correct --- the contract should never release more than the total allocation. The rounding dust resolves on the final claim when the `now >= vesting_end` branch bypasses the division entirely.
 
 We extract the vesting calculation into a **subroutine** because it appears in three places (claim, revoke, get_claimable). The `@subroutine` decorator makes the compiler emit a single TEAL subroutine called via `callsub`/`retsub`, saving program bytes.
 
-Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Subroutines must be defined at module scope --- they cannot be class methods:
+Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Module-level subroutines can be shared across multiple contracts in the same file. Class methods decorated with `@subroutine` are also valid and are scoped to that contract --- we will use class-method subroutines in Chapters 5 and 6. We use a module-level subroutine here because `calculate_vested` is pure logic that could be reused by other contracts (see the [PuyaPy structure guide](https://algorandfoundation.github.io/puya/lg-structure.html)):
 
 ```python
 from algopy import op, subroutine
@@ -464,7 +466,9 @@ def calculate_vested(
     return vested
 ```
 
-Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. The conversion method `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`, and it is the recommended approach. An older alternative, `.native`, returns the corresponding native type generically (`arc4.UInt64.native` yields `UInt64`, `arc4.Bool.native` yields `bool`), but `.native` is deprecated since PuyaPy 5.0 because it returns `Any`, losing type safety. This book uses `.as_uint64()` for numeric fields and `.native` only for booleans (where it remains the natural conversion).
+Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. The conversion method `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`, and it is the recommended approach. An older alternative, `.native`, is deprecated on numeric ARC-4 types (`UIntN`, `BigUIntN`) in favor of the explicit `.as_uint64()` and `.as_biguint()` methods (see the `@deprecated` annotations in the [PuyaPy `arc4` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/arc4.pyi)). For non-numeric types (`String`, `Bool`, `Address`, `DynamicBytes`), `.native` remains the standard conversion. This book uses `.as_uint64()` for numeric fields and `.native` for booleans and other non-numeric types where it remains the natural conversion.
+
+> **Quick reference: ARC-4 ↔ native conversions.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. This conversion is required every time you cross the boundary between box storage (ARC-4 encoded) and computation (native types).
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -618,7 +622,43 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 
 > **Note:** The project template from `algokit init` does not include `pytest` in its dependencies or create a `tests/` directory. Before running tests, install pytest (`pip install pytest` or add it to `pyproject.toml` under `[project.optional-dependencies]`) and create a `tests/` directory in your project root. This applies to all four projects in this book. (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 
-The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `deploy_vesting`, `deposit_tokens`, `create_schedule`, `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the AlgoKit Utils calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`, `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the AlgoKit Utils calls shown earlier in this chapter. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+
+To show how Chapter 2's `setup_initialized_contract` pattern translates to a new contract, here is the complete `deploy_vesting` helper. The remaining helpers follow the same approach --- adapt the interaction patterns from the deployment section above:
+
+```python
+from pathlib import Path
+import algokit_utils
+
+APP_SPEC = Path(
+    "smart_contracts/artifacts/token_vesting/"
+    "TokenVesting.arc56.json"
+).read_text()
+
+def deploy_vesting(algorand, admin):
+    """Deploy a fresh TokenVesting contract and
+    fund it with enough Algo for MBR."""
+    factory = algorand.client.get_app_factory(
+        app_spec=APP_SPEC,
+        default_sender=admin.address,
+    )
+    app_client, _ = factory.deploy()
+    # Fund the contract: 300,000 covers base MBR +
+    # ASA opt-in + inner txn fee headroom
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=admin.address,
+            receiver=app_client.app_address,
+            amount=(
+                algokit_utils.AlgoAmount
+                .from_micro_algo(300_000)
+            ),
+        )
+    )
+    return app_client
+```
+
+> **Exercise:** Implement the `deposit_tokens` and `create_schedule` helpers yourself, using the deployment script patterns from earlier in this chapter and the `setup_initialized_contract` function from Chapter 2 as a template.
 
 Before diving into the test code, there are two LocalNet behaviors that will affect how you write your test helpers.
 
@@ -811,6 +851,8 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 4. **(Create)** Design an extension where the admin can increase a beneficiary's total allocation after the schedule is already created. What new method is needed? What happens to already-vested tokens? What security checks prevent abuse?
 
 5. **(Create)** The vesting contract uses a single admin address. Design a modification where admin operations (initialize, create_schedule, revoke) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
+
+> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 1.2 (contract with `__init__`), 3.3 (wide arithmetic), 6.2 (BoxMap), 8.1 (Algo payment), and 11.1 (creator-only method).
 
 ## Further Reading
 

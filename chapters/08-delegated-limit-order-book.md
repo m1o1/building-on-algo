@@ -661,7 +661,7 @@ The `cancel_order` method lets the seller cancel their open order. Only the orig
 
 ### Packed Binary Data vs ARC-4 Structs
 
-The order data is stored as a packed 128-byte binary blob rather than an ARC-4 struct. This is a deliberate design choice for this tutorial --- it teaches you the `op.extract`, `op.replace`, `op.itob`, and `op.btoi` operations that are essential for working with raw box data. In production, you might use `arc4.Struct` for cleaner code at the cost of slightly larger encoding overhead.
+The order data is stored as a packed 128-byte binary blob rather than an ARC-4 struct. We use packed binary storage here to teach the low-level byte manipulation tools (`op.extract`, `op.replace`, `op.itob`, `op.btoi`) that you will encounter when reading production Algorand codebases and the AVM specification. For your own projects, prefer `arc4.Struct` for cleaner, more maintainable code --- it handles encoding automatically and catches field offset errors at compile time.
 
 The extraction pattern (illustrative, showing the approach used throughout the contract):
 
@@ -795,7 +795,7 @@ The `execute_fill` method builds the 3-transaction atomic group required to fill
         )
 ```
 
-Finally, the group is assembled, signed, and submitted atomically. The `run` method polls for orders every block (~2.8 seconds) and fills any profitable ones:
+Finally, the group is assembled, signed, and submitted atomically. The `run` method polls for orders every block (~2.85 seconds) and fills any profitable ones:
 
 ```python
         # Group, sign, and submit
@@ -821,6 +821,8 @@ Finally, the group is assembled, signed, and submitted atomically. The `run` met
                     self.execute_fill(order, remaining, order["signed_lsig"])
             time.sleep(3)  # Check every block
 ```
+
+> **Exercise:** The helper functions `unpack_order`, `calculate_buy_amount`, and `get_market_price` are left as exercises. `unpack_order` reverses the `op.concat` packing shown in the contract's `place_order` method --- extract each field at its byte offset using Python's slice notation. `calculate_buy_amount` applies the N/D price ratio: `fill_amount * price_n // price_d`. `get_market_price` queries a DEX (e.g., the Chapter 5 AMM's reserves via global state) or an external price API.
 
 > **Design decision: separate enforcement from coordination.** The key architectural insight in this system is the separation of concerns. LogicSigs enforce rules --- they cannot be cheated. Smart contracts coordinate --- they track shared state. When I see a system that needs both trustless rules AND shared mutable state, this hybrid pattern is my first instinct. The LogicSig guarantees Alice's price is honored; the smart contract guarantees the order book is consistent.
 

@@ -15,7 +15,7 @@ Before writing a single line of contract code, you need a mental model of how Al
 
 ## Algorand in One Paragraph
 
-Algorand is a *proof-of-stake* blockchain with *instant finality*, a ~2.8-second block time, and no forking. Every confirmed transaction is final --- there is no "wait for 6 confirmations" like Bitcoin. The network runs a Byzantine agreement protocol where block proposers and committee voters are selected secretly via a *Verifiable Random Function* (VRF). Because selection is random and unpredictable, there is no way to target validators for attack before they reveal themselves. This design gives Algorand strong security guarantees with thousands of validator nodes participating in consensus. (See the [official overview](https://dev.algorand.co/concepts/protocol/overview/) and [Why Algorand?](https://dev.algorand.co/getting-started/why-algorand/) for details on the consensus protocol.)
+Algorand is a *proof-of-stake* blockchain with *instant finality*, a ~2.85-second block time, and no forking. Every confirmed transaction is final --- there is no "wait for 6 confirmations" like Bitcoin. The network runs a Byzantine agreement protocol where block proposers and committee voters are selected secretly via a *Verifiable Random Function* (VRF). Because selection is random and unpredictable, there is no way to target validators for attack before they reveal themselves. This design gives Algorand strong security guarantees with thousands of validator nodes participating in consensus. (See the [official overview](https://dev.algorand.co/concepts/protocol/overview/) and [Why Algorand?](https://dev.algorand.co/getting-started/why-algorand/) for details on the consensus protocol.)
 
 Before we dive into the details, here is what a complete, deployable Algorand smart contract looks like. This is an illustrative example showing the simplest possible Algorand contract:
 
@@ -28,7 +28,7 @@ class HelloAlgorand(ARC4Contract):
         return "Hello, " + name
 ```
 
-This is a complete smart contract. It has one method that takes a string and returns a greeting. We will understand every line of this by the end of Chapter 3. For now, notice three things: it is plain Python with type annotations, it inherits from `ARC4Contract`, and methods are decorated with `@arc4.abimethod`. That is all it takes.
+This is a complete smart contract. It inherits from `ARC4Contract`, which gives it the [ARC-4](https://dev.algorand.co/concepts/smart-contracts/arc4/) calling convention --- the standard way Algorand contracts expose their methods. The `@arc4.abimethod` decorator makes `hello` publicly callable via its method selector (a 4-byte hash of the method signature). Arguments and return values use ARC-4 types (`arc4.String`) for wire encoding --- we will cover the type system in detail in Chapter 3. The method concatenates `"Hello, "` with the caller's name and returns the result. That is all it takes.
 
 ## Execution Model: Smart Contracts Are Transaction Validators
 
@@ -44,7 +44,7 @@ Every Algorand smart contract consists of two programs written in *TEAL* (Transa
 
 **The *approval program*** handles all normal operations: creation, method calls, opt-ins, close-outs, updates, and deletes. When someone calls your contract, the approval program runs. This is where all your business logic lives.
 
-**The *clear state program*** runs when a user wants to forcibly remove their local state from your application. The critical property: **the user's local state is always cleared regardless of whether the clear state program approves or rejects**. If the program fails, state changes to the *application's* state are rolled back, but the user's local state is still removed. This is a deliberate protocol-level guarantee that users can always exit an application. The security implication is severe: never store critical financial data exclusively in local state, because users can always delete it.
+**The *clear state program*** runs when a user wants to forcibly remove their local state from your application. The critical property: **the user's local state is always cleared regardless of whether the clear state program approves or rejects**. This is a deliberate protocol-level guarantee that users can always exit an application. The security implications of this design are significant --- we will explore them in Chapter 3 when choosing between local state and box storage for financial data.
 
 ## The Account Model
 
@@ -83,6 +83,8 @@ Smart contracts need to persist data between transactions. Algorand provides thr
 
 Box storage introduces one concept that surprises newcomers: **box references**. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. Each declared reference grants 1,024 bytes (1KB) of I/O budget. If a box's name plus contents exceed 1KB, you need multiple references to the same box. Forgetting to declare box references produces a "box read/write budget exceeded" error. We will see this in practice when we build the vesting contract in Chapter 3.
 
+*Before looking at the table: if you needed to store per-user financial data (like vesting schedules) for potentially thousands of users, which storage type would you choose and why? Consider who controls deletion, capacity limits, and cost.*
+
 | Storage Type | Capacity | Who Controls Deletion | Best For |
 |-------------|----------|----------------------|----------|
 | Global state | 64 pairs, ≤128 bytes each | Only the application | Contract-wide configuration |
@@ -90,6 +92,8 @@ Box storage introduces one concept that surprises newcomers: **box references**.
 | Box storage | 32,768 bytes per box, unlimited count | Only the application | Financial data, per-user records |
 
 A practical rule of thumb: use **global state** for contract-wide configuration, **local state** only for data that does not matter if the user erases it, and **box storage** for anything involving money or obligations. (See the official storage guides: [Global](https://dev.algorand.co/concepts/smart-contracts/storage/global/), [Local](https://dev.algorand.co/concepts/smart-contracts/storage/local/), [Box](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
+
+**Worked example.** Suppose you are building a vesting contract that opts into 2 ASAs and stores vesting schedules for 10 beneficiaries in boxes (each with a 10-byte name and 40-byte value). The application account's MBR would be: 100,000 (account base) + 2 × 100,000 (ASA opt-ins) + 10 × (2,500 + 400 × 50) (boxes, where 50 = 10 name + 40 data) = 525,000 microAlgo, or about 0.53 Algo. You must fund the contract with at least this much Algo before creating the boxes, or the transactions will fail.
 
 ## Transactions and Atomicity
 
@@ -128,9 +132,9 @@ The distinction from atomic groups is important: atomic groups are assembled *of
 Understanding limits is as important as understanding capabilities:
 
 - **No floating point.** The AVM has only `uint64` and `bytes` types. All math is integer-only. Prices must be represented as rational numbers (numerator/denominator). (See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).)
-- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction costs a fixed number of units (called opcodes), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in Chapter 7). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
+- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction consumes a certain number of units from the opcode budget (most cost 1 unit; cryptographic operations like `ed25519verify` cost more), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in Chapter 7). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group, since AVM v10.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
 - **No callbacks or fallback functions.** When your contract sends tokens via an inner transaction, no code executes on the receiving side. This eliminates classical reentrancy attacks. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a comparison of security models.)
-- **Cross-contract state is read-only from within TEAL.** Your contract can read another contract's global state via `app_global_get_ex`, but cannot write to it. Modifications to another contract's state require calling that contract via an inner transaction. State changes from earlier transactions in a group ARE visible to later transactions in the same group --- they share a single copy-on-write state object. The group's aggregate changes are committed to the ledger only after every transaction succeeds.
+- **No cross-contract function calls.** Within a single TEAL execution, you cannot call another contract and read its return value synchronously. To modify another contract's state, you must issue an inner transaction that calls that contract. Your contract can *read* another contract's global state via `app_global_get_ex`, but cannot write to it directly. State changes committed by earlier transactions in the same atomic group ARE visible to later transactions --- the group shares a single copy-on-write state object, and the aggregate changes are committed to the ledger only after every transaction succeeds. (See [AVM specification](https://dev.algorand.co/concepts/smart-contracts/avm/) and [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/).)
 - **No private on-chain data.** All state (global, local, boxes) is publicly readable off-chain via algod and indexer APIs. Boxes are private *on-chain* (only the owning app can read them in TEAL), but anyone can read them via the REST API.
 - **No upgradeable contracts by default.** If you reject `UpdateApplication`, the code is immutable. This is the recommended default for DeFi contracts. (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)
 
@@ -355,7 +359,7 @@ In this chapter you learned to:
 - Calculate Minimum Balance Requirements for accounts, ASAs, boxes, and application state
 - Describe atomic groups and fee pooling and explain why they are foundational to DeFi on Algorand
 - Distinguish atomic groups (off-chain bundling) from inner transactions (on-chain contract-issued transactions)
-- Identify what the AVM cannot do: no floating point, no unbounded loops, no callbacks, no cross-contract mid-group state reads, no private on-chain data
+- Identify what the AVM cannot do: no floating point, no unbounded loops, no callbacks, no cross-contract function calls, no private on-chain data
 - Set up a complete Algorand development environment with AlgoKit, LocalNet, and PuyaPy
 - Deploy a contract to LocalNet and call its methods using AlgoKit Utils
 
@@ -377,9 +381,9 @@ In this chapter you learned to:
 
 1. **(Recall)** What happens if a transaction would reduce an account's balance below its Minimum Balance Requirement?
 
-2. **(Recall)** Why can't you read another contract's mid-group state changes in the same atomic group?
+2. **(Recall)** Your contract needs to modify another contract's state. Can you write to it directly via `app_global_get_ex`, or do you need a different mechanism? What is it, and why?
 
-3. **(Apply)** Calculate the MBR cost for a contract that creates 3 boxes (each 64 bytes with 10-byte keys), opts into 2 ASAs, and has 5 global uint state slots. Show your work using the MBR costs listed in this chapter.
+3. **(Apply)** Calculate the MBR cost for a contract account that opts into 2 ASAs and creates 3 boxes (each with a 10-byte name and 64-byte value). Show your work using the MBR formula from this chapter.
 
 4. **(Analyze)** A developer proposes storing all user balances in local state instead of box storage. What attack could exploit this? Describe the specific transaction sequence an attacker would use.
 

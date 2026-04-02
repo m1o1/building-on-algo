@@ -9,6 +9,8 @@ The gap between a contract that works on LocalNet and one that users actually wa
 
 On Algorand, every transaction requires a minimum [fee](https://dev.algorand.co/concepts/transactions/fees/) of 0.001 Algo (1,000 microAlgos). A typical AMM swap involves 2–3 transactions in a group (asset transfer + app call, possibly a second asset transfer for the output). That's 0.002–0.003 Algo per swap. Seems trivial, but for users coming from a CEX with only ASA tokens in their wallet, **having zero Algo is a hard blocker**.
 
+**Concrete scenario.** Alice has 500 USDC (as an ASA) but zero Algo. She cannot execute a single swap because she cannot pay the transaction fee. A relayer can solve this by covering her fees: the relayer sends a zero-amount self-payment with a fee of 4,000 microAlgo (covering all group transactions plus inner transactions), while Alice's asset transfer and app call each set their fee to 0. The approaches below show different ways to implement this.
+
 There are several approaches to solving this, each with different tradeoffs.
 
 ### Approach A: Fee pooling within the group (most common)
@@ -500,6 +502,8 @@ For production, use Nodely's indexer at `https://mainnet-idx.4160.nodely.dev` (f
 
 ## Pattern 11: Reserve Tracking vs Balance Reading
 
+*Before reading: the Chapter 5 AMM tracks reserves explicitly in global state. An alternative is to read the contract's actual on-chain balance each time. Which approach would you choose, and what could go wrong with the other?*
+
 Your AMM tracks reserves in global state (`self.reserve_a`, `self.reserve_b`). An alternative design reads the contract's actual asset balances each time. Both approaches have tradeoffs:
 
 ### Tracked reserves (recommended, used in this book)
@@ -576,15 +580,26 @@ Reading global state is a free API call to any algod node --- no transaction, no
 **Multi-hop routing.** When no direct pool exists for a pair (e.g., TOKEN\_A/TOKEN\_B), the swap can be routed through an intermediate asset: TOKEN\_A → ALGO → TOKEN\_B. On Algorand, this is a single atomic group containing two swap app calls (one per pool). The client computes the optimal route by comparing output across all available paths. DEX aggregators like Vestige and Deflex automate this for users. Building a multi-hop router is one of the best exercises for mastering atomic group composition.
 
 
+## Exercises
+
+1. **(Apply)** Implement Patterns 4 and 5 (MBR funding and refund) for a contract that stores 256-byte user profiles in box storage. Calculate the exact MBR per box, write the `create_profile` method that validates the funding payment, and write the `delete_profile` method that refunds the MBR.
+
+2. **(Analyze)** A user has 500 USDC (as an ASA) but zero Algo. Using Pattern 7 (fee subsidization) and Pattern 2 (fund-then-call), design a transaction group that lets a relayer cover their fees so they can execute a swap on the Chapter 5 AMM. How many transactions are in the group, and what is each transaction's fee?
+
+3. **(Apply)** Modify the AMM's `swap` method from Chapter 5 to emit a `Swapped` event (Pattern 10) containing the input amount, output amount, and new spot price after the swap.
+
+4. **(Create)** Write a client-side `get_swap_quote` function following Pattern 12. The function should read reserves from global state, calculate the expected output using the constant product formula with fee, and return the output amount and price impact as a percentage.
+
+
 ## Before You Continue
 
 Before starting the next chapter, you should be able to:
 
-- [ ] Implement a complete smart contract with state management, inner transactions, and security checks
-- [ ] Explain the constant product invariant and how swaps, minting, and burning maintain it
-- [ ] Use atomic groups to coordinate multi-step DeFi operations
-- [ ] Apply fee pooling so inner transactions never pay fees from the contract's balance
-- [ ] Manage MBR lifecycle: fund on creation, refund on cleanup
-- [ ] Implement canonical asset ordering and explain why it prevents duplicate pools
+- [ ] Explain when to use fee pooling versus fee subsidization
+- [ ] Calculate the MBR for a given box size and write the funding/refund lifecycle
+- [ ] Describe the tradeoffs between tracked reserves and balance reading for an AMM (Pattern 11)
+- [ ] Write a client-side swap quote function for a constant product AMM (Pattern 12)
+- [ ] Use `arc4.emit` to log events from a contract method (Pattern 10)
+- [ ] Explain why inner transaction fees should always be set to zero
 
-If any of these are unclear, revisit the AMM chapter or the Patterns chapter before proceeding.
+If any of these are unclear, revisit the relevant pattern or the AMM chapter before proceeding.
