@@ -119,12 +119,13 @@ def _is_math_content(content: str) -> bool:
 
 
 def _protect_math_escapes(content: str) -> str:
-    r"""Adjust \_ escapes so math renders correctly in MathJax via pulldown-cmark.
+    r"""Adjust underscores so math renders correctly in MathJax via pulldown-cmark.
 
-    Inside \text{...}: strip the backslash (MathJax text mode treats _ as literal,
-    and \_ would render with a visible backslash).
-    Outside \text{...}: double the backslash so pulldown-cmark produces \_ in HTML,
-    which MathJax interprets as a literal underscore in math mode.
+    Inside \text{...}: strip the backslash from \_ (MathJax text mode treats _ as
+    literal, and \_ would render with a visible backslash).
+    Outside \text{...}: escape bare _ to \_ so pulldown-cmark does not interpret
+    them as emphasis markers. MathJax treats \_ as a literal underscore in math
+    mode, which is equivalent to _ for subscripts.
     """
     # Step 1: Inside \text{...}, just remove \_ → _ (text mode _ is literal)
     content = re.sub(
@@ -132,8 +133,10 @@ def _protect_math_escapes(content: str) -> str:
         lambda m: m.group(0).replace("\\_", "_"),
         content,
     )
-    # Step 2: Remaining \_ (math mode) → \\_ so pulldown-cmark yields \_
-    content = content.replace("\\_", "\\\\_")
+    # Step 2: Escape all remaining bare _ (subscripts) so pulldown-cmark
+    # does not treat them as emphasis. Use a negative lookbehind to skip
+    # already-escaped \_.
+    content = re.sub(r"(?<!\\)_", r"\\_", content)
     return content
 
 
