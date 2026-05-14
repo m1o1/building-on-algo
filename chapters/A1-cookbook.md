@@ -473,7 +473,7 @@ def box_mbr(name_length: UInt64, data_size: UInt64) -> UInt64:
 
 ```python
 # CLIENT-SIDE: you must declare box references in the transaction
-# Each reference grants 1KB of I/O budget
+# Each reference grants 2KB of I/O budget
 
 # For a box named "data" with 4KB of content:
 app_call = transaction.ApplicationCallTxn(
@@ -482,10 +482,8 @@ app_call = transaction.ApplicationCallTxn(
     index=app_id,
     app_args=["read_data"],
     boxes=[
-        (app_id, b"data"),  # 1KB budget
-        (app_id, b"data"),  # +1KB budget (same box, more budget)
-        (app_id, b"data"),  # +1KB budget
-        (app_id, b"data"),  # +1KB budget (total: 4KB)
+        (app_id, b"data"),  # 2KB budget
+        (app_id, b"data"),  # +2KB budget (same box, total: 4KB)
     ],
 )
 ```
@@ -639,11 +637,11 @@ class AppFactory(ARC4Contract):
         return result.created_app.id
 ```
 
-### 8.4 --- Fee pooling: inner txn fees should ALWAYS be zero
+### 8.4 --- Fee Pooling: Set Inner Transaction Fees to Zero
 
 ```python
-# WRONG --- contract pays fee from its own balance:
-itxn.Payment(receiver=user, amount=amt).submit()  # fee defaults to min_fee
+# WRONG --- non-zero inner fee drains the app account:
+itxn.Payment(receiver=user, amount=amt, fee=UInt64(1000)).submit()
 
 # RIGHT --- caller covers via fee pooling:
 itxn.Payment(receiver=user, amount=amt, fee=UInt64(0)).submit()
@@ -653,6 +651,11 @@ sp = algod.suggested_params()
 sp.fee = 2000  # Covers outer txn (1000) + inner txn (1000)
 sp.flat_fee = True
 ```
+
+In the book's validated PuyaPy baseline, inner transaction builders default
+`fee` to zero, but the explicit field makes the security intent visible in
+examples and reviews. If you use lower-level TEAL or another builder, verify
+its fee default before you omit this field.
 
 
 ## 9. Group Transactions {#9-group-transactions}
@@ -674,7 +677,14 @@ class ReceivePayment(ARC4Contract):
         return payment.amount
 ```
 
-The `gtxn.PaymentTransaction` parameter type makes the ABI router expect a payment transaction at the corresponding group position.
+The `gtxn.PaymentTransaction` parameter type makes the ABI router expect a
+payment transaction at the corresponding group position.
+
+If the method credits `Txn.sender`, mints to `Txn.sender`, or sends output to
+`Txn.sender`, also assert `payment.sender == Txn.sender`. Otherwise a caller
+can pair their app call with someone else's funding transaction and receive the
+benefit. Treat third-party sponsorship as a separate pattern with an explicit
+beneficiary and authorization checks.
 
 ### 9.2 --- Accepting an asset transfer in a group
 
@@ -1258,6 +1268,11 @@ result = app_client.send.call(
 print(f"Return value: {result.abi_return}")
 ```
 
+AlgoKit Utils Python can populate missing app-call resources by simulating the
+call when `populate_app_call_resources=True`, but that is off-chain client
+behavior. The examples in this book pass references explicitly so the
+transaction's resource set stays visible during review.
+
 ### 16.5 --- Building and submitting a transaction group (client-side)
 
 ```python
@@ -1354,7 +1369,8 @@ algorand.send.payment(
 | Box size | 0–32,768 bytes |
 | Box name | 1–64 bytes |
 | Box MBR | 2,500 + 400 × (name_len + data_size) μAlgo |
-| Foreign refs per txn | 8 per type (accounts, assets, apps); shared across group since AVM v9 |
+| Legacy foreign-resource arrays | 8 total per app call |
+| AVM v12 access-list entries | 16 entries |
 | ASA opt-in MBR | 100,000 μAlgo |
 | Min account balance | 100,000 μAlgo |
 | Min transaction fee | 1,000 μAlgo |
