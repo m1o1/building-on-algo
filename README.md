@@ -48,6 +48,7 @@ The canonical source is the `chapters/` directory — each chapter is a separate
 
 - **mdbook** (for HTML): `brew install mdbook`
 - **pandoc + xelatex** (for PDF): `brew install pandoc` and a TeX distribution (e.g. [MacTeX](https://www.tug.org/mactex/))
+- **Python 3.12 + uv** (for validation): `uv` installs the pinned test and compile dependencies from `uv.lock`
 
 ### Build Commands
 
@@ -64,6 +65,23 @@ python3 build.py all
 # Reconstruct single Building-on-Algorand.md from chapters
 python3 build.py concat
 ```
+
+### Validation Harness
+
+The repository includes a uv-based validation harness for tests, extracted
+contract compilation, and tracked walkthrough coverage:
+
+```bash
+# Unit tests
+uv run --group test python -m pytest tests -q
+
+# Manifest + unit tests + PuyaPy compile checks + LocalNet status
+uv run --group test --group compile python scripts/validate.py --all
+```
+
+See `validation/README.md` and `validation/manifest.json` for the active
+validation targets plus pending compile, high-risk-flow, and LocalNet
+walkthrough gaps.
 
 ## Disclaimer
 
