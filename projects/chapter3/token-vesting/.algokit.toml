@@ -1,5 +1,5 @@
 [algokit]
-min_version = "v2.0.0"
+min_version = "v2.10.0"
 
 [project]
 type = "contract"
@@ -10,6 +10,14 @@ artifacts = "smart_contracts/artifacts"
 build = { commands = [
   "poetry run python -m smart_contracts build",
 ], description = "Build all smart contracts in the project" }
+
+test = { commands = [
+  "poetry run pytest -q",
+], description = "Run tests; LocalNet tests skip when unavailable" }
+
+test-static = { commands = [
+  "poetry run pytest tests/test_contract_shape.py -q",
+], description = "Run static contract-shape checks without LocalNet" }
 
 lint = { commands = [
 ], description = "Perform linting" }

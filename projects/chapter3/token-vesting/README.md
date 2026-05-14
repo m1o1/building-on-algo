@@ -2,25 +2,26 @@
 
 This is the finished project for Chapter 3 of *Building on Algorand*. It
 contains the production token vesting contract from the chapter plus a LocalNet
-driver. You do not need to understand every step before running it: the demo
-shows the whole loop by deploying and funding the app, creating vesting
-schedules, then exercising claim, revoke, and cleanup workflows with a test
-Algorand Standard Asset (ASA).
+runbook and development shortcut. You do not need to understand every contract
+line before trying it: the runbook shows the whole loop by deploying and funding
+the app, creating vesting schedules, then exercising claim, revoke, and cleanup
+workflows with a test Algorand Standard Asset (ASA).
 
 Generated artifacts under `smart_contracts/artifacts/` are intentionally not
-committed. Build the project before running the driver or LocalNet tests.
+committed. Build the project before following the runbook or LocalNet tests.
 
 ## Prerequisites
 
 Required for all paths:
 - Python 3.12 or 3.13
-- AlgoKit 2.x
-- Poetry
+- AlgoKit CLI 2.10 or later
+- Poetry, installed by `algokit project bootstrap all` if it is not already
+  present
 
 Required only for the LocalNet demo and LocalNet tests:
 - Docker or Podman for AlgoKit LocalNet
 
-## Run It First
+## Run It First!
 
 From this directory:
 
@@ -28,30 +29,43 @@ From this directory:
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_token_vesting
-poetry run pytest -q
 ```
 
-The driver prints the generated admin, Alice, and Bob accounts, the ASA ID, the
-app ID, Alice's full claim, Bob's claimable amount before revocation, Bob's
-unvested amount returned to the admin, and the final cleanup messages. A
-successful run ends with `Chapter 3 workflow complete`. With LocalNet running,
-`poetry run pytest -q` runs both source-shape checks and LocalNet workflows.
+The chapter walks through the specific lines in
+`scripts/run_token_vesting.py`. In summary, that script:
 
-If Docker or Podman is not available, use the compile-only path:
+- creates and funds admin, Alice, and Bob
+- creates the vesting ASA
+- deploys, funds, and initializes the app
+- deposits vesting tokens
+- creates, claims, and cleans up Alice's schedule
+- creates, revokes, settles, and cleans up Bob's schedule
+
+```bash
+poetry run python -m scripts.run_token_vesting
+algokit project run test
+```
+
+With LocalNet running, `algokit project run test` runs both source-shape checks and
+LocalNet workflows.
+
+If Docker or Podman is not available, use the static path:
 
 ```bash
 algokit project bootstrap all
 algokit project run build
-poetry run pytest tests/test_contract_shape.py -q
+algokit project run test-static
 ```
+
+`scripts/run_token_vesting.py` is retained as a development shortcut for the
+line-by-line workflow explained in the chapter.
 
 ## Project Layout
 
 - `smart_contracts/token_vesting/contract.py` contains the PuyaPy contract.
-- `scripts/run_token_vesting.py` executes the full LocalNet workflow.
+- `scripts/run_token_vesting.py` is a convenience shortcut for the runbook.
 - `scripts/localnet_helpers.py` contains small account, ASA, funding, and box
-  reference helpers used by the driver and tests.
+  reference helpers used by the shortcut script and tests.
 - `tests/test_contract_shape.py` checks source-shape guards for important
   security and implementation properties without LocalNet.
 - `tests/test_token_vesting.py` runs end-to-end LocalNet claim and revocation

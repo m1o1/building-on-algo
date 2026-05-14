@@ -18,28 +18,104 @@ By the end of this chapter, you will have a working test suite and the testing p
 
 ## Run It First!
 
-The completed integration-test project for this chapter is in `projects/chapter2/simple-vesting/`. It preserves the deliberately simplified contract from the chapter, including the limitations that the "Tests That Fail" section turns into Chapter 3's production requirements.
+The completed integration-test project for this chapter is in
+`projects/chapter2/simple-vesting/`. It preserves the deliberately simplified
+contract from the chapter, including the limitations that the "Tests That Fail"
+section turns into Chapter 3's production requirements.
 
-Before running it, make three predictions: why the pre-cliff claim returns `0`, why the contract account must opt into the ASA before the deposit, and which limitations the test suite documents.
+Before running it, make three predictions: why the pre-cliff claim returns `0`,
+why the contract account must opt into the ASA before the deposit, and which
+limitations the test suite documents.
 
-From the repository root, bootstrap the project, build the contract, start LocalNet, then run the workflow and tests:
+From the repository root, prepare the project and start LocalNet:
 
 ```bash
 cd projects/chapter2/simple-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_simple_vesting
-poetry run pytest -q
 ```
 
-The script deploys `SimpleVesting`, creates a test ASA, funds a beneficiary, opts both the beneficiary and the contract into the asset, submits the grouped deposit-plus-initialize call, tries a claim before the cliff, advances LocalNet time, and claims the fully vested amount. The pytest suite is expected to pass. It reruns those behaviors as tests and includes static known-gap checks for three intentionally limited production properties: overflow-prone arithmetic, one-beneficiary global state, and no revoke method. The fourth gap, rounding across multiple claims, is discussed later in the step-by-step "Tests That Fail" section.
+The finished project keeps the runnable workflow in
+`scripts/run_simple_vesting.py`. Do not treat that script as a black box; the
+important lines are the operational checklist.
 
-Without Docker or LocalNet, you can still build the contract and run the static known-gap checks:
+First, the workflow connects to LocalNet and uses the pre-funded dispenser as
+the admin account:
+
+```python
+algorand, admin = localnet_client()
+```
+
+It deploys the app and creates a test ASA:
+
+```python
+app_client = print_step(
+    "1. Deploy SimpleVesting",
+    lambda: deploy(algorand, admin),
+)
+token_id = print_step(
+    "2. Create a test ASA",
+    lambda: create_test_asa(algorand, admin, total=10_000_000_000),
+)
+```
+
+It creates a beneficiary, funds the account, and opts it into the ASA:
+
+```python
+beneficiary = algorand.account.random()
+fund_account(algorand, admin, beneficiary.address)
+opt_account_into_asset(algorand, beneficiary, token_id)
+```
+
+The initialization helper performs the app funding, app asset opt-in, grouped
+ASA deposit, and `initialize` call:
+
+```python
+fund_account(algorand, admin, app_client.app_address, amount=300_000)
+app_client.send.opt_in_to_asset(...)
+deposit_txn = algorand.create_transaction.asset_transfer(...)
+app_client.send.initialize(...)
+```
+
+Then the workflow claims before the cliff, advances LocalNet time, and claims
+again after full vesting:
+
+```python
+before_cliff = app_client.send.claim(...)
+advance_time(algorand, vesting + 1)
+final_claim = app_client.send.claim(...)
+```
+
+After tracing those lines, run the assembled workflow once:
 
 ```bash
+poetry run python -m scripts.run_simple_vesting
+```
+
+Then run the pytest suite:
+
+```bash
+algokit project run test
+```
+
+The pytest suite is expected to pass. It reruns those behaviors as tests and
+includes static known-gap checks for three intentionally limited production
+properties: overflow-prone arithmetic, one-beneficiary global state, and no
+revoke method. The fourth gap, rounding across multiple claims, is discussed
+later in the step-by-step "Tests That Fail" section.
+
+Keep `scripts/run_simple_vesting.py` around for repeated development runs, but
+treat the excerpts above as the thing you are learning.
+
+Without Docker or LocalNet, you can still build the contract and run the static
+known-gap checks:
+
+```bash
+cd projects/chapter2/simple-vesting
+algokit project bootstrap all
 algokit project run build
-poetry run pytest tests/test_simple_vesting_gaps.py -q
+algokit project run test-static
 ```
 
 

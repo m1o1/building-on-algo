@@ -12,7 +12,7 @@ An AMM is a smart contract that holds reserves of two tokens and allows anyone t
 
 By the end of this chapter you will have a working AMM pool contract with creation, bootstrapping, swapping, liquidity provision, liquidity withdrawal, and comprehensive security hardening. Each section builds on the previous one, and new Algorand concepts are introduced only when the AMM requires them.
 
-## Run It First
+## Run It First!
 
 The finished project for this chapter lives in `projects/chapter5/constant-product-amm/`. Before reading the implementation, run the complete workflow once:
 
@@ -21,33 +21,144 @@ cd projects/chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_constant_product_amm
-poetry run pytest -q
 ```
 
-The workflow script creates two test ASAs, deploys a fresh pool, bootstraps the LP token, opts users into the relevant assets, adds initial liquidity, swaps Token A for Token B, adds liquidity from a second account, and removes part of that LP position. Watch the printed output for the test ASA IDs, the pool app ID, the LP token ID, the swap output, the second LP mint amount, and the final withdrawn asset amounts.
+The finished project keeps the runnable workflow in
+`scripts/run_constant_product_amm.py`. Before running it, predict why the asset
+IDs are sorted, why swaps need a `min_output`, and why later liquidity deposits
+mint LP tokens from the current reserve ratio.
 
-Bootstrap: LP token ID printed; the pool created its own ASA and opted into
-both trading assets.
+First, the workflow creates and funds the actors:
 
-Initial liquidity: initial LP minted; the first deposits set the price and
-mint LP tokens.
+```python
+dispenser = algorand.account.localnet_dispenser()
+admin = algorand.account.random()
+trader = algorand.account.random()
+second_lp = algorand.account.random()
+for account in (admin, trader, second_lp):
+    fund_account(algorand, dispenser, account)
+```
 
-Swap: roughly 98--99 Token B for 100 Token A; fee and price impact are applied.
+It creates two test ASAs and orders them canonically:
 
-Second LP deposit: second LP minted; later deposits mint tokens from the
-current reserve ratio.
+```python
+token_a = create_test_asset(algorand, admin, name="Token A", unit="TKNA")
+token_b = create_test_asset(algorand, admin, name="Token B", unit="TKNB")
+if token_a > token_b:
+    token_a, token_b = token_b, token_a
+```
 
-Withdrawal: two withdrawn asset amounts; burning LP tokens returns a
-proportional share of both assets.
+It deploys the pool and bootstraps the LP token with a seed payment:
+
+```python
+pool, create_result = factory.send.create.bare()
+bootstrap = pool.send.bootstrap(
+    amm_client.BootstrapArgs(
+        seed_payment=payment_arg(algorand, admin, pool.app_address, 500_000),
+        asset_a=token_a,
+        asset_b=token_b,
+    ),
+    ...
+)
+lp_token = bootstrap.abi_return
+```
+
+Users opt into both trading assets and the LP token before they can receive
+them:
+
+```python
+for account in (admin, trader, second_lp):
+    for asset_id in (token_a, token_b, lp_token):
+        opt_account_into_asset(algorand, account, asset_id)
+```
+
+The first liquidity deposit sets the initial price:
+
+```python
+initial_lp = pool.send.add_initial_liquidity(
+    amm_client.AddInitialLiquidityArgs(
+        deposit_a=asset_transfer_arg(...),
+        deposit_b=asset_transfer_arg(...),
+    ),
+    ...
+).abi_return
+```
+
+The trader receives balances, quotes a swap, and supplies a minimum-output
+guard:
+
+```python
+transfer_asset(algorand, admin, trader, token_a, 1_000 * MICRO_UNITS)
+expected_output = quote_swap(swap_input, initial_a, initial_b)
+swap_output = pool.send.swap(
+    amm_client.SwapArgs(
+        input_txn=asset_transfer_arg(...),
+        min_output=expected_output * 99 // 100,
+    ),
+    ...
+).abi_return
+```
+
+Finally, the second LP adds liquidity and removes part of that position:
+
+```python
+second_lp_minted = pool.send.add_liquidity(...).abi_return
+withdrawn = pool.send.remove_liquidity(...).abi_return
+```
+
+After tracing those lines, run the assembled workflow once:
+
+```bash
+poetry run python -m scripts.run_constant_product_amm
+```
+
+Then run the tests:
+
+```bash
+algokit project run test
+```
+
+Watch for these checkpoints:
+
+- **Bootstrap:** LP token ID printed; the pool created its own ASA and opted
+  into both trading assets.
+
+- **Initial liquidity:** initial LP minted; the first deposits set the price
+  and mint LP tokens.
+
+- **Swap:** roughly 98--99 Token B for 100 Token A; fee and price impact are
+  applied. Amounts are printed in base units, so an output near `98,000,000`
+  with 6 decimals means about `98` whole tokens.
+
+- **Second LP deposit:** second LP minted; later deposits mint tokens from the
+  current reserve ratio.
+
+- **Withdrawal:** two withdrawn asset amounts; burning LP tokens returns a
+  proportional share of both assets.
 
 The finished contract also contains the optional TWAP oracle from the end of this chapter. The workflow above exercises the core AMM. Ignore the TWAP methods until you reach that section.
 
-If Docker or Podman is not available, `algokit localnet start` will fail. You can still run `algokit project run build` and `poetry run pytest -q`; the integration test will skip when LocalNet is unreachable, while the static tests keep checking the contract source for the security properties this chapter teaches.
+If Docker or Podman is not available, `algokit localnet start` will fail. You
+can still run the static path:
+
+```bash
+cd projects/chapter5/constant-product-amm
+algokit project bootstrap all
+algokit project run build
+algokit project run test-static
+```
+
+Those static tests keep checking the contract source for the security properties
+this chapter teaches.
 
 If pytest reports skipped LocalNet tests, you have checked compilation and static properties only. Start LocalNet later to verify the actual pool workflow.
 
-Keep this finished project nearby as you work through the chapter. Its purpose is not to replace the step-by-step build; it is the answer key you can compile, run, and compare against whenever a snippet in the chapter feels abstract.
+Use `scripts/run_constant_product_amm.py` as an iteration shortcut. The
+excerpts above are the teaching path.
+
+Keep this finished project nearby as you work through the chapter. Its purpose
+is not to replace the step-by-step build; it is the answer key you can compile,
+run, and compare against whenever a snippet in the chapter feels abstract.
 
 Now we will rebuild that same workflow in the same order: scaffold the project, define pool state, bootstrap the LP token, add the first liquidity, execute swaps, add and remove later liquidity, add the optional TWAP oracle, and finish with tests. Each time you complete a section, compare your project with the corresponding checkpoint above.
 

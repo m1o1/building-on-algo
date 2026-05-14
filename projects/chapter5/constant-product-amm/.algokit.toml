@@ -14,3 +14,7 @@ build = { commands = [
 test = { commands = [
   "poetry run pytest -q",
 ], description = "Run tests; LocalNet tests skip when unavailable" }
+
+test-static = { commands = [
+  "poetry run pytest tests/test_contract_shape.py -q",
+], description = "Run static contract-shape checks without LocalNet" }
