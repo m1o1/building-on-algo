@@ -30,70 +30,7 @@ algokit localnet start
 ```
 
 The finished project keeps the runnable workflow in `scripts/run_nft_vesting.py`.
-Read the key lines before you run it. First, the workflow creates and funds the
-three actors:
-
-```python
-admin = algorand.account.random()
-beneficiary = algorand.account.random()
-buyer = algorand.account.random()
-fund_account(algorand, admin)
-fund_account(algorand, beneficiary)
-fund_account(algorand, buyer)
-```
-
-It creates the vesting ASA, deploys the app, funds the app account, initializes
-the app, and deposits vesting tokens:
-
-```python
-asset_id = create_vesting_token(algorand, admin)
-app_client, create_result = factory.send.create.bare(...)
-fund_app_account(algorand, admin, app_address)
-app_client.send.initialize(...)
-app_client.send.deposit_tokens(...)
-```
-
-Schedule creation pays the combined MBR for the schedule box and the
-inner-created NFT, then records the returned NFT asset ID:
-
-```python
-mbr_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=admin.address,
-        receiver=app_address,
-        amount=AlgoAmount.from_micro_algo(SCHEDULE_MBR),
-    )
-)
-result = app_client.send.create_schedule(...)
-nft_id = result.abi_return
-```
-
-The beneficiary opts into the NFT before the app can deliver it:
-
-```python
-opt_account_into_asset(algorand, beneficiary, nft_id)
-app_client.send.deliver_nft(...)
-```
-
-Ownership is transferable because the NFT moves with a normal ASA transfer, and
-the next `claim` checks the current holder:
-
-```python
-beneficiary_claim = app_client.send.claim(...)
-opt_account_into_asset(algorand, buyer, nft_id)
-transfer_asset(algorand, beneficiary, buyer.address, nft_id, 1)
-buyer_claim = app_client.send.claim(...)
-```
-
-The second schedule demonstrates revocation and cleanup:
-
-```python
-claimable = app_client.send.get_claimable(...)
-revoked = app_client.send.revoke(...)
-app_client.send.cleanup_schedule(...)
-```
-
-After tracing those lines, run the assembled workflow once:
+Run it once:
 
 ```bash
 poetry run python -m scripts.run_nft_vesting
@@ -103,6 +40,163 @@ Then run the tests:
 
 ```bash
 algokit project run test
+```
+
+Now trace what the workflow just did. These are excerpts from the workflow file,
+not a standalone script; imports, generated-client setup, and repeated account
+funding boilerplate remain in the project.
+
+- **Create vesting ASA:** `asset_create(...)` gives the app tokens to vest.
+- **Deposit tokens:** `AssetTransferParams` inside `TransactionWithSigner`
+  groups the ASA transfer with the app call.
+- **Create schedule:** `PaymentParams` for MBR plus `create_schedule` funds the
+  box and inner-created NFT.
+- **Transfer ownership:** `asset_transfer(...)` moves claim rights with the NFT.
+
+Schedule creation is the new pattern. It pays the combined MBR for the schedule
+box and the inner-created NFT, then records the returned NFT asset ID:
+
+```python
+schedule_id = 1
+schedule_box = b"v_" + struct.pack(">Q", schedule_id)
+schedule_mbr = 26_100 + 100_000
+mbr_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=admin.address,
+        receiver=app_address,
+        amount=AlgoAmount.from_micro_algo(schedule_mbr),
+    )
+)
+result = app_client.send.create_schedule(
+    CreateScheduleArgs(
+        schedule_id=schedule_id,
+        total_amount=1_000_000,
+        cliff_duration=1,
+        vesting_duration=20,
+        nft_url=b"ipfs://chapter4-local#arc3",
+        metadata_hash=b"\0" * 32,
+        mbr_payment=TransactionWithSigner(
+            mbr_txn,
+            algorand.account.get_signer(admin.address),
+        ),
+    ),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        box_references=[schedule_box],
+    ),
+)
+nft_id = result.abi_return
+```
+
+Before delivery and claim, the beneficiary opts into both assets they may
+receive: the vesting ASA and the newly minted NFT. The workflow advances time
+before calling `claim`, because the contract rejects zero-claim calls.
+
+```python
+algorand.send.asset_opt_in(
+    AssetOptInParams(sender=beneficiary.address, asset_id=asset_id)
+)
+algorand.send.asset_opt_in(
+    AssetOptInParams(sender=beneficiary.address, asset_id=nft_id)
+)
+app_client.send.deliver_nft(
+    DeliverNftArgs(
+        schedule_id=schedule_id,
+        nft_asset=nft_id,
+        beneficiary=beneficiary.address,
+    ),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[nft_id],
+        account_references=[beneficiary.address],
+        box_references=[schedule_box],
+    ),
+)
+time.sleep(4)
+algorand.send.payment(
+    PaymentParams(
+        sender=dispenser.address,
+        receiver=dispenser.address,
+        amount=AlgoAmount.from_micro_algo(0),
+    )
+)
+beneficiary_claim = app_client.send.claim(
+    ClaimArgs(schedule_id=schedule_id, nft_asset=nft_id),
+    params=CommonAppCallParams(
+        sender=beneficiary.address,
+        signer=algorand.account.get_signer(beneficiary.address),
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[asset_id, nft_id],
+        box_references=[schedule_box],
+    ),
+)
+```
+
+Ownership transfer is just a normal ASA transfer. The buyer must opt into the
+vesting ASA and the NFT before receiving them, then the next `claim` checks that
+the buyer is the current NFT holder:
+
+```python
+algorand.send.asset_opt_in(
+    AssetOptInParams(sender=buyer.address, asset_id=asset_id)
+)
+algorand.send.asset_opt_in(
+    AssetOptInParams(sender=buyer.address, asset_id=nft_id)
+)
+algorand.send.asset_transfer(
+    AssetTransferParams(
+        sender=beneficiary.address,
+        signer=algorand.account.get_signer(beneficiary.address),
+        receiver=buyer.address,
+        asset_id=nft_id,
+        amount=1,
+    )
+)
+time.sleep(20)
+algorand.send.payment(
+    PaymentParams(
+        sender=dispenser.address,
+        receiver=dispenser.address,
+        amount=AlgoAmount.from_micro_algo(0),
+    )
+)
+buyer_claim = app_client.send.claim(
+    ClaimArgs(schedule_id=schedule_id, nft_asset=nft_id),
+    params=CommonAppCallParams(
+        sender=buyer.address,
+        signer=algorand.account.get_signer(buyer.address),
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[asset_id, nft_id],
+        box_references=[schedule_box],
+    ),
+)
+```
+
+After creating and delivering a second schedule the same way,
+`revoke_nft_id` is the NFT returned by that second `create_schedule` call.
+Revocation uses the schedule box, the vesting ASA, the NFT, and the current
+holder account:
+
+```python
+revoke_schedule_id = 2
+revoke_box = b"v_" + struct.pack(">Q", revoke_schedule_id)
+claimable = app_client.send.get_claimable(
+    GetClaimableArgs(schedule_id=revoke_schedule_id),
+    params=CommonAppCallParams(box_references=[revoke_box]),
+)
+revoked = app_client.send.revoke(
+    RevokeArgs(
+        schedule_id=revoke_schedule_id,
+        nft_asset=revoke_nft_id,
+        current_holder=beneficiary.address,
+    ),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(5_000),
+        asset_references=[asset_id, revoke_nft_id],
+        account_references=[beneficiary.address],
+        box_references=[revoke_box],
+    ),
+)
 ```
 
 As it runs, watch for these checkpoints:
@@ -137,7 +231,7 @@ tests. They confirm that the expected source patterns are present:
 - revocation claws back and destroys the NFT
 - inner transactions use fee pooling
 
-The full workflow helper and LocalNet tests provide the behavioral confirmation.
+The full workflow script and LocalNet tests provide the behavioral confirmation.
 
 Use `scripts/run_nft_vesting.py` as an iteration shortcut after you understand
 the account funding, opt-in, deployment, and user-action sequence.

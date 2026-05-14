@@ -28,85 +28,7 @@ The finished project keeps the runnable workflow in
 IDs are sorted, why swaps need a `min_output`, and why later liquidity deposits
 mint LP tokens from the current reserve ratio.
 
-First, the workflow creates and funds the actors:
-
-```python
-dispenser = algorand.account.localnet_dispenser()
-admin = algorand.account.random()
-trader = algorand.account.random()
-second_lp = algorand.account.random()
-for account in (admin, trader, second_lp):
-    fund_account(algorand, dispenser, account)
-```
-
-It creates two test ASAs and orders them canonically:
-
-```python
-token_a = create_test_asset(algorand, admin, name="Token A", unit="TKNA")
-token_b = create_test_asset(algorand, admin, name="Token B", unit="TKNB")
-if token_a > token_b:
-    token_a, token_b = token_b, token_a
-```
-
-It deploys the pool and bootstraps the LP token with a seed payment:
-
-```python
-pool, create_result = factory.send.create.bare()
-bootstrap = pool.send.bootstrap(
-    amm_client.BootstrapArgs(
-        seed_payment=payment_arg(algorand, admin, pool.app_address, 500_000),
-        asset_a=token_a,
-        asset_b=token_b,
-    ),
-    ...
-)
-lp_token = bootstrap.abi_return
-```
-
-Users opt into both trading assets and the LP token before they can receive
-them:
-
-```python
-for account in (admin, trader, second_lp):
-    for asset_id in (token_a, token_b, lp_token):
-        opt_account_into_asset(algorand, account, asset_id)
-```
-
-The first liquidity deposit sets the initial price:
-
-```python
-initial_lp = pool.send.add_initial_liquidity(
-    amm_client.AddInitialLiquidityArgs(
-        deposit_a=asset_transfer_arg(...),
-        deposit_b=asset_transfer_arg(...),
-    ),
-    ...
-).abi_return
-```
-
-The trader receives balances, quotes a swap, and supplies a minimum-output
-guard:
-
-```python
-transfer_asset(algorand, admin, trader, token_a, 1_000 * MICRO_UNITS)
-expected_output = quote_swap(swap_input, initial_a, initial_b)
-swap_output = pool.send.swap(
-    amm_client.SwapArgs(
-        input_txn=asset_transfer_arg(...),
-        min_output=expected_output * 99 // 100,
-    ),
-    ...
-).abi_return
-```
-
-Finally, the second LP adds liquidity and removes part of that position:
-
-```python
-second_lp_minted = pool.send.add_liquidity(...).abi_return
-withdrawn = pool.send.remove_liquidity(...).abi_return
-```
-
-After tracing those lines, run the assembled workflow once:
+Run the workflow once:
 
 ```bash
 poetry run python -m scripts.run_constant_product_amm
@@ -116,6 +38,184 @@ Then run the tests:
 
 ```bash
 algokit project run test
+```
+
+Now trace what the workflow just did. These are excerpts from the workflow file,
+not a standalone script; imports, generated-client setup, and repeated account
+funding boilerplate remain in the project.
+
+- **Fund users:** `payment(...)` gives test accounts spendable Algo.
+- **Create ASAs:** `asset_create(...)` creates the pool assets.
+- **Opt in:** `asset_opt_in(...)` lets users receive assets and LP tokens.
+- **Transfer assets:** `asset_transfer(...)` moves pool assets between users and
+  the app.
+
+Asset IDs are sorted before bootstrap so every caller agrees on `asset_a` and
+`asset_b`:
+
+```python
+token_a = created_a.asset_id
+token_b = created_b.asset_id
+if token_a > token_b:
+    token_a, token_b = token_b, token_a
+```
+
+Bootstrap uses a real payment transaction as an ABI argument. That is the same
+grouped-transaction pattern you saw in the vesting chapters:
+
+```python
+factory = amm_client.ConstantProductPoolFactory(
+    algorand,
+    default_sender=admin.address,
+    default_signer=admin.signer,
+)
+pool, create_result = factory.send.create.bare()
+seed_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=admin.address,
+        receiver=pool.app_address,
+        amount=AlgoAmount.from_micro_algo(500_000),
+    )
+)
+bootstrap = pool.send.bootstrap(
+    amm_client.BootstrapArgs(
+        seed_payment=TransactionWithSigner(seed_txn, admin.signer),
+        asset_a=token_a,
+        asset_b=token_b,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        static_fee=AlgoAmount.from_micro_algo(4_000),
+        asset_references=[token_a, token_b],
+    ),
+)
+lp_token = bootstrap.abi_return
+```
+
+The first liquidity deposit uses two ASA transfers into the pool. The app call
+receives both transactions as signed ABI arguments and mints LP tokens:
+
+```python
+initial_a = 10_000 * MICRO_UNITS
+initial_b = 10_000 * MICRO_UNITS
+deposit_a_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=admin.address,
+        receiver=pool.app_address,
+        asset_id=token_a,
+        amount=initial_a,
+    )
+)
+deposit_b_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=admin.address,
+        receiver=pool.app_address,
+        asset_id=token_b,
+        amount=initial_b,
+    )
+)
+initial_lp = pool.send.add_initial_liquidity(
+    amm_client.AddInitialLiquidityArgs(
+        deposit_a=TransactionWithSigner(deposit_a_txn, admin.signer),
+        deposit_b=TransactionWithSigner(deposit_b_txn, admin.signer),
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[token_a, token_b, lp_token],
+    ),
+).abi_return
+```
+
+The swap quote is calculated off-chain and then enforced on-chain with
+`min_output`. The `99 // 100` margin allows this demo to tolerate tiny rounding
+differences while still rejecting bad prices:
+
+```python
+swap_input = 100 * MICRO_UNITS
+input_with_fee = swap_input * 997
+expected_output = (
+    input_with_fee * initial_b
+) // (initial_a * 1000 + input_with_fee)
+swap_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=trader.address,
+        receiver=pool.app_address,
+        asset_id=token_a,
+        amount=swap_input,
+    )
+)
+swap_output = pool.send.swap(
+    amm_client.SwapArgs(
+        input_txn=TransactionWithSigner(swap_txn, trader.signer),
+        min_output=expected_output * 99 // 100,
+    ),
+    params=CommonAppCallParams(
+        sender=trader.address,
+        signer=trader.signer,
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[token_a, token_b],
+    ),
+).abi_return
+```
+
+Later deposits and withdrawals repeat the same shape: send the ASA or LP token
+into the pool as a `TransactionWithSigner`, then include the assets the app will
+read or transfer in `asset_references`.
+
+```python
+second_a_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=second_lp.address,
+        receiver=pool.app_address,
+        asset_id=token_a,
+        amount=1_000 * MICRO_UNITS,
+    )
+)
+second_b_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=second_lp.address,
+        receiver=pool.app_address,
+        asset_id=token_b,
+        amount=1_000 * MICRO_UNITS,
+    )
+)
+second_lp_minted = pool.send.add_liquidity(
+    amm_client.AddLiquidityArgs(
+        deposit_a=TransactionWithSigner(second_a_txn, second_lp.signer),
+        deposit_b=TransactionWithSigner(second_b_txn, second_lp.signer),
+    ),
+    params=CommonAppCallParams(
+        sender=second_lp.address,
+        signer=second_lp.signer,
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[token_a, token_b, lp_token],
+    ),
+).abi_return
+
+lp_burn_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=second_lp.address,
+        receiver=pool.app_address,
+        asset_id=lp_token,
+        amount=second_lp_minted // 2,
+    )
+)
+withdrawn = pool.send.remove_liquidity(
+    amm_client.RemoveLiquidityArgs(
+        lp_deposit=TransactionWithSigner(lp_burn_txn, second_lp.signer),
+        min_a=1,
+        min_b=1,
+    ),
+    params=CommonAppCallParams(
+        sender=second_lp.address,
+        signer=second_lp.signer,
+        static_fee=AlgoAmount.from_micro_algo(3_000),
+        asset_references=[token_a, token_b, lp_token],
+    ),
+).abi_return
 ```
 
 Watch for these checkpoints:
