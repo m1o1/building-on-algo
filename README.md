@@ -47,6 +47,7 @@ The canonical source is the `chapters/` directory — each chapter is a separate
 ### Prerequisites
 
 - **Python 3.12** (validated for the book walkthroughs and helper scripts)
+- **uv** (for validation): `uv` installs the pinned test and compile dependencies from `uv.lock`
 - **mdBook** (for HTML): follow the [mdBook installation guide](https://rust-lang.github.io/mdBook/guide/installation.html).
   Common paths: download a precompiled binary, run `cargo install mdbook`, or on macOS use `brew install mdbook`.
 - **pandoc + XeLaTeX** (for PDF): install Pandoc from the [official installer](https://pandoc.org/installing.html) or your package manager.
@@ -70,6 +71,23 @@ python3 build.py all
 # Reconstruct single Building-on-Algorand.md from chapters
 python3 build.py concat
 ```
+
+### Validation Harness
+
+The repository includes a uv-based validation harness for tests, extracted
+contract compilation, and tracked walkthrough coverage:
+
+```bash
+# Unit tests
+uv run --group test python -m pytest tests -q
+
+# Manifest + unit tests + PuyaPy compile checks + LocalNet status
+uv run --group test --group compile python scripts/validate.py --all
+```
+
+See `validation/README.md` and `validation/manifest.json` for the active
+validation targets plus pending compile, high-risk-flow, and LocalNet
+walkthrough gaps.
 
 ## Disclaimer
 

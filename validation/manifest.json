@@ -1,0 +1,189 @@
+{
+  "python": ">=3.12,<3.13",
+  "commands": {
+    "unit": "uv run --group test python -m pytest tests -q",
+    "manifest": "uv run --group test python scripts/validate.py --manifest",
+    "compile": "uv run --group compile python scripts/validate.py --compile",
+    "all": "uv run --group test --group compile python scripts/validate.py --all",
+    "strict": "uv run --group test --group compile python scripts/validate.py --all --strict"
+  },
+  "compiled_contracts": [
+    {
+      "chapter": "02/03",
+      "name": "Token vesting fixture",
+      "path": "tests/contracts/vesting.py",
+      "status": "active",
+      "notes": "Shortened fixture covering vesting math and selected lifecycle checks; not the full Chapter 3 listing."
+    },
+    {
+      "chapter": "09",
+      "name": "Private voting fixture",
+      "path": "tests/contracts/voting.py",
+      "status": "active",
+      "notes": "Shortened fixture covering MiMC padding and proof-record authorization; not the full Chapter 9 listing."
+    },
+    {
+      "chapter": "04",
+      "name": "NFT vesting extension",
+      "path": "validation/extracted/ch04_nft.py",
+      "status": "pending-extraction",
+      "notes": "Needs a consolidated extracted contract before compile validation can run."
+    },
+    {
+      "chapter": "05",
+      "name": "Constant product AMM",
+      "path": "validation/extracted/ch05_amm.py",
+      "status": "pending-extraction",
+      "notes": "Tracked by the AMM sender-binding and vulnerability-repro PRs."
+    },
+    {
+      "chapter": "06",
+      "name": "Yield farming",
+      "path": "validation/extracted/ch06_farm.py",
+      "status": "pending-extraction",
+      "notes": "Reward arithmetic model tests land in the reward-bounds PR."
+    },
+    {
+      "chapter": "08",
+      "name": "Delegated limit order LogicSig",
+      "path": "validation/extracted/ch08_limit_order.py",
+      "status": "pending-extraction",
+      "notes": "Requires a dedicated LogicSig compile fixture."
+    }
+  ],
+  "high_risk_flows": [
+    {
+      "issue": 2,
+      "name": "AMM grouped transaction sender mismatch",
+      "test": "tests/test_security_repros.py::test_amm_sender_binding_repro",
+      "status": "pending-pr",
+      "pr": 20
+    },
+    {
+      "issue": 3,
+      "name": "NFT resource population",
+      "test": "tests/test_security_repros.py::test_nft_resource_population_repro",
+      "status": "pending-pr",
+      "pr": 20
+    },
+    {
+      "issue": 4,
+      "name": "LogicSig network binding",
+      "test": "tests/test_security_repros.py::test_logicsig_network_binding_repro",
+      "status": "pending-pr",
+      "pr": 20
+    },
+    {
+      "issue": 6,
+      "name": "ZK proof verifier binding",
+      "test": "tests/test_security_repros.py::test_zk_proof_binding_repro",
+      "status": "pending-pr",
+      "pr": 20
+    },
+    {
+      "issue": 12,
+      "name": "Reward arithmetic bounds",
+      "test": "tests/test_reward_arithmetic.py",
+      "status": "pending-pr",
+      "pr": 19
+    },
+    {
+      "name": "Vesting arithmetic and immutability",
+      "test": "tests/test_vesting.py",
+      "status": "active"
+    },
+    {
+      "name": "Voting MiMC padding and proof authorization",
+      "test": "tests/test_voting.py",
+      "status": "active"
+    }
+  ],
+  "localnet_smoke": [
+    {
+      "chapter": 3,
+      "name": "Token vesting LocalNet walkthrough",
+      "script": "validation/localnet/ch03_vesting.py",
+      "status": "pending-extraction",
+      "notes": "Needs a complete extracted LocalNet script from the chapter walkthrough."
+    },
+    {
+      "chapter": 4,
+      "name": "NFT extension LocalNet walkthrough",
+      "script": "validation/localnet/ch04_nft.py",
+      "status": "pending-extraction",
+      "notes": "Depends on explicit NFT box/resource-reference example extraction."
+    },
+    {
+      "chapter": 5,
+      "name": "AMM LocalNet walkthrough",
+      "script": "validation/localnet/ch05_amm.py",
+      "status": "pending-extraction",
+      "notes": "Depends on an extracted bootstrap/add-liquidity/swap smoke flow."
+    },
+    {
+      "chapter": 6,
+      "name": "Yield farm LocalNet walkthrough",
+      "script": "validation/localnet/ch06_farm.py",
+      "status": "pending-extraction",
+      "notes": "Depends on an extracted stake/claim/unstake smoke flow."
+    },
+    {
+      "chapter": 8,
+      "name": "LogicSig limit order LocalNet walkthrough",
+      "script": "validation/localnet/ch08_limit_order.py",
+      "status": "pending-extraction",
+      "notes": "Depends on an extracted LogicSig compile/fill/cancel smoke flow."
+    },
+    {
+      "chapter": 9,
+      "name": "Private voting LocalNet walkthrough",
+      "script": "validation/localnet/ch09_voting.py",
+      "status": "pending-extraction",
+      "notes": "Depends on an extracted commit/prove/reveal voting smoke flow."
+    }
+  ],
+  "coverage_summary": [
+    {
+      "chapter": 2,
+      "status": "active",
+      "active_coverage": ["unit tests from tests/test_vesting.py"],
+      "pending_gaps": ["LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 3,
+      "status": "active",
+      "active_coverage": ["shortened vesting fixture compiles with PuyaPy"],
+      "pending_gaps": ["full Chapter 3 contract extraction", "LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 4,
+      "status": "pending-extraction",
+      "active_coverage": [],
+      "pending_gaps": ["NFT resource-population repro PR", "contract extraction", "LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 5,
+      "status": "pending-extraction",
+      "active_coverage": [],
+      "pending_gaps": ["AMM sender-binding repro PR", "contract extraction", "LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 6,
+      "status": "pending-pr",
+      "active_coverage": [],
+      "pending_gaps": ["reward arithmetic PR", "contract extraction", "LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 8,
+      "status": "pending-pr",
+      "active_coverage": [],
+      "pending_gaps": ["LogicSig network-binding repro PR", "LogicSig compile fixture", "LocalNet smoke walkthrough"]
+    },
+    {
+      "chapter": 9,
+      "status": "active",
+      "active_coverage": ["shortened voting fixture compiles with PuyaPy", "MiMC padding and proof-record authorization tests"],
+      "pending_gaps": ["ZK proof-binding repro PR", "full Chapter 9 extraction", "LocalNet smoke walkthrough"]
+    }
+  ]
+}
