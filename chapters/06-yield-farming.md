@@ -41,89 +41,7 @@ Before running it, predict which line binds the farm to the AMM's reported LP
 token, which line funds the stake box MBR, and why the workflow advances
 LocalNet time twice.
 
-The workflow creates and funds the admin and farmer, then creates two pool
-assets and one reward asset:
-
-```python
-admin = algorand.account.random()
-farmer = algorand.account.random()
-fund_account(algorand, dispenser, admin)
-fund_account(algorand, dispenser, farmer)
-token_a = create_test_asset(algorand, admin, name="Token A", unit="TKNA")
-token_b = create_test_asset(algorand, admin, name="Token B", unit="TKNB")
-reward_token = create_test_asset(algorand, admin, name="Reward Token", unit="RWD")
-```
-
-It deploys and bootstraps the Chapter 5 AMM, capturing the LP token returned by
-the AMM:
-
-```python
-pool, pool_create = amm_factory.send.create.bare()
-bootstrap = pool.send.bootstrap(...)
-lp_token = bootstrap.abi_return
-```
-
-The farmer opts into the assets needed for the workflow, then receives LP tokens
-from the initial AMM liquidity position:
-
-```python
-for asset_id in (token_a, token_b, lp_token, reward_token):
-    opt_account_into_asset(algorand, farmer, asset_id)
-initial_lp = pool.send.add_initial_liquidity(...).abi_return
-lp_to_stake = initial_lp // 4
-transfer_asset(algorand, admin, farmer, lp_token, lp_to_stake)
-```
-
-The farm is deployed, funded, and initialized with the LP token, reward token,
-and AMM app ID. The contract reads the configured AMM's global state during this
-call:
-
-```python
-farm, farm_create = farm_factory.send.create.bare()
-algorand.send.payment(...)
-farm.send.initialize(
-    farm_client.InitializeArgs(
-        lp_token=lp_token,
-        reward_token=reward_token,
-        amm_app=pool.app_id,
-    ),
-    params=CommonAppCallParams(app_references=[pool.app_id], ...),
-)
-```
-
-The admin deposits rewards, and the farmer stakes LP tokens with the exact box
-MBR payment:
-
-```python
-farm.send.deposit_rewards(
-    farm_client.DepositRewardsArgs(
-        reward_txn=asset_transfer_arg(...),
-        duration_seconds=reward_duration,
-    ),
-    ...
-)
-farm.send.stake(
-    farm_client.StakeArgs(
-        mbr_payment=payment_arg(algorand, farmer, farm.app_address, STAKE_BOX_MBR),
-        lp_txn=asset_transfer_arg(...),
-        lock_days=30,
-    ),
-    ...
-)
-```
-
-The workflow advances LocalNet developer-mode time, claims, extends the lock,
-advances beyond the unlock time, and unstakes:
-
-```python
-advance_localnet_time(algorand, admin, offset_seconds=10)
-claim = farm.send.claim(...)
-farm.send.extend_lock(farm_client.ExtendLockArgs(new_lock_days=365), ...)
-advance_localnet_time(algorand, admin, offset_seconds=366 * 86400)
-farm.send.unstake(...)
-```
-
-After tracing those lines, run the assembled workflow once:
+Run the workflow once:
 
 ```bash
 poetry run python -m scripts.run_lp_farming
@@ -147,8 +65,166 @@ Run the tests from the Chapter 6 project:
 algokit project run test
 ```
 
+Now trace what the workflow just did. These are excerpts from the workflow file,
+not a standalone script; imports, generated-client loading, and repeated account
+funding boilerplate remain in the project.
+
+- **Create assets:** `asset_create(...)` creates pool and reward ASAs.
+- **Bootstrap AMM:** `pool.send.bootstrap(...)` creates the LP token.
+- **Fund farm:** `payment(...)` covers farm opt-ins and later fees.
+- **Stake:** `PaymentParams` plus `AssetTransferParams` funds the box and moves
+  LP tokens.
+
+The farm binds itself to the AMM during initialization. The `app_references`
+entry is what lets the contract read the configured AMM's global state:
+
+```python
+farm_factory = farm_client.LpFarmFactory(
+    algorand,
+    default_sender=admin.address,
+    default_signer=admin.signer,
+)
+farm, farm_create = farm_factory.send.create.bare()
+algorand.send.payment(
+    PaymentParams(
+        sender=admin.address,
+        signer=admin.signer,
+        receiver=farm.app_address,
+        amount=AlgoAmount.from_micro_algo(1_000_000),
+    )
+)
+farm.send.initialize(
+    farm_client.InitializeArgs(
+        lp_token=lp_token,
+        reward_token=reward_token,
+        amm_app=pool.app_id,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        static_fee=AlgoAmount.from_micro_algo(3_000),
+        asset_references=[lp_token, reward_token],
+        app_references=[pool.app_id],
+    ),
+)
+```
+
+Reward deposit and stake are the two key grouped-transaction calls. The reward
+ASA transfer is signed by the admin. The stake call includes both the LP-token
+transfer and the exact 32,100 microAlgos box MBR payment:
+
+```python
+reward_deposit = 58_400
+reward_duration = 100
+stake_box_mbr = 32_100
+reward_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=admin.address,
+        receiver=farm.app_address,
+        asset_id=reward_token,
+        amount=reward_deposit,
+    )
+)
+farm.send.deposit_rewards(
+    farm_client.DepositRewardsArgs(
+        reward_txn=TransactionWithSigner(reward_txn, admin.signer),
+        duration_seconds=reward_duration,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        static_fee=AlgoAmount.from_micro_algo(1_000),
+        asset_references=[reward_token],
+    ),
+)
+
+stake_box = b"s_" + decode_address(farmer.address)
+mbr_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=farmer.address,
+        receiver=farm.app_address,
+        amount=AlgoAmount.from_micro_algo(stake_box_mbr),
+    )
+)
+lp_stake_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=farmer.address,
+        receiver=farm.app_address,
+        asset_id=lp_token,
+        amount=lp_to_stake,
+    )
+)
+farm.send.stake(
+    farm_client.StakeArgs(
+        mbr_payment=TransactionWithSigner(mbr_txn, farmer.signer),
+        lp_txn=TransactionWithSigner(lp_stake_txn, farmer.signer),
+        lock_days=30,
+    ),
+    params=CommonAppCallParams(
+        sender=farmer.address,
+        signer=farmer.signer,
+        static_fee=AlgoAmount.from_micro_algo(1_000),
+        asset_references=[lp_token],
+        box_references=[stake_box],
+    ),
+)
+```
+
+The workflow advances LocalNet developer-mode time, claims, extends the lock,
+advances beyond the unlock time, and unstakes. The runnable script resets the
+timestamp offset back to `0` in a `finally` block so later LocalNet tests do not
+inherit the simulated time jump:
+
+```python
+algorand.client.algod.set_timestamp_offset(10)
+algorand.send.payment(
+    PaymentParams(
+        sender=admin.address,
+        signer=admin.signer,
+        receiver=admin.address,
+        amount=AlgoAmount.from_micro_algo(0),
+    )
+)
+claim = farm.send.claim(
+    params=CommonAppCallParams(
+        sender=farmer.address,
+        signer=farmer.signer,
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[reward_token],
+        box_references=[stake_box],
+    )
+)
+farm.send.extend_lock(
+    farm_client.ExtendLockArgs(new_lock_days=365),
+    params=CommonAppCallParams(
+        sender=farmer.address,
+        signer=farmer.signer,
+        box_references=[stake_box],
+    ),
+)
+algorand.client.algod.set_timestamp_offset(366 * 86400)
+algorand.send.payment(
+    PaymentParams(
+        sender=admin.address,
+        signer=admin.signer,
+        receiver=admin.address,
+        amount=AlgoAmount.from_micro_algo(0),
+    )
+)
+farm.send.unstake(
+    params=CommonAppCallParams(
+        sender=farmer.address,
+        signer=farmer.signer,
+        static_fee=AlgoAmount.from_micro_algo(4_000),
+        asset_references=[lp_token, reward_token],
+        box_references=[stake_box],
+    )
+)
+algorand.client.algod.set_timestamp_offset(0)
+```
+
 Without Docker or Podman-backed LocalNet, the integration tests skip and the
-workflow helper stops with a LocalNet message. The build and static tests still
+workflow script stops with a LocalNet message. The build and static tests still
 verify that the contract compiles and that the source contains the security
 patterns this chapter teaches. LocalNet defaults to developer mode; the workflow
 uses the official timestamp-offset endpoint to move past long lock periods.
@@ -173,7 +249,7 @@ claiming, and unstaking sequence.
 Follow this finished-project runbook first, then build the chapter in a
 separate scratch project with the `algokit init` commands below. Treat
 `projects/chapter6/lp-farming/` as the answer key: compare its contract,
-workflow helper, and tests against your scratch project when something differs.
+workflow script, and tests against your scratch project when something differs.
 
 
 ## A Simplified Staking Contract

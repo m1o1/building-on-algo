@@ -30,62 +30,7 @@ what Bob's revocation should return to the admin, and why cleanup is a separate
 step after claims and revocation.
 
 The finished project keeps the runnable workflow in
-`scripts/run_token_vesting.py`. Read the key lines before you run it.
-
-The workflow starts by creating LocalNet accounts and funding them:
-
-```python
-admin = algorand.account.random()
-alice = algorand.account.random()
-bob = algorand.account.random()
-fund_account(algorand, admin)
-fund_account(algorand, alice)
-fund_account(algorand, bob)
-```
-
-It creates the vesting ASA, deploys the app, funds the app account, and
-initializes the app so it opts into that ASA:
-
-```python
-asset_id = create_vesting_token(algorand, admin)
-app_client, create_result = factory.send.create.bare(...)
-fund_app_account(algorand, admin, app_address)
-app_client.send.initialize(InitializeArgs(vesting_asset=asset_id), ...)
-```
-
-The deposit is an ASA transfer passed into the ABI method as a grouped
-transaction argument:
-
-```python
-deposit_txn = algorand.create_transaction.asset_transfer(...)
-app_client.send.deposit_tokens(
-    DepositTokensArgs(deposit_txn=TransactionWithSigner(...)),
-    ...
-)
-```
-
-Alice's schedule shows the happy path: opt in, pay box MBR, create the
-schedule, advance time, claim, and clean up:
-
-```python
-opt_account_into_asset(algorand, alice, asset_id)
-alice_mbr_txn = algorand.create_transaction.payment(...)
-app_client.send.create_schedule(...)
-advance_time(algorand, 6)
-alice_claim = app_client.send.claim(...)
-app_client.send.cleanup_schedule(...)
-```
-
-Bob's schedule shows the revocation path:
-
-```python
-bob_claimable = app_client.send.get_claimable(...)
-revoked = app_client.send.revoke(...)
-bob_claim = app_client.send.claim(...)
-app_client.send.cleanup_schedule(...)
-```
-
-After tracing those lines, run the assembled workflow once:
+`scripts/run_token_vesting.py`. Run it first:
 
 ```bash
 poetry run python -m scripts.run_token_vesting
@@ -95,6 +40,126 @@ Then run the tests:
 
 ```bash
 algokit project run test
+```
+
+Now trace what the workflow just did. These are excerpts from the workflow file,
+not a standalone script; imports, generated-client setup, and repeated account
+funding boilerplate remain in the project.
+
+- **Fund users:** `payment(...)` pays account MBR and fees.
+- **Create ASA:** `asset_create(...)` creates the token being vested.
+- **Initialize app:** `app_client.send.initialize(...)` stores the ASA ID and
+  opts in the app.
+- **Schedule boxes:** `box_references=[b"v_" + decode_address(...)]` points
+  the app call at the right box.
+
+Deposits are explicit grouped transaction arguments. The ASA transfer is built
+with AlgoKit Utils, signed by the admin, then passed into `deposit_tokens`:
+
+```python
+deposit_txn = algorand.create_transaction.asset_transfer(
+    AssetTransferParams(
+        sender=admin.address,
+        receiver=app_address,
+        asset_id=asset_id,
+        amount=2_000_000,
+    )
+)
+app_client.send.deposit_tokens(
+    DepositTokensArgs(
+        deposit_txn=TransactionWithSigner(
+            deposit_txn,
+            algorand.account.get_signer(admin.address),
+        )
+    ),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(1_000),
+        asset_references=[asset_id],
+    ),
+)
+```
+
+Schedule creation has the same shape: Alice opts into the vesting ASA, the admin
+pays the exact box MBR, and the method call includes both the beneficiary account
+and box reference:
+
+```python
+alice_box = b"v_" + decode_address(alice.address)
+algorand.send.asset_opt_in(
+    AssetOptInParams(sender=alice.address, asset_id=asset_id)
+)
+alice_mbr_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=admin.address,
+        receiver=app_address,
+        amount=AlgoAmount.from_micro_algo(32_500),
+    )
+)
+app_client.send.create_schedule(
+    CreateScheduleArgs(
+        beneficiary=alice.address,
+        total_amount=1_000_000,
+        cliff_duration=1,
+        vesting_duration=5,
+        mbr_payment=TransactionWithSigner(
+            alice_mbr_txn,
+            algorand.account.get_signer(admin.address),
+        ),
+    ),
+    params=CommonAppCallParams(
+        account_references=[alice.address],
+        box_references=[alice_box],
+    ),
+)
+```
+
+After time advances, `claim` and `cleanup_schedule` use the same box reference.
+Bob's revocation path adds one more rule: only claim after revocation if
+`get_claimable` returns a positive amount.
+
+```python
+bob_box = b"v_" + decode_address(bob.address)
+time.sleep(4)
+algorand.send.payment(
+    PaymentParams(
+        sender=dispenser.address,
+        receiver=dispenser.address,
+        amount=AlgoAmount.from_micro_algo(0),
+    )
+)
+bob_claimable = app_client.send.get_claimable(
+    GetClaimableArgs(beneficiary=bob.address),
+    params=CommonAppCallParams(
+        account_references=[bob.address],
+        box_references=[bob_box],
+    ),
+)
+revoked = app_client.send.revoke(
+    RevokeArgs(beneficiary=bob.address),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        asset_references=[asset_id],
+        account_references=[bob.address],
+        box_references=[bob_box],
+    ),
+)
+if bob_claimable.abi_return:
+    bob_claim = app_client.send.claim(
+        params=CommonAppCallParams(
+            sender=bob.address,
+            signer=algorand.account.get_signer(bob.address),
+            static_fee=AlgoAmount.from_micro_algo(2_000),
+            asset_references=[asset_id],
+            box_references=[bob_box],
+        )
+    )
+app_client.send.cleanup_schedule(
+    CleanupScheduleArgs(beneficiary=bob.address),
+    params=CommonAppCallParams(
+        static_fee=AlgoAmount.from_micro_algo(2_000),
+        box_references=[bob_box],
+    ),
+)
 ```
 
 With LocalNet running, the tests repeat the important end-to-end workflows so

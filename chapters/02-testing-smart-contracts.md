@@ -36,58 +36,7 @@ algokit project run build
 algokit localnet start
 ```
 
-The finished project keeps the runnable workflow in
-`scripts/run_simple_vesting.py`. Do not treat that script as a black box; the
-important lines are the operational checklist.
-
-First, the workflow connects to LocalNet and uses the pre-funded dispenser as
-the admin account:
-
-```python
-algorand, admin = localnet_client()
-```
-
-It deploys the app and creates a test ASA:
-
-```python
-app_client = print_step(
-    "1. Deploy SimpleVesting",
-    lambda: deploy(algorand, admin),
-)
-token_id = print_step(
-    "2. Create a test ASA",
-    lambda: create_test_asa(algorand, admin, total=10_000_000_000),
-)
-```
-
-It creates a beneficiary, funds the account, and opts it into the ASA:
-
-```python
-beneficiary = algorand.account.random()
-fund_account(algorand, admin, beneficiary.address)
-opt_account_into_asset(algorand, beneficiary, token_id)
-```
-
-The initialization helper performs the app funding, app asset opt-in, grouped
-ASA deposit, and `initialize` call:
-
-```python
-fund_account(algorand, admin, app_client.app_address, amount=300_000)
-app_client.send.opt_in_to_asset(...)
-deposit_txn = algorand.create_transaction.asset_transfer(...)
-app_client.send.initialize(...)
-```
-
-Then the workflow claims before the cliff, advances LocalNet time, and claims
-again after full vesting:
-
-```python
-before_cliff = app_client.send.claim(...)
-advance_time(algorand, vesting + 1)
-final_claim = app_client.send.claim(...)
-```
-
-After tracing those lines, run the assembled workflow once:
+Run the workflow once:
 
 ```bash
 poetry run python -m scripts.run_simple_vesting
@@ -99,14 +48,92 @@ Then run the pytest suite:
 algokit project run test
 ```
 
+Now trace what the workflow just did. These are excerpts from the workflow file,
+not a standalone script; imports and repeated setup stay in the project. For
+now, follow the sender, receiver, asset ID, amount, and method name.
+
+- **Deploy:** `factory.send.create.bare(...)` creates the app and app address.
+- **Create ASA:** `asset_create(...)` gives the vesting contract a token to hold.
+- **Fund accounts:** `payment(...)` covers minimum balance and fees.
+- **Opt in:** `asset_opt_in(...)` lets an account receive the ASA.
+
+The most important transaction group is the deposit-plus-initialize call. The
+ASA transfer is created first, wrapped in `TransactionWithSigner`, then passed
+as an ABI argument:
+
+```python
+algorand.send.payment(
+    algokit_utils.PaymentParams(
+        sender=admin.address,
+        receiver=app_client.app_address,
+        amount=algokit_utils.AlgoAmount.from_micro_algo(300_000),
+    )
+)
+app_client.send.opt_in_to_asset(
+    OptInToAssetArgs(asset=token_id),
+    params=algokit_utils.CommonAppCallParams(
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
+    ),
+)
+
+deposit_txn = algorand.create_transaction.asset_transfer(
+    algokit_utils.AssetTransferParams(
+        sender=admin.address,
+        receiver=app_client.app_address,
+        asset_id=token_id,
+        amount=total,
+    )
+)
+app_client.send.initialize(
+    InitializeArgs(
+        asset=token_id,
+        beneficiary=beneficiary.address,
+        total_amount=total,
+        cliff_duration=cliff,
+        vesting_duration=vesting,
+        deposit_txn=TransactionWithSigner(
+            deposit_txn,
+            algorand.account.get_signer(admin.address),
+        ),
+    )
+)
+```
+
 The pytest suite is expected to pass. It reruns those behaviors as tests and
 includes static known-gap checks for three intentionally limited production
 properties: overflow-prone arithmetic, one-beneficiary global state, and no
 revoke method. The fourth gap, rounding across multiple claims, is discussed
 later in the step-by-step "Tests That Fail" section.
 
-Keep `scripts/run_simple_vesting.py` around for repeated development runs, but
-treat the excerpts above as the thing you are learning.
+The pre-cliff and final claims use the same method call; the difference is that
+the workflow sleeps and submits a tiny transaction so LocalNet produces a later
+block timestamp:
+
+```python
+before_cliff = app_client.send.claim(
+    params=algokit_utils.CommonAppCallParams(
+        sender=beneficiary.address,
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
+    )
+)
+time.sleep(vesting + 1)
+algorand.send.payment(
+    algokit_utils.PaymentParams(
+        sender=admin.address,
+        receiver=admin.address,
+        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+    )
+)
+final_claim = app_client.send.claim(
+    params=algokit_utils.CommonAppCallParams(
+        sender=beneficiary.address,
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
+    )
+)
+```
+
+Keep `scripts/run_simple_vesting.py` around for repeated development runs. The
+excerpts above are the parts to understand before reading the full test suite.
 
 Without Docker or LocalNet, you can still build the contract and run the static
 known-gap checks:
