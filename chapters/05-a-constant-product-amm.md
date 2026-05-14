@@ -2,7 +2,7 @@
 
 \part{Building a DEX}
 
-Part II applies the foundations to DeFi. You will build a constant product AMM with multi-token accounting, price curves, and LP token mechanics, then extend it with a yield farming contract that introduces the reward accumulator pattern and smart contract composition. The part concludes with the cross-cutting production patterns --- fee subsidization, MBR lifecycle, event emission --- that separate tutorial code from production code.
+Part II applies the foundations to DeFi. You will build a constant product AMM with multi-token accounting, price curves, and liquidity-provider (LP) token mechanics, then extend it with a yield farming contract that introduces the reward accumulator pattern and smart contract composition. The part concludes with the cross-cutting production patterns --- fee subsidization, MBR lifecycle, event emission --- that separate tutorial code from production code.
 
 # A Constant Product AMM
 
@@ -12,7 +12,46 @@ An AMM is a smart contract that holds reserves of two tokens and allows anyone t
 
 By the end of this chapter you will have a working AMM pool contract with creation, bootstrapping, swapping, liquidity provision, liquidity withdrawal, and comprehensive security hardening. Each section builds on the previous one, and new Algorand concepts are introduced only when the AMM requires them.
 
-### Project Setup
+## Run It First
+
+The finished project for this chapter lives in `projects/chapter5/constant-product-amm/`. Before reading the implementation, run the complete workflow once:
+
+```bash
+cd projects/chapter5/constant-product-amm
+algokit project bootstrap all
+algokit project run build
+algokit localnet start
+poetry run python -m scripts.run_constant_product_amm
+poetry run pytest -q
+```
+
+The workflow script creates two test ASAs, deploys a fresh pool, bootstraps the LP token, opts users into the relevant assets, adds initial liquidity, swaps Token A for Token B, adds liquidity from a second account, and removes part of that LP position. Watch the printed output for the test ASA IDs, the pool app ID, the LP token ID, the swap output, the second LP mint amount, and the final withdrawn asset amounts.
+
+Bootstrap: LP token ID printed; the pool created its own ASA and opted into
+both trading assets.
+
+Initial liquidity: initial LP minted; the first deposits set the price and
+mint LP tokens.
+
+Swap: roughly 98--99 Token B for 100 Token A; fee and price impact are applied.
+
+Second LP deposit: second LP minted; later deposits mint tokens from the
+current reserve ratio.
+
+Withdrawal: two withdrawn asset amounts; burning LP tokens returns a
+proportional share of both assets.
+
+The finished contract also contains the optional TWAP oracle from the end of this chapter. The workflow above exercises the core AMM. Ignore the TWAP methods until you reach that section.
+
+If Docker or Podman is not available, `algokit localnet start` will fail. You can still run `algokit project run build` and `poetry run pytest -q`; the integration test will skip when LocalNet is unreachable, while the static tests keep checking the contract source for the security properties this chapter teaches.
+
+If pytest reports skipped LocalNet tests, you have checked compilation and static properties only. Start LocalNet later to verify the actual pool workflow.
+
+Keep this finished project nearby as you work through the chapter. Its purpose is not to replace the step-by-step build; it is the answer key you can compile, run, and compare against whenever a snippet in the chapter feels abstract.
+
+Now we will rebuild that same workflow in the same order: scaffold the project, define pool state, bootstrap the LP token, add the first liquidity, execute swaps, add and remove later liquidity, add the optional TWAP oracle, and finish with tests. Each time you complete a section, compare your project with the corresponding checkpoint above.
+
+## Project Setup
 
 Scaffold a new project for this chapter. The `--name` flag sets the project directory; the template always creates a `hello_world/` contract inside it, which we rename:
 
@@ -68,7 +107,7 @@ These formulas are the entire economic engine of the AMM. Everything else is imp
 
 > **Design decision: why constant product?** If I were designing this from scratch, I would start with the simplest invariant: what relationship between reserves should never be violated? The product $x \times y = k$ is the simplest nonlinear invariant. It is not the only option.
 >
-> *Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a ±1% range provides ~4,000x the capital efficiency of a full-range V2 position --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
+> *Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a plus or minus 1% range provides ~4,000x the capital efficiency of a full-range V2 position --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
 >
 > *StableSwap* (Curve, and Pact stable pools on Algorand) uses a hybrid invariant tuned for assets that should trade near 1:1 (stablecoins, wrapped assets). It provides dramatically lower slippage for pegged pairs.
 >
@@ -110,6 +149,10 @@ class ConstantProductPool(ARC4Contract):
         self.cumulative_price_b = GlobalState(BigUInt(0))
         self.twap_last_update = GlobalState(UInt64(0))
 
+    @arc4.baremethod(create="require")
+    def create(self) -> None:
+        pass
+
     @arc4.baremethod(allow_actions=["UpdateApplication", "DeleteApplication"])
     def reject_lifecycle(self) -> None:
         assert False, "Contract is immutable"
@@ -136,12 +179,22 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
     ) -> UInt64:
         """One-time pool initialization. Creates LP token, opts into assets."""
         assert Txn.sender == Global.creator_address, "Only creator can bootstrap"
+        assert Global.group_size == UInt64(2), "Bootstrap group must be size 2"
         assert self.is_bootstrapped.value == UInt64(0), "Already bootstrapped"
         assert asset_a.id < asset_b.id, "Assets must be in canonical order"
 
-        # Seed payment covers MBR for LP token creation + 2 asset opt-ins
+        assert asset_a.clawback == Global.zero_address, "Asset A has clawback"
+        assert asset_a.freeze == Global.zero_address, "Asset A has freeze"
+        assert not asset_a.default_frozen, "Asset A is frozen by default"
+        assert asset_b.clawback == Global.zero_address, "Asset B has clawback"
+        assert asset_b.freeze == Global.zero_address, "Asset B has freeze"
+        assert not asset_b.default_frozen, "Asset B is frozen by default"
+
+        # Seed payment funds app-account MBR for base balance,
+        # LP token creation, and 2 asset opt-ins.
+        assert seed_payment.sender == Txn.sender, "Seed payment sender mismatch"
         assert seed_payment.receiver == Global.current_application_address
-        assert seed_payment.amount >= UInt64(400_000)
+        assert seed_payment.amount >= UInt64(400_000), "Insufficient MBR seed"
 
         self.asset_a.value = asset_a.id
         self.asset_b.value = asset_b.id
@@ -154,8 +207,11 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
             # never runs out, safely below UInt64 max (2^64-1).
             total=UInt64(2**63),
             decimals=UInt64(6),
+            default_frozen=False,
             manager=Global.current_application_address,
             reserve=Global.current_application_address,
+            freeze=Global.zero_address,
+            clawback=Global.zero_address,
             fee=UInt64(0),
         ).submit()
         self.lp_token_id.value = lp_create.created_asset.id
@@ -179,17 +235,19 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         return self.lp_token_id.value
 ```
 
-The LP token has a total supply of $2^{63}$ --- a very large number that the pool will never exhaust. Setting no freeze and no clawback address (by omitting them) makes the token fully permissionless. The manager and reserve are set to the pool contract itself, though in practice these have no operational significance for an LP token.
+The LP token has a total supply of $2^{63}$ --- a very large number that the pool will never exhaust. Setting `freeze` and `clawback` to the zero address makes the token permissionless. The manager and reserve are set to the pool contract itself, though in practice these have no operational significance for an LP token.
 
-Notice the seed payment pattern: the caller sends Algo to cover the MBR for the LP token creation (100,000 microAlgos) plus two asset opt-ins (100,000 each) plus the global state MBR plus a buffer. This is the same MBR-funding-via-grouped-payment pattern from the vesting contract, but scaled up for more resources.
+Notice the seed payment pattern: the caller sends Algo to fund the application account's MBR for the LP token creation (100,000 microAlgos), the two asset opt-ins (100,000 each), the app account's base balance, and a buffer. The global-state schema MBR is different: it is paid by the creator account when the application is created, not by this bootstrap seed payment.
 
-The group has 5 transactions total: 1 seed payment + 1 app call + 3 inner transactions (LP creation + 2 asset opt-ins). With fee pooling, `static_fee = 5000` on the app call, plus the seed payment's default 1,000 fee, provides sufficient coverage.
+The outer group has two transactions: the seed payment and the app call. The app call submits three inner transactions (LP creation plus two asset opt-ins), so the app call needs to cover its own 1,000 microAlgo fee plus 3,000 microAlgos of inner transaction fees. With fee pooling, `static_fee = 4000` on the app call, plus the seed payment's default 1,000 fee, provides sufficient coverage.
+
+Because `bootstrap` reads `asset_a.clawback`, `asset_a.freeze`, `asset_a.default_frozen`, and the same fields for `asset_b`, the client must include both ASAs in the app call's asset references. Algorand Python's default resource encoding passes resource arguments by value, but the protocol still needs those assets available to the transaction.
 
 ## Deploying and Bootstrapping on LocalNet
 
 Let us walk through deploying the pool contract and bootstrapping it with two test tokens on LocalNet. This verifies that everything compiles and the bootstrap sequence works before we add more methods.
 
-First, create a new project for the AMM (or add the pool contract to your existing project). Replace the contract file contents with the `ConstantProductPool` class including the `__init__`, `reject_lifecycle`, and `bootstrap` methods. Compile:
+First, create a new project for the AMM (or add the pool contract to your existing project). Replace the contract file contents with the `ConstantProductPool` class including the `__init__`, `create`, `reject_lifecycle`, and `bootstrap` methods. Compile:
 
 ```bash
 algokit project run build
@@ -198,6 +256,8 @@ algokit project run build
 The AMM contract uses more imports than the vesting contract --- make sure you have `Asset`, `BigUInt`, `Global`, `GlobalState`, `Txn`, `UInt64`, `arc4`, `itxn`, `op`, `subroutine`, and `gtxn`.
 
 Now create a deployment and bootstrap script. Save the following as `deploy_pool.py` in your project root. This client-side script creates two test ASAs, deploys the pool, funds it, and calls bootstrap.
+
+The finished project uses the generated typed client in `smart_contracts/artifacts/`. The snippets below use the generic app client so you can see the raw ABI method names and grouped transaction arguments directly; the generated client wraps the same calls.
 
 ```python
 from pathlib import Path
@@ -226,7 +286,10 @@ print(f"Token A: {token_a}, Token B: {token_b}")
 
 # Deploy the pool contract
 factory = algorand.client.get_app_factory(
-    app_spec=Path("smart_contracts/artifacts/constant_product_pool/ConstantProductPool.arc56.json").read_text(),
+    app_spec=Path(
+        "smart_contracts/artifacts/constant_product_pool/"
+        "ConstantProductPool.arc56.json"
+    ).read_text(),
     default_sender=admin.address,
 )
 # send.bare.create() always creates a new application.
@@ -248,12 +311,16 @@ result = app_client.send.call(
             algokit_utils.PaymentParams(
                 sender=admin.address,
                 receiver=app_client.app_address,
-                amount=algokit_utils.AlgoAmount.from_micro_algo(500_000),  # 0.5 Algo for MBR
+                amount=(
+                    algokit_utils.AlgoAmount
+                    .from_micro_algo(500_000)
+                ),
             ),
             token_a,
             token_b,
         ],
-        static_fee=algokit_utils.AlgoAmount.from_micro_algo(5000),  # Covers inner txns
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),
+        asset_references=[token_a, token_b],
     )
 )
 lp_token_id = result.abi_return  # Return value from the bootstrap call
@@ -267,7 +334,7 @@ You can verify the pool's state by reading its global state:
 
 ```bash
 curl -s http://localhost:4001/v2/applications/YOUR_APP_ID \
-  -H "X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  -H "X-Algo-API-Token: $ALGOD_TOKEN" \
   | python -m json.tool
 ```
 
@@ -294,8 +361,13 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         b_txn: gtxn.AssetTransferTransaction,
     ) -> UInt64:
         """First deposit sets the price ratio and mints initial LP tokens."""
+        assert (
+            Global.group_size == UInt64(3)
+        ), "Initial liquidity group must be size 3"
         assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
-        assert self.lp_total_supply.value == UInt64(0), "Pool already has liquidity"
+        assert (
+            self.lp_total_supply.value == UInt64(0)
+        ), "Pool already has liquidity"
 
         assert a_txn.asset_receiver == Global.current_application_address
         assert b_txn.asset_receiver == Global.current_application_address
@@ -315,6 +387,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         # to ~3.4e19 base units per token (far beyond any realistic supply).
         product = BigUInt(amount_a) * BigUInt(amount_b)
         sqrt_product = op.bsqrt(product)
+        assert sqrt_product > MINIMUM_LIQUIDITY, "Initial liquidity too small"
         lp_tokens = op.btoi(sqrt_product.bytes) - UInt64(MINIMUM_LIQUIDITY)
         assert lp_tokens > UInt64(0), "Insufficient initial liquidity"
 
@@ -364,18 +437,30 @@ def _calculate_swap_output(
     """Constant product output with 0.3% fee.
     output = (input * 997 * reserve_out) / (reserve_in * 1000 + input * 997)
     """
-    input_with_fee = input_amount * UInt64(997)
-    # Use wide arithmetic: numerator = input_with_fee * reserve_out
-    num_high, num_low = op.mulw(input_with_fee, reserve_out)
-    denominator = reserve_in * UInt64(1000) + input_with_fee
-    # Divide 128-bit numerator by 64-bit denominator
-    q_hi, output, r_hi, r_lo = op.divmodw(num_high, num_low, UInt64(0), denominator)
+    input_fee_high, input_with_fee = op.mulw(input_amount, UInt64(997))
+    assert input_fee_high == UInt64(0), "Swap input too large"
+
+    # Numerator: input_with_fee * reserve_out
+    numerator_high, numerator_low = op.mulw(input_with_fee, reserve_out)
+
+    # Denominator: reserve_in * 1000 + input_with_fee
+    reserve_high, reserve_low = op.mulw(reserve_in, UInt64(1000))
+    carry, denominator_low = op.addw(reserve_low, input_with_fee)
+    denominator_high = reserve_high + carry
+
+    q_hi, output, r_hi, r_lo = op.divmodw(
+        numerator_high,
+        numerator_low,
+        denominator_high,
+        denominator_low,
+    )
+    assert q_hi == UInt64(0), "Swap output overflow"
     return output
 ```
 
-This is the same wide arithmetic pattern from the vesting calculation in Chapter 3: `mulw` produces a 128-bit product, `divmodw` divides it back down. Here the numbers are different (trade amounts × reserves instead of token amounts × elapsed time) but the technique is identical. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The `mulw`/`divmodw` pair keeps the intermediate product in 128 bits.
+This is the same wide arithmetic pattern from the vesting calculation in Chapter 3: `mulw` produces a 128-bit product, `addw` combines low words with carry, and `divmodw` divides the wide value back down. Here the numbers are different (trade amounts x reserves instead of token amounts x elapsed time) but the technique is identical. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The wide arithmetic keeps the intermediate product in 128 bits.
 
-Note that `input_amount * UInt64(997)` can itself overflow if `input_amount` exceeds approximately 1.85 × 10^16. For a 6-decimal token, this allows single swaps up to ~18.5 billion tokens --- far beyond any realistic supply. If your token has extreme parameters, you would need to apply wide arithmetic to this multiplication as well.
+The helper also checks that `input_amount * 997` fits in `UInt64` before using it in the numerator. For a 6-decimal token, that still allows single swaps up to about 18.5 billion tokens --- far beyond normal tutorial-scale supplies. For assets with extreme supply parameters, keep these bounds explicit rather than relying on accidental overflow behavior.
 
 Floor division in the output calculation means the user gets slightly less than the mathematically exact amount. This is correct: the rounding dust stays in the pool, ensuring the constant product invariant is maintained or strengthened (never weakened) by rounding.
 
@@ -391,6 +476,9 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         min_output: UInt64,
     ) -> UInt64:
         """Swap one pool asset for the other."""
+        assert Global.group_size == UInt64(2), "Swap group must be size 2"
+        assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
+        assert self.lp_total_supply.value > UInt64(0), "No liquidity"
         self._update_twap()
 
         assert input_txn.asset_receiver == Global.current_application_address
@@ -475,7 +563,7 @@ algorand.send.asset_transfer(
 )
 
 # Add initial liquidity: 10,000 Token A + 10,000 Token B
-# Asset transfers are passed as method args --- the SDK composes the group automatically
+# Asset transfers are method args; the SDK composes the group.
 lp_result = app_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="add_initial_liquidity",
@@ -494,6 +582,7 @@ lp_result = app_client.send.call(
             ),
         ],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),  # Cover inner txn
+        asset_references=[token_a, token_b, lp_token_id],
     )
 )
 print(f"LP tokens received: {lp_result.abi_return}")
@@ -517,6 +606,7 @@ swap_result = app_client.send.call(
             90_000_000,  # min_output: expect at least 90 Token B
         ],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
+        asset_references=[token_a, token_b],
     )
 )
 print(f"Swap output: {swap_result.abi_return} base units of Token B")
@@ -551,6 +641,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         b_txn: gtxn.AssetTransferTransaction,
     ) -> UInt64:
         """Add liquidity to an existing pool. Returns LP tokens minted."""
+        assert Global.group_size == UInt64(3), "Add liquidity group must be size 3"
+        assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
         self._update_twap()
 
         assert self.lp_total_supply.value > UInt64(0), "Use add_initial_liquidity"
@@ -573,9 +665,11 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         # lp_from_a = (amount_a * total_lp) / reserve_a
         a_high, a_low = op.mulw(amount_a, total_lp)
         q_hi, lp_from_a, r_hi, r_lo = op.divmodw(a_high, a_low, UInt64(0), reserve_a)
+        assert q_hi == UInt64(0), "LP token overflow"
 
         b_high, b_low = op.mulw(amount_b, total_lp)
         q_hi, lp_from_b, r_hi, r_lo = op.divmodw(b_high, b_low, UInt64(0), reserve_b)
+        assert q_hi == UInt64(0), "LP token overflow"
 
         # Take the minimum --- penalizes unbalanced deposits
         lp_tokens = lp_from_a if lp_from_a < lp_from_b else lp_from_b
@@ -621,8 +715,13 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         lp_txn: gtxn.AssetTransferTransaction,
         min_a: UInt64,
         min_b: UInt64,
-    ) -> None:
+    ) -> tuple[UInt64, UInt64]:
         """Burn LP tokens to withdraw proportional reserves."""
+        assert (
+            Global.group_size == UInt64(2)
+        ), "Remove liquidity group must be size 2"
+        assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
+        assert self.lp_total_supply.value > UInt64(0), "No liquidity"
         self._update_twap()
 
         assert lp_txn.asset_receiver == Global.current_application_address
@@ -633,15 +732,20 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         assert lp_amount > UInt64(0)
 
         total_lp = self.lp_total_supply.value
+        assert (
+            lp_amount <= total_lp - self.locked_liquidity.value
+        ), "Locked liquidity"
         reserve_a = self.reserve_a.value
         reserve_b = self.reserve_b.value
 
         # Proportional withdrawal (floor division: favors pool)
         a_high, a_low = op.mulw(lp_amount, reserve_a)
         q_hi, amount_a, r_hi, r_lo = op.divmodw(a_high, a_low, UInt64(0), total_lp)
+        assert q_hi == UInt64(0), "Proportional amount overflow"
 
         b_high, b_low = op.mulw(lp_amount, reserve_b)
         q_hi, amount_b, r_hi, r_lo = op.divmodw(b_high, b_low, UInt64(0), total_lp)
+        assert q_hi == UInt64(0), "Proportional amount overflow"
 
         # Slippage protection
         assert amount_a >= min_a, "Slippage on asset A"
@@ -667,6 +771,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         self.reserve_a.value = reserve_a - amount_a
         self.reserve_b.value = reserve_b - amount_b
         self.lp_total_supply.value = total_lp - lp_amount
+        return amount_a, amount_b
 ```
 
 The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
@@ -915,6 +1020,8 @@ wrappers around the deployment and interaction code shown earlier in this
 chapter. The patterns here --- lifecycle tests, failure-path tests, invariant
 tests --- are the ones you should implement for any production contract.
 
+After you attempt these helpers yourself, compare them with the real tests in `projects/chapter5/constant-product-amm/tests/`. The finished project includes static tests that run everywhere and LocalNet integration tests that exercise the full pool workflow when LocalNet is available.
+
 As with Chapter 3, here is one complete test helper showing how the Chapter 2 pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
 
 ```python
@@ -934,8 +1041,8 @@ def deploy_pool(algorand, admin):
     )
     # send.bare.create() for a fresh instance each time
     app_client, _ = factory.send.bare.create()
-    # Fund for MBR: base (100K) + 3 ASA opt-ins (300K)
-    # + box headroom + inner txn fees
+    # Fund the app account for base balance plus the assets it will hold.
+    # The creator pays global schema MBR in the application create txn.
     algorand.send.payment(
         algokit_utils.PaymentParams(
             sender=admin.address,
@@ -1104,7 +1211,7 @@ In the next chapter, we extend this AMM with a yield farming contract --- a stak
 
 5. **(Create, cross-chapter)** Write a simulate-based test (Chapter 2's pattern) that verifies the AMM rejects a swap where `min_output` exceeds the available output. Use `.simulate()` to construct the failing swap and verify the failure message contains `"Slippage exceeded"`.
 
-> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 3.2–3.3 (BigUInt and wide arithmetic), 4.3 (reading another app's state), 7.2 (ASA opt-in), 8.4 (fee pooling), and 12.1 (module-level subroutines).
+> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 3.2--3.3 (BigUInt and wide arithmetic), 4.3 (reading another app's state), 7.2 (ASA opt-in), 8.4 (fee pooling), and 12.1 (module-level subroutines).
 
 ## Further Reading
 
