@@ -40,7 +40,10 @@ LogicSigs are **stateless**: they cannot read or write global state, local state
 In Algorand Python, a LogicSig is a decorated function. This is an illustrative example, not part of the project code:
 
 ```python
-from algopy import logicsig, Txn, Global, UInt64
+from algopy import (
+    Account, Bytes, Global, TemplateVar, TransactionType, Txn, UInt64,
+    logicsig,
+)
 
 @logicsig
 def always_approve() -> bool:
@@ -80,11 +83,15 @@ def recurring_payment() -> bool:
     """Alice signs this and gives it to her utility company.
     They can withdraw up to 200 Algo every 50,000 rounds."""
     UTILITY = Account(b"\x03\x04...")  # Utility's address
+    GENESIS_HASH = TemplateVar[Bytes]("GENESIS_HASH")
+    EXPIRY_ROUND = TemplateVar[UInt64]("EXPIRY_ROUND")
     return (
         Txn.type_enum == TransactionType.Payment
         and Txn.receiver == UTILITY
         and Txn.amount <= UInt64(200_000_000)
         and Txn.first_valid % UInt64(50_000) == UInt64(0)
+        and Txn.last_valid <= EXPIRY_ROUND
+        and Global.genesis_hash == GENESIS_HASH
         and Txn.close_remainder_to == Global.zero_address
         and Txn.rekey_to == Global.zero_address
         and Txn.fee <= UInt64(2_000)
@@ -122,14 +129,17 @@ algorand.client.algod.send_transaction(signed)
 
 Hardcoding addresses, amounts, and asset IDs into every LogicSig would be impractical. Algorand Python supports **template variables** --- placeholders that are filled in at compile time, producing a unique program (and unique contract account address) for each set of parameters. This is an early version showing just the template variable declarations; the complete LogicSig follows in Part 3:
 
+The `GENESIS_HASH` variable is the network binding. Each Algorand network has a unique 32-byte genesis hash, and the signed LogicSig checks the runtime network against the hash baked into the program.
+
 ```python
-from algopy import logicsig, Txn, UInt64, TemplateVar
+from algopy import Bytes, Global, logicsig, Txn, UInt64, TemplateVar
 
 @logicsig
 def limit_order_lsig() -> bool:
     """A parameterized limit order LogicSig."""
     # Template variables --- filled at compile time
     ORDER_BOOK_APP_ID = TemplateVar[UInt64]("ORDER_BOOK_APP_ID")
+    GENESIS_HASH = TemplateVar[Bytes]("GENESIS_HASH")
     SELL_ASSET = TemplateVar[UInt64]("SELL_ASSET")
     BUY_ASSET = TemplateVar[UInt64]("BUY_ASSET")
     PRICE_N = TemplateVar[UInt64]("PRICE_N")   # Numerator of price
@@ -137,6 +147,7 @@ def limit_order_lsig() -> bool:
     MAX_SELL = TemplateVar[UInt64]("MAX_SELL")  # Max sell amount
     EXPIRY_ROUND = TemplateVar[UInt64]("EXPIRY_ROUND")
 
+    assert Global.genesis_hash == GENESIS_HASH
     # ... validation logic using these variables ...
     return True  # Placeholder --- full logic below
 ```
@@ -144,8 +155,11 @@ def limit_order_lsig() -> bool:
 Compile with specific values:
 
 ```bash
+GENESIS_HASH=0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
 puyapy limit_order.py \
   --template-var ORDER_BOOK_APP_ID=12345 \
+  --template-var GENESIS_HASH="$GENESIS_HASH" \
   --template-var SELL_ASSET=31566704 \
   --template-var BUY_ASSET=0 \
   --template-var PRICE_N=25 \
@@ -157,12 +171,16 @@ puyapy limit_order.py \
 Or from within another PuyaPy contract at compile time (this function runs during PuyaPy compilation, not at runtime on the client side; the actual client-side workflow is described in the next section):
 
 ```python
-from algopy import compile_logicsig
+from algopy import Bytes, compile_logicsig
 
 compiled = compile_logicsig(
     limit_order_lsig,
     template_vars={
         "ORDER_BOOK_APP_ID": 12345,
+        "GENESIS_HASH": Bytes.from_hex(
+            "0123456789abcdef0123456789abcdef"
+            "0123456789abcdef0123456789abcdef"
+        ),
         "SELL_ASSET": 31566704,
         "BUY_ASSET": 0,
         "PRICE_N": 25,
@@ -175,19 +193,39 @@ compiled = compile_logicsig(
 
 Each unique set of template values produces a different program hash, and thus a different contract account address. This is by design --- each order is a unique LogicSig.
 
+The same genesis hash appears in three representations during this workflow:
+
+| Place | Representation |
+|-------|----------------|
+| algod suggested params | base64 string in `suggested_params().gh` |
+| Python client code | raw `bytes` after `base64.b64decode(...)` |
+| TEAL template replacement | byte literal such as `0x0123...` |
+
 ### Template Variable Workflow at Runtime
 
 The template variable workflow involves two compilation steps that are easy to conflate. Understanding the distinction is critical:
 
-1. **PuyaPy compilation** (build time): PuyaPy compiles your Algorand Python LogicSig to TEAL assembly. If you compile *without* `--template-var` flags, the output TEAL contains `TMPL_`-prefixed placeholders (e.g., `TMPL_ORDER_BOOK_APP`, `TMPL_SELL_ASSET`). This is the reusable template.
+1. **PuyaPy compilation** (build time): PuyaPy compiles your Algorand Python LogicSig to TEAL assembly. If you compile *without* `--template-var` flags, the output TEAL contains `TMPL_`-prefixed placeholders (e.g., `TMPL_ORDER_BOOK_APP_ID`, `TMPL_GENESIS_HASH`, `TMPL_SELL_ASSET`). This is the reusable template.
 
-2. **String replacement** (runtime): At runtime, your client-side code reads the TEAL source and performs string replacement to fill in actual values: `teal_source.replace("TMPL_ORDER_BOOK_APP", str(app_id))` and so on for each placeholder.
+2. **String replacement** (runtime): At runtime, your client-side code reads the TEAL source and performs string replacement to fill in actual values: `teal_source.replace("TMPL_ORDER_BOOK_APP_ID", str(app_id))` and so on for each placeholder. Byte template variables use TEAL byte literals such as `0x...`.
 
 3. **algod compilation** (runtime): You send the filled-in TEAL to `algod.compile()`, which returns the program bytes and the program hash (the contract account address).
 
 4. **LogicSig creation**: You create the `LogicSigAccount` from those program bytes and optionally sign it (for delegated mode).
 
 If you compile with `--template-var` flags, PuyaPy substitutes the values directly and you skip step 2 --- but then you cannot reuse the TEAL for different parameter sets. The two-step approach (compile once to a template, substitute at runtime) is more practical for systems like the limit order book where each order has unique parameters.
+
+The naming chain looks like this:
+
+| Source template variable | TEAL placeholder | Runtime value source |
+|--------------------------|------------------|----------------------|
+| `ORDER_BOOK_APP_ID` | `TMPL_ORDER_BOOK_APP_ID` | Deployed order book app ID |
+| `GENESIS_HASH` | `TMPL_GENESIS_HASH` | Current algod `suggested_params().gh`, decoded and formatted as `0x...` |
+| `SELL_ASSET` | `TMPL_SELL_ASSET` | Asset Alice is selling |
+| `BUY_ASSET` | `TMPL_BUY_ASSET` | Asset Alice wants to receive |
+| `PRICE_N`, `PRICE_D` | `TMPL_PRICE_N`, `TMPL_PRICE_D` | Rational price numerator and denominator |
+| `MAX_SELL` | `TMPL_MAX_SELL` | Maximum sell amount Alice delegates |
+| `EXPIRY_ROUND` | `TMPL_EXPIRY_ROUND` | Last valid round for the order |
 
 Here is the concrete client-side code for the two-step approach (steps 2--4 above):
 
@@ -199,10 +237,16 @@ from algosdk import transaction
 with open("smart_contracts/artifacts/limit_order_lsig/limit_order.teal") as f:
     teal_template = f.read()
 
+genesis_hash_bytes = base64.b64decode(
+    algorand.client.algod.suggested_params().gh
+)
+genesis_hash_literal = "0x" + genesis_hash_bytes.hex()
+
 # Substitute template variables with actual values
 teal_source = (
     teal_template
-    .replace("TMPL_ORDER_BOOK_APP", str(app_id))
+    .replace("TMPL_ORDER_BOOK_APP_ID", str(app_id))
+    .replace("TMPL_GENESIS_HASH", genesis_hash_literal)
     .replace("TMPL_SELL_ASSET", str(usdc_id))
     .replace("TMPL_BUY_ASSET", str(0))
     .replace("TMPL_PRICE_N", str(250_000))
@@ -210,6 +254,8 @@ teal_source = (
     .replace("TMPL_MAX_SELL", str(500_000_000))
     .replace("TMPL_EXPIRY_ROUND", str(expiry_round))
 )
+
+assert "TMPL_" not in teal_source, "Unreplaced LogicSig template variable"
 
 # Step 3: Compile the filled-in TEAL to get program bytes
 compiled = algorand.client.algod.compile(teal_source)
@@ -298,15 +344,15 @@ The architecture:
 │            (Smart Signature)                     │
 │                                                  │
 │  Template Variables:                             │
-│    ORDER_BOOK_APP_ID, SELL_ASSET, BUY_ASSET,     │
-│    PRICE_N, PRICE_D, MAX_SELL, EXPIRY_ROUND      │
+│    ORDER_BOOK_APP_ID, GENESIS_HASH, SELL_ASSET,  │
+│    BUY_ASSET, PRICE_N, PRICE_D, MAX_SELL, EXPIRY │
 │                                                  │
 │  Validates:                                      │
 │    - Grouped with correct order book app call    │
 │    - Asset transfer matches price constraints    │
 │    - Amount ≤ MAX_SELL                            │
 │    - Not expired                                 │
-│    - Safety checks (close-to, rekey, fee)        │
+│    - Network, close-to, rekey, and fee safety    │
 │                                                  │
 └─────────────────────────────────────────────────┘
 ```
@@ -343,19 +389,20 @@ Alice can cancel anytime by calling `cancel_order` directly. The order book mark
 
 ### The Complete LogicSig Program
 
-The LogicSig is structured in five sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, and buy-side price verification. (See [Algorand Python compilation](https://dev.algorand.co/algokit/languages/python/lg-compile/) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
+The LogicSig is structured in five sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, and buy-side price verification. (See [Algorand Python compilation](https://algorandfoundation.github.io/puya/lg-compile.html) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
 
 ```python
 from algopy import (
-    Asset, Application, Global, Txn, UInt64, gtxn, logicsig, TemplateVar,
-    TransactionType,
+    Asset, Application, Bytes, Global, Txn, UInt64, gtxn, logicsig,
+    TemplateVar, TransactionType,
 )
 
 @logicsig
 def limit_order() -> bool:
     """Delegated LogicSig encoding a limit sell order."""
     # ── Template variables (filled at compile time) ──────────
-    ORDER_BOOK_APP = TemplateVar[UInt64]("ORDER_BOOK_APP")
+    ORDER_BOOK_APP_ID = TemplateVar[UInt64]("ORDER_BOOK_APP_ID")
+    GENESIS_HASH = TemplateVar[Bytes]("GENESIS_HASH")
     SELL_ASSET = TemplateVar[UInt64]("SELL_ASSET")
     BUY_ASSET = TemplateVar[UInt64]("BUY_ASSET")
     PRICE_N = TemplateVar[UInt64]("PRICE_N")   # Numerator of price
@@ -369,6 +416,7 @@ def limit_order() -> bool:
     assert Txn.rekey_to == Global.zero_address
     assert Txn.fee <= UInt64(10_000)
     assert Txn.last_valid <= EXPIRY_ROUND
+    assert Global.genesis_hash == GENESIS_HASH
 
     # ── Transaction type and amount check ────────────────────
     assert Txn.type_enum == TransactionType.AssetTransfer
@@ -395,12 +443,12 @@ def limit_order() -> bool:
 
     # ── Verify the order book app call ───────────────────────
     assert gtxn.Transaction(2).type == TransactionType.ApplicationCall
-    assert gtxn.Transaction(2).app_id == Application(ORDER_BOOK_APP)
+    assert gtxn.Transaction(2).app_id == Application(ORDER_BOOK_APP_ID)
 
     return True
 ```
 
-> **Why no genesis hash check?** The security checklist in Part 1 requires a `Global.genesis_hash` check to prevent cross-network replay. This LogicSig omits it because the `ORDER_BOOK_APP` template variable already pins the LogicSig to a specific network --- application IDs are unique per network, so a LogicSig compiled with a MainNet app ID is useless on TestNet (and vice versa). The app ID check on line `assert gtxn.Transaction(2).app_id == Application(ORDER_BOOK_APP)` provides equivalent network binding.
+The `GENESIS_HASH` template variable pins the signed LogicSig to the intended network. The order book app ID is still required, but app IDs are only meaningful within a network; they are not a substitute for explicit network binding. For a delegated LogicSig, treat `Global.genesis_hash == GENESIS_HASH` as part of the mandatory safety checklist alongside close-to, rekey-to, fee cap, and expiry.
 
 ### What the LogicSig Validates vs What It Delegates
 
@@ -899,14 +947,18 @@ Next, compile Alice's limit order LogicSig with her specific trading parameters,
 
 ```python
 # Compile Alice's limit order LogicSig: sell 500 USDC for ALGO at 0.25 ALGO/USDC
+genesis_hash = base64.b64decode(
+    algorand.client.algod.suggested_params().gh
+)
+expiry_round = algorand.client.algod.status()["last-round"] + 5000
 lsig_teal = compile_limit_order(
-    order_book_app=book_client.app_id,
+    order_book_app_id=book_client.app_id,
+    genesis_hash=genesis_hash,
     sell_asset=usdc_id, buy_asset=0,
     price_n=250_000, price_d=1_000_000,
     max_sell=500_000_000,
-    expiry_round=algorand.client.algod.status()["last-round"] + 5000,
+    expiry_round=expiry_round,
 )
-expiry_round = algorand.client.algod.status()["last-round"] + 5000
 compiled = algorand.client.algod.compile(lsig_teal)
 program = base64.b64decode(compiled["result"])
 lsig = transaction.LogicSigAccount(program)
@@ -1046,10 +1098,16 @@ For additional safety, the LogicSig can include a unique nonce as a template var
 
 **Mitigation:** Our LogicSig uses **template variables**, not arguments. Template variables are baked into the program bytecode at compile time. Changing them changes the program hash, which invalidates Alice's signature. This is a key architectural choice: template variables for all order parameters, arguments for nothing.
 
+### Attack: cross-network replay
+
+**Risk:** A delegated LogicSig can be submitted on any Algorand network unless the program itself checks which network it is running on. App IDs and asset IDs are only unique within a network, so checking the order book app ID is necessary but not sufficient network binding.
+
+**Mitigation:** The LogicSig includes `GENESIS_HASH` as a byte template variable and asserts `Global.genesis_hash == GENESIS_HASH`. A LogicSig compiled for LocalNet or TestNet will fail on MainNet, and vice versa, even if a coincidental app ID exists on the other network.
+
 
 ## Part 7: Testing the Complete System
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `fund_account`, `deploy_order_book`, `compile_and_sign_limit_order`, `execute_fill`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `fund_account`, `deploy_order_book`, `compile_and_sign_limit_order`, `current_genesis_hash`, `execute_fill`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 
 The following test outlines go in `tests/test_limit_order.py` (not part of the contract code):
 
@@ -1074,7 +1132,8 @@ class TestLimitOrderBook:
             alice, sell_asset=usdc, buy_asset=0,
             price_n=250_000, price_d=1_000_000,
             max_amount=500_000_000, expiry_round=current_round + 20_000,
-            order_book_app=book.app_id,
+            order_book_app_id=book.app_id,
+            genesis_hash=current_genesis_hash(algorand),
         )
         order_id = call_method(book, "place_order", [...])
 
@@ -1138,6 +1197,19 @@ class TestLimitOrderBook:
         # Construct a malicious transaction with close_remainder_to set
         # The LogicSig must reject it
         pass
+
+    def test_wrong_genesis_hash_rejected(self, algorand):
+        """A LogicSig compiled for a different network must fail."""
+        wrong_genesis_hash = b"\x00" * 32
+        lsig = compile_and_sign_limit_order(
+            alice, sell_asset=usdc, buy_asset=0,
+            price_n=250_000, price_d=1_000_000,
+            max_amount=500_000_000, expiry_round=current_round + 20_000,
+            order_book_app_id=book.app_id,
+            genesis_hash=wrong_genesis_hash,
+        )
+        with pytest.raises(Exception):
+            execute_fill(keeper, book, order_id, 500_000_000, lsig)
 
     def test_cleanup_expired_order(self, algorand):
         """Expired orders can be cleaned up and MBR refunded."""
@@ -1228,7 +1300,7 @@ In this chapter you learned to:
 - Represent prices as N/D rational numbers and validate them via cross-multiplication
 - Build a keeper bot that monitors on-chain state and submits fill transactions
 - Compose limit order fills with AMM swaps in a single atomic group for zero-inventory-risk arbitrage
-- Apply the LogicSig security checklist: verify close-to, rekey-to, fee, asset amounts, and receiver fields
+- Apply the LogicSig security checklist: verify close-to, rekey-to, fee, expiry, network binding, asset amounts, and receiver fields
 
 | Feature Built | New Concepts Introduced |
 |--------------|------------------------|
@@ -1236,7 +1308,7 @@ In this chapter you learned to:
 | Order book smart contract | Packed binary box storage, `op.extract`/`op.replace` |
 | Keeper bot | Off-chain monitoring, permissionless execution, relayer pattern |
 | Atomic arbitrage | Multi-transaction group composition, AMM integration |
-| Security hardening | LogicSig replay prevention, front-running resistance, stale delegation |
+| Security hardening | Network binding, replay prevention, front-running resistance, stale delegation |
 
 ## Exercises
 
@@ -1245,6 +1317,8 @@ In this chapter you learned to:
 2. **(Analyze)** Two keepers submit fills for the same order simultaneously. Trace what happens at the protocol level. Why is this safe --- why can't the order be double-filled?
 
 3. **(Create)** Design a "stop-loss" order type where Alice's tokens are sold if the AMM price drops below a threshold. What changes to the LogicSig and order book contract are needed? How does the keeper determine when to trigger the stop-loss?
+
+4. **(Analyze)** Why is app ID validation not enough to bind a delegated LogicSig to one network? What would your wrong-genesis regression test assert?
 
 ## Appendix A: New Concepts Introduced in This Project
 
@@ -1256,6 +1330,7 @@ See [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-si
 | Delegated signature mode | User signs LogicSig for keeper use | Enables permissionless execution of user intents |
 | Contract account mode | Mentioned for comparison | LogicSig-based escrow (less common since inner txns) |
 | Template variables | Order parameters in LogicSig | Parameterized programs without runtime arguments |
+| `GENESIS_HASH` binding | LogicSig safety checks | Prevents delegated LogicSig replay across networks |
 | `@logicsig` decorator | Algorand Python LogicSig definition | PuyaPy compiles to smart signature TEAL |
 | `compile_logicsig()` | Client-side compilation with parameters | Produces unique program per order |
 | Packed binary box storage | Order data in 128-byte blobs | Efficient storage with `op.extract`/`op.replace` |
@@ -1286,9 +1361,9 @@ See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/
 | Resource | URL |
 |----------|-----|
 | Logic Signatures | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
-| Algorand Python Compilation | [dev.algorand.co/algokit/languages/python/lg-compile/](https://dev.algorand.co/algokit/languages/python/lg-compile/) |
-| Algorand Python Operations | [dev.algorand.co/algokit/languages/python/lg-ops/](https://dev.algorand.co/algokit/languages/python/lg-ops/) |
-| Opcode Budget Management | [dev.algorand.co/algokit/languages/python/lg-opcode-budget/](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/) |
+| Algorand Python Compilation | [algorandfoundation.github.io/puya/lg-compile.html](https://algorandfoundation.github.io/puya/lg-compile.html) |
+| Algorand Python Operations | [algorandfoundation.github.io/puya/lg-ops.html](https://algorandfoundation.github.io/puya/lg-ops.html) |
+| Opcode Budget Management | [algorandfoundation.github.io/puya/lg-opcode-budget.html](https://algorandfoundation.github.io/puya/lg-opcode-budget.html) |
 | Transaction Reference | [dev.algorand.co/concepts/transactions/reference/](https://dev.algorand.co/concepts/transactions/reference/) |
 | AVM Opcodes | [dev.algorand.co/reference/algorand-teal/opcodes/](https://dev.algorand.co/reference/algorand-teal/opcodes/) |
 | SDK: LogicSigAccount | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
@@ -1300,7 +1375,7 @@ Before starting the next chapter, you should be able to:
 
 - [ ] Write a LogicSig in Algorand Python using the `@logicsig` decorator
 - [ ] Explain the difference between contract account and delegated signature modes
-- [ ] Apply the LogicSig security checklist (close-to, rekey-to, fee, receiver, amount)
+- [ ] Apply the LogicSig security checklist (close-to, rekey-to, fee, receiver, amount, expiry, network binding)
 - [ ] Use template variables to parameterize LogicSig programs
 - [ ] Build hybrid architectures combining stateful contracts with stateless LogicSigs
 - [ ] Explain LogicSig opcode pooling and the 20,000-opcode budget

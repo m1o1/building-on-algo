@@ -11,10 +11,10 @@ We will rebuild the vesting contract from Chapter 3 with these changes. Along th
 
 **Key differences from the Chapter 3 vesting contract:**
 
-- **Box key** changes from `Account` (keyed by beneficiary address) to `arc4.UInt64` (keyed by NFT asset ID). The NFT, not the address, identifies a schedule.
-- **`claim`** takes an NFT asset ID and verifies ownership via `AssetHolding`, instead of reading `Txn.sender` directly. Anyone holding the NFT can claim.
+- **Box key** changes from `Account` (keyed by beneficiary address) to `arc4.UInt64` (keyed by a caller-supplied *schedule ID*). The box key is known before the transaction is submitted.
+- **`claim`** takes a schedule ID and an NFT asset ID, then verifies that the NFT matches the schedule and that the caller holds it. Anyone holding the NFT can claim.
 - **`revoke`** adds clawback of the NFT, NFT destruction, and unvested token return --- a multi-step inner transaction sequence not needed in Chapter 3.
-- **`create_schedule`** mints an NFT via inner transaction and stores the schedule keyed by the new asset ID.
+- **`create_schedule`** mints an NFT via inner transaction, stores the returned NFT asset ID inside the schedule, and returns it to the caller.
 
 ## What Is an NFT on Algorand?
 
@@ -40,6 +40,7 @@ An ARC-3 metadata file for a vesting NFT might look like:
   "name": "Vesting Schedule #1",
   "description": "1,000,000 TVT vesting over 12 months with 3-month cliff",
   "properties": {
+    "schedule_id": 42,
     "total_amount": 1000000,
     "cliff_months": 3,
     "vesting_months": 12,
@@ -51,9 +52,11 @@ An ARC-3 metadata file for a vesting NFT might look like:
 
 The `properties` object is freeform --- you can put any domain-specific attributes there. Wallets and explorers that support ARC-3 will display the name and description; specialized UIs can read the properties to show vesting details.
 
-For our contract, the admin prepares the metadata JSON and uploads it to IPFS *before* calling `create_schedule`. The resulting IPFS URL and metadata hash are passed as arguments, and the contract embeds them in the minted NFT. This keeps the contract simple --- it does not need to construct JSON or interact with IPFS.
+For our contract, the admin prepares the metadata JSON and uploads it to IPFS *before* calling `create_schedule`. The `schedule_id` is known at that point, so include it in the metadata or in your app's indexed records. The resulting IPFS URL and metadata hash are passed as arguments, and the contract embeds them in the minted NFT. This keeps the contract simple --- it does not need to construct JSON or interact with IPFS.
 
 > **Note:** An alternative standard, *ARC-19*, allows mutable metadata by encoding an IPFS content identifier in the ASA's reserve address. This is useful when metadata changes over time (e.g., updating a "percent vested" field). For this chapter, ARC-3's immutable approach is sufficient --- the vesting terms are fixed at creation.
+
+With metadata responsibilities clear, we can scaffold the project.
 
 ## Project Setup
 
@@ -72,7 +75,19 @@ Delete the template-generated `deploy_config.py` inside the renamed directory. Y
 
 In Chapter 3, vesting schedules were stored in a `BoxMap` keyed by the beneficiary's address. When the beneficiary called `claim`, the contract looked up `self.schedules[Txn.sender]`. This coupling between identity and ownership is what we are breaking.
 
-The new design keys schedules by *NFT asset ID*. When a user calls `claim`, they pass the NFT's asset ID as an argument, and the contract verifies they hold the NFT before releasing tokens. The schedule does not care *who* holds the NFT --- only *that* the caller holds it.
+The new design keys schedules by a caller-supplied schedule ID, while storing the NFT asset ID inside the schedule. When a user calls `claim`, they pass both the schedule ID and the NFT asset ID. The contract verifies that the NFT matches the stored schedule and that the caller holds it before releasing tokens. The schedule still does not care *who* holds the NFT --- only *that* the caller holds it.
+
+Table 4-1 summarizes the identifiers used by the NFT vesting design.
+
+Table 4-1. Identifier timing for NFT vesting schedules
+
+| Identifier / reference | Known when? | Purpose |
+|------------------------|-------------|---------|
+| `schedule_id` | Before signing `create_schedule` | Stable box key and lookup coordinate |
+| `nft_id` | After the inner asset-creation transaction executes | Transferable authority token |
+| Box key/name | Before signing `create_schedule` | `b"v_" + schedule_id`, wrapped in a `BoxReference` by the client |
+
+Why not use the NFT asset ID as the box key? The NFT is created by an inner transaction, and the actual asset ID is not known until the application call executes. A client-side simulation can sometimes predict the ID, but Algorand asset IDs are allocated from the block transaction counter plus transaction position, so the prediction can shift when the real transaction lands in a different block position. A caller-supplied schedule ID makes the box reference deterministic before signing and works the same way on LocalNet, TestNet, and MainNet.
 
 Add the following to `smart_contracts/nft_vesting/contract.py`:
 
@@ -80,6 +95,7 @@ Add the following to `smart_contracts/nft_vesting/contract.py`:
 from algopy import arc4
 
 class VestingSchedule(arc4.Struct):
+    nft_asset_id: arc4.UInt64
     total_amount: arc4.UInt64
     claimed_amount: arc4.UInt64
     start_time: arc4.UInt64
@@ -88,9 +104,9 @@ class VestingSchedule(arc4.Struct):
     is_revoked: arc4.Bool
 ```
 
-The struct is unchanged from Chapter 3 --- 41 bytes. We do not need to store the NFT asset ID inside the struct because it *is* the box key. We also do not store a beneficiary address because ownership is determined by who holds the NFT, not by a stored address.
+The struct grows from 41 bytes to 49 bytes because it stores the NFT asset ID. We still do not store a beneficiary address because ownership is determined by who holds the NFT, not by a stored address.
 
-The key difference is in the `BoxMap` declaration. (See [Algorand Python storage guide](https://dev.algorand.co/algokit/languages/python/lg-storage/) for BoxMap type parameters.) Add the contract class below the struct:
+The key difference is in the `BoxMap` declaration. (See [Algorand Python storage guide](https://algorandfoundation.github.io/puya/lg-storage.html) for BoxMap type parameters.) Add the contract class below the struct:
 
 ```python
 from algopy import (
@@ -104,13 +120,13 @@ class NftVesting(ARC4Contract):
         self.asset_id = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
         self.schedule_count = GlobalState(UInt64(0))
-        # Schedules keyed by NFT asset ID (8 bytes) instead of address (32 bytes)
+        # Schedules keyed by caller-supplied schedule ID (8 bytes)
         self.schedules = BoxMap(arc4.UInt64, VestingSchedule, key_prefix=b"v_")
 ```
 
-Compare with Chapter 3's `BoxMap(Account, VestingSchedule, key_prefix=b"v_")`. The key type changed from `Account` (32 bytes) to `arc4.UInt64` (8 bytes). This means box names are shorter: `b"v_"` prefix (2 bytes) + 8-byte key = 10 bytes total, compared to 34 bytes previously. The MBR per box drops accordingly: 2,500 + 400 × (10 + 41) = **22,900 microAlgos** per schedule box (down from 32,500).
+Compare with Chapter 3's `BoxMap(Account, VestingSchedule, key_prefix=b"v_")`. The key type changed from `Account` (32 bytes) to `arc4.UInt64` (8 bytes). This means box names are shorter: `b"v_"` prefix (2 bytes) + 8-byte key = 10 bytes total, compared to 34 bytes previously. The value is 49 bytes, so the MBR per box is 2,500 + 400 × (10 + 49) = **26,100 microAlgos**.
 
-However, each schedule now also requires an NFT, and creating an ASA from the contract adds **100,000 microAlgos** to the contract's MBR. So the total per-schedule cost is 122,900 microAlgos --- higher than before, but we gain transferability.
+However, each schedule now also requires an NFT, and creating an ASA from the contract adds **100,000 microAlgos** to the contract's MBR. So the total per-schedule cost is 126,100 microAlgos --- higher than before, but we gain transferability.
 
 ## Creation, Immutability, and Initialization
 
@@ -168,6 +184,7 @@ This is where the contract diverges from Chapter 3. Instead of simply writing a 
     @arc4.abimethod
     def create_schedule(
         self,
+        schedule_id: UInt64,
         total_amount: UInt64,
         cliff_duration: UInt64,
         vesting_duration: UInt64,
@@ -180,12 +197,14 @@ This is where the contract diverges from Chapter 3. Instead of simply writing a 
         assert Global.group_size == UInt64(2), "Expected 2 transactions"
         assert total_amount > UInt64(0), "Amount must be positive"
         assert vesting_duration > cliff_duration, "Vesting must exceed cliff"
+        schedule_key = arc4.UInt64(schedule_id)
+        assert schedule_key not in self.schedules, "Schedule ID already exists"
 
         # Validate the MBR payment
-        # Box MBR: 2,500 + 400 * (10 + 41) = 22,900
+        # Box MBR: 2,500 + 400 * (10 + 49) = 26,100
         # NFT ASA MBR: 100,000
-        # Total: 122,900 microAlgos
-        box_mbr = UInt64(2500) + UInt64(400) * (UInt64(10) + UInt64(41))
+        # Total: 126,100 microAlgos
+        box_mbr = UInt64(2500) + UInt64(400) * (UInt64(10) + UInt64(49))
         nft_mbr = UInt64(100_000)
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.amount >= box_mbr + nft_mbr
@@ -210,8 +229,9 @@ This is where the contract diverges from Chapter 3. Instead of simply writing a 
 
         nft_id = nft_txn.created_asset.id
 
-        # Store the schedule keyed by NFT asset ID
+        # Store the schedule under the caller-supplied schedule ID
         schedule = VestingSchedule(
+            nft_asset_id=arc4.UInt64(nft_id),
             total_amount=arc4.UInt64(total_amount),
             claimed_amount=arc4.UInt64(0),
             start_time=arc4.UInt64(now),
@@ -219,17 +239,24 @@ This is where the contract diverges from Chapter 3. Instead of simply writing a 
             vesting_end=arc4.UInt64(now + vesting_duration),
             is_revoked=arc4.Bool(False),
         )
-        self.schedules[arc4.UInt64(nft_id)] = schedule.copy()
+        self.schedules[schedule_key] = schedule.copy()
         self.schedule_count.value += 1
 
         return nft_id
 
     @arc4.abimethod
-    def deliver_nft(self, nft_asset: Asset, beneficiary: Account) -> None:
+    def deliver_nft(
+        self,
+        schedule_id: UInt64,
+        nft_asset: Asset,
+        beneficiary: Account,
+    ) -> None:
         """Transfer a minted NFT to the beneficiary after they opt in."""
         assert Txn.sender.bytes == self.admin.value, "Only admin"
-        schedule_key = arc4.UInt64(nft_asset.id)
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule for this NFT"
+        schedule = self.schedules[schedule_key].copy()
+        assert schedule.nft_asset_id.as_uint64() == nft_asset.id, "Wrong NFT"
 
         # Verify the contract still holds the NFT
         assert nft_asset.balance(
@@ -246,6 +273,8 @@ This is where the contract diverges from Chapter 3. Instead of simply writing a 
 
 There is a lot happening here. Let us unpack the new pieces.
 
+The `schedule_id` is a caller-supplied identifier provided before calling `create_schedule`. It is not an authority check and it does not replace the NFT; it only gives the client a stable box key. The contract prevents collisions with `assert schedule_key not in self.schedules`, then records the actual NFT asset ID returned by the inner transaction inside the schedule.
+
 ### The NFT Role Addresses
 
 When creating an ASA, four special addresses control what can be done with it after creation:
@@ -256,6 +285,8 @@ When creating an ASA, four special addresses control what can be done with it af
 - **freeze** --- can freeze/unfreeze individual holdings. We set this to zero so the NFT is always freely transferable. Setting it to zero is permanent --- once zero, it can never be changed back.
 
 > **Warning:** Setting `clawback` to the contract address means the contract can take the NFT from anyone at any time. This is necessary for revocation, but it means the NFT is not fully "sovereign" --- holders should understand that the vesting contract retains authority over it. This is visible on-chain and should be communicated clearly in your application's UI.
+
+That authority solves revocation, but it does not solve the recipient opt-in problem by itself.
 
 ### The Opt-In Problem and the Two-Step Pattern
 
@@ -271,18 +302,20 @@ This two-step pattern is common whenever a contract mints an ASA for a specific 
 2. **Coordinate** --- recipient learns the asset ID and opts in
 3. **Deliver** --- contract transfers the asset to the now-opted-in recipient
 
-The `deliver_nft` method is admin-only and verifies that the contract still holds the NFT and that a schedule exists for it. The beneficiary must be opted in before `deliver_nft` is called, or the inner asset transfer will fail.
+The `deliver_nft` method is admin-only and verifies that the contract still holds the NFT and that the NFT matches the stored schedule. The beneficiary must be opted in before `deliver_nft` is called, or the inner asset transfer will fail.
 
-> **Note:** An alternative approach is to call `create_schedule` using `simulate` first to predict the NFT asset ID, have the beneficiary opt in, then submit the real transaction. This works on LocalNet (where no other transactions intervene) but is fragile on TestNet or MainNet where concurrent asset creations can shift asset IDs. The two-step pattern is more robust and is what production systems use.
+> **Note:** An alternative approach is to call `create_schedule` using `simulate` first to predict the NFT asset ID, have the beneficiary opt in, then submit the real transaction. This can appear to work on LocalNet, but it is fragile on TestNet or MainNet because the real transaction can land at a different block position than the simulated transaction. The two-step pattern is more robust and is what production systems use.
+
+The two-step flow also has specific minimum-balance costs.
 
 ### MBR Accounting
 
 Each `create_schedule` call requires the caller to send a payment covering two MBR costs:
 
-1. **Box MBR**: 2,500 + 400 × (10 + 41) = 22,900 microAlgos for the schedule box
+1. **Box MBR**: 2,500 + 400 × (10 + 49) = 26,100 microAlgos for the schedule box
 2. **NFT ASA MBR**: 100,000 microAlgos because creating an ASA from the contract increases the contract's minimum balance
 
-The total is 122,900 microAlgos per schedule. The `mbr_payment` grouped transaction must cover at least this amount. Compare with Chapter 3's 32,500 microAlgos per schedule --- the NFT adds significant cost, but transferability is the tradeoff.
+The total is 126,100 microAlgos per schedule. The `mbr_payment` grouped transaction must cover at least this amount. Compare with Chapter 3's 32,500 microAlgos per schedule --- the NFT adds significant cost, but transferability is the tradeoff.
 
 ### Inner Transaction Fees
 
@@ -294,17 +327,18 @@ The `deliver_nft` call adds one more inner transaction (asset transfer), needing
 
 ## Claiming with NFT Ownership Verification
 
-In Chapter 3, `claim()` took no arguments --- it identified the caller by `Txn.sender` and looked up `self.schedules[Txn.sender]`. Now the caller passes the NFT asset ID, and the contract verifies ownership:
+In Chapter 3, `claim()` took no arguments --- it identified the caller by `Txn.sender` and looked up `self.schedules[Txn.sender]`. Now the caller passes a stable schedule ID plus the NFT asset ID, and the contract verifies ownership:
 
 ```python
     @arc4.abimethod
-    def claim(self, nft_asset: Asset) -> UInt64:
+    def claim(self, schedule_id: UInt64, nft_asset: Asset) -> UInt64:
         # Verify the caller holds this NFT
         assert nft_asset.balance(Txn.sender) == 1, "Caller does not hold this NFT"
 
-        schedule_key = arc4.UInt64(nft_asset.id)
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule for this NFT"
         schedule = self.schedules[schedule_key].copy()
+        assert schedule.nft_asset_id.as_uint64() == nft_asset.id, "Wrong NFT"
 
         assert not schedule.is_revoked.native, "Schedule revoked"
 
@@ -347,13 +381,13 @@ The core claim logic follows Chapter 3 --- `calculate_vested` computes how much 
 
 1. `nft_asset.balance(Txn.sender) == 1` --- this checks that the caller's account holds exactly one unit of the NFT. If the caller transferred the NFT to someone else, this check fails. If someone else transferred it *to* the caller, it succeeds. Ownership is determined by asset balance, not by a stored address.
 
-2. `arc4.UInt64(nft_asset.id)` --- the NFT's asset ID is used directly as the box key to look up the schedule.
+2. `schedule.nft_asset_id.as_uint64() == nft_asset.id` --- the NFT's asset ID must match the asset ID stored when the schedule was created.
 
 This is the *ownership-by-asset* pattern: instead of binding rights to an address, you bind them to a token. Anyone who holds the token can exercise the right. The token is transferable using standard ASA operations, so the right becomes transferable without any special logic in the contract. (See [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/) for how asset balance reads consume foreign references.)
 
 > **Note:** The caller must be opted into both the NFT *and* the vesting token. A secondary market buyer who purchases the NFT must also opt into the vesting token before calling `claim`, or the inner asset transfer will fail. Your application's UI should guide users through both opt-ins.
 
-> **Design decision: why pass the NFT as an argument?** The contract could instead iterate over the caller's assets to find a matching vesting NFT, but the AVM has no iteration primitives for account holdings. The caller must tell the contract which NFT to check. This is a common pattern on Algorand --- the caller provides hints that the contract validates.
+Why pass the NFT as an argument at all? The contract could instead iterate over the caller's assets to find a matching vesting NFT, but the AVM has no iteration primitives for account holdings. The caller must tell the contract which NFT to check. This is a common pattern on Algorand: the caller provides hints that the contract validates.
 
 ## The Vesting Calculation
 
@@ -373,7 +407,8 @@ def calculate_vested(
     duration = vesting_end - start
     # Wide multiply: total * elapsed → 128-bit result (high, low)
     high, low = op.mulw(total, elapsed)
-    # Wide divide: (high, low) / duration → (quotient_hi, quotient_lo, remainder_hi, remainder_lo)
+    # Wide divide: (high, low) / duration.
+    # Returns quotient_hi, quotient_lo, remainder_hi, remainder_lo.
     q_hi, vested, r_hi, r_lo = op.divmodw(high, low, UInt64(0), duration)
     assert q_hi == 0, "Overflow in vesting calculation"
     return vested
@@ -389,9 +424,11 @@ When the admin revokes a schedule, the contract must handle the NFT. We use Algo
 
 There is one complication: revocation *destroys the NFT*, so the holder can no longer call `claim` afterward. To handle this cleanly, the contract settles everything in one transaction --- it transfers any vested-but-unclaimed tokens to the holder, claws back and destroys the NFT, and returns the unvested tokens to the admin.
 
-The complete revocation flow (with a worked example: 1,000,000 total tokens, 300,000 already claimed, revoked at 50% vested):
+Table 4-2 walks through the complete revocation flow with a worked example: 1,000,000 total tokens, 300,000 already claimed, revoked at 50% vested.
 
-| Step | Action | State After |
+Table 4-2. Revocation flow with vested and unvested settlement
+
+| Step | Action | State after |
 |------|--------|-------------|
 | Before | --- | Box: 1M total, 300K claimed. Contract holds 700K tokens. Holder has NFT + 300K tokens. |
 | 1 | Calculate vested: 500K | vested=500K, claimable=200K (500K−300K), unvested=500K |
@@ -403,12 +440,18 @@ The complete revocation flow (with a worked example: 1,000,000 total tokens, 300
 
 ```python
     @arc4.abimethod
-    def revoke(self, nft_asset: Asset, current_holder: Account) -> UInt64:
+    def revoke(
+        self,
+        schedule_id: UInt64,
+        nft_asset: Asset,
+        current_holder: Account,
+    ) -> UInt64:
         assert Txn.sender.bytes == self.admin.value, "Only admin"
 
-        schedule_key = arc4.UInt64(nft_asset.id)
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule for this NFT"
         schedule = self.schedules[schedule_key].copy()
+        assert schedule.nft_asset_id.as_uint64() == nft_asset.id, "Wrong NFT"
         assert not schedule.is_revoked.native, "Already revoked"
 
         # Verify the holder actually has the NFT
@@ -461,7 +504,8 @@ The complete revocation flow (with a worked example: 1,000,000 total tokens, 300
 
         # Record the revocation
         schedule.total_amount = arc4.UInt64(vested)
-        schedule.claimed_amount = arc4.UInt64(vested)  # All vested tokens are now settled
+        # All vested tokens are now settled
+        schedule.claimed_amount = arc4.UInt64(vested)
         schedule.is_revoked = arc4.Bool(True)
         self.schedules[schedule_key] = schedule.copy()
 
@@ -474,13 +518,15 @@ The `asset_sender` field in `itxn.AssetTransfer` is what triggers a clawback. Wh
 
 This is a protocol-level capability --- it does not require any special logic in the holder's account. It works because we set `clawback=Global.current_application_address` when minting the NFT.
 
-### Why the Admin Must Pass `current_holder`
+### Why the Admin Must Pass the Current Holder
 
-The contract needs to know who currently holds the NFT so it can clawback from that specific account. But the AVM cannot enumerate who holds an asset --- there is no "find holder of asset X" opcode. The admin must provide this information, and the contract validates it: `nft_asset.balance(current_holder) == 1`. If the admin provides the wrong address, the assertion fails.
+The contract needs to know who currently holds the NFT so it can clawback from that specific account. But the AVM cannot enumerate who holds an asset --- there is no "find holder of asset X" opcode. The admin must provide `current_holder`, and the contract validates it: `nft_asset.balance(current_holder) == 1`. If the admin provides the wrong address, the assertion fails.
 
 The `current_holder` must also be included in the transaction's `accounts` foreign array on the client side. This is the same resource reference pattern you saw with box references in Chapter 3.
 
-> **Warning --- Known Limitation:** The settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 5 asks you to design the solution.
+> **Warning:** Known limitation: the settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 5 asks you to design the solution.
+
+Once the holder and opt-in constraints are handled, revocation can destroy the NFT.
 
 ### Destroying the NFT
 
@@ -490,26 +536,31 @@ Destroying the NFT frees 100,000 microAlgos of MBR from the contract's account. 
 
 > **Note:** Revocation executes up to four inner transactions (vested token settlement + clawback + destroy + unvested token return). The outer transaction must have enough fee pooling to cover the worst case: 1,000 (app call) + 4 × 1,000 (inner txns) = 5,000 microAlgos. If either `claimable` or `unvested` is zero, fewer inner transactions execute, but overpaying fees is harmless.
 
+With the lifecycle methods in place, the last state-management task is cleanup.
+
 ## Cleanup
 
 After a beneficiary has fully claimed their tokens (or after revocation has settled everything), the schedule [box](https://dev.algorand.co/concepts/smart-contracts/storage/box/) can be deleted to free its MBR. Unlike Chapter 3, we do not need to worry about the NFT during cleanup for revoked schedules --- it was already destroyed during revocation. For fully-claimed schedules, the NFT still exists but is functionally complete.
 
 ```python
     @arc4.abimethod
-    def cleanup_schedule(self, nft_asset_id: UInt64) -> None:
-        schedule_key = arc4.UInt64(nft_asset_id)
+    def cleanup_schedule(self, schedule_id: UInt64) -> None:
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule"
         schedule = self.schedules[schedule_key].copy()
 
         # Either fully claimed or revoked and settled
-        assert schedule.claimed_amount.as_uint64() >= schedule.total_amount.as_uint64(), \
+        assert (
+            schedule.claimed_amount.as_uint64()
+            >= schedule.total_amount.as_uint64()
+        ), \
             "Not fully claimed"
 
         del self.schedules[schedule_key]
         self.schedule_count.value -= 1
 
         # Refund freed box MBR to admin
-        box_mbr = UInt64(2500) + UInt64(400) * (UInt64(10) + UInt64(41))
+        box_mbr = UInt64(2500) + UInt64(400) * (UInt64(10) + UInt64(49))
         itxn.Payment(
             receiver=Account(self.admin.value),
             amount=box_mbr,
@@ -517,24 +568,26 @@ After a beneficiary has fully claimed their tokens (or after revocation has sett
         ).submit()
 ```
 
-> **Note:** For revoked schedules, the NFT was already destroyed during `revoke`, freeing 100,000 microAlgos of MBR. However, `cleanup_schedule` only refunds the *box* MBR (22,900 microAlgos) to the admin. The freed NFT MBR remains in the contract's general balance. In a production contract, you would add a separate `withdraw_surplus` admin method to recover these funds.
+> **Note:** For revoked schedules, the NFT was already destroyed during `revoke`, freeing 100,000 microAlgos of MBR. However, `cleanup_schedule` only refunds the *box* MBR (26,100 microAlgos) to the admin. The freed NFT MBR remains in the contract's general balance. In a production contract, you would add a separate `withdraw_surplus` admin method to recover these funds.
 
-> **Design decision: what about the NFT for fully-claimed schedules?** When a schedule is fully claimed but not revoked, the NFT still exists. The holder might want to keep it as a receipt or proof of participation. The contract does not force destruction. If the holder wants to recover the NFT's MBR (100,000 microAlgos on the contract), they can send the NFT back to the contract (via a standard asset transfer using `asset_close_to`), and a separate method could handle the destruction. For simplicity, we leave this as an exercise.
+That leaves one lifecycle question for schedules that finish normally.
+
+When a schedule is fully claimed but not revoked, the NFT still exists. The holder might want to keep it as a receipt or proof of participation. The contract does not force destruction. If the holder wants to recover the NFT's MBR (100,000 microAlgos on the contract), they can send the NFT back to the contract (via a standard asset transfer using `asset_close_to`), and a separate method could handle the destruction. For simplicity, we leave this as an exercise.
 
 ## Read-Only Queries
 
-These methods let clients query vesting status without submitting a transaction via [simulate](https://dev.algorand.co/algokit/utils/python/app-client/). They are nearly identical to Chapter 3, but take an NFT asset ID instead of a beneficiary address:
+These methods let clients query vesting status without submitting a transaction via [simulate](https://dev.algorand.co/algokit/utils/python/app-client/). They are nearly identical to Chapter 3, but take a schedule ID instead of a beneficiary address:
 
 ```python
     @arc4.abimethod(readonly=True)
-    def get_vesting_info(self, nft_asset_id: UInt64) -> VestingSchedule:
-        schedule_key = arc4.UInt64(nft_asset_id)
+    def get_vesting_info(self, schedule_id: UInt64) -> VestingSchedule:
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule"
         return self.schedules[schedule_key].copy()
 
     @arc4.abimethod(readonly=True)
-    def get_claimable(self, nft_asset_id: UInt64) -> UInt64:
-        schedule_key = arc4.UInt64(nft_asset_id)
+    def get_claimable(self, schedule_id: UInt64) -> UInt64:
+        schedule_key = arc4.UInt64(schedule_id)
         assert schedule_key in self.schedules, "No schedule"
         schedule = self.schedules[schedule_key].copy()
         if schedule.is_revoked.native:
@@ -576,6 +629,8 @@ If compilation succeeds, check `smart_contracts/artifacts/nft_vesting/` for the 
 
 Now create a deployment and interaction script. Save the following as `deploy_nft_vesting.py` in your project root. This script deploys the contract, creates a test token, deposits tokens, and creates a vesting schedule with an NFT:
 
+The important resource-reference detail is that `schedule_box` is built before `create_schedule` and reused for `create_schedule`, `deliver_nft`, and `claim`. The box name comes from `schedule_id`, not from the inner-created NFT ID.
+
 ```python
 from pathlib import Path
 import os
@@ -611,7 +666,10 @@ token_id = result.asset_id
 print(f"Created vesting token: ASA ID {token_id}")
 
 # Step 2: Deploy the NFT vesting contract
-app_spec = Path("smart_contracts/artifacts/nft_vesting/NftVesting.arc56.json").read_text()
+app_spec_path = Path(
+    "smart_contracts/artifacts/nft_vesting/NftVesting.arc56.json"
+)
+app_spec = app_spec_path.read_text()
 factory = algorand.client.get_app_factory(
     app_spec=app_spec,
     default_sender=admin.address,
@@ -662,21 +720,24 @@ app_client.send.call(
 print("Deposited 1,000 tokens (with 6 decimals)")
 
 # Step 5: Create a vesting schedule (mint → opt-in → deliver)
-nft_url = b"ipfs://QmExample#arc3"
-metadata_hash = b"\x00" * 32  # Placeholder hash for testing
+nft_url = b"ipfs://QmLocalNetDummy#arc3"
+metadata_hash = b"\x00" * 32  # LocalNet-only dummy hash for testing
 
 # Phase A: Create the schedule (contract mints and keeps the NFT)
-# The box key depends on the NFT asset ID, which is unknown until the inner
-# transaction executes. AlgoKit Utils handles this automatically: it simulates
-# the transaction first to discover which resources are needed, then rebuilds
-# it with the correct box references before submitting.
-# We pass an empty placeholder here; the simulate step replaces it.
-placeholder_box_key = b"\x00" * 8  # 8 bytes (uint64), replaced by simulate
+# The schedule ID is supplied before the call, so the box name is known before
+# signing. This is safer than simulating to predict the inner-created NFT ID.
+schedule_id = int.from_bytes(os.urandom(8), "big") or 1
+schedule_box_key = b"v_" + struct.pack(">Q", schedule_id)
+schedule_box = algokit_utils.BoxReference(
+    app_id=app_client.app_id,
+    name=schedule_box_key,
+)
 create_result = algorand.new_group().add_app_call_method_call(
     app_client.params.call(
         algokit_utils.AppClientMethodCallParams(
             method="create_schedule",
             args=[
+                schedule_id,
                 1_000_000_000,   # 1000 tokens (6 decimals)
                 0,               # 0 cliff (for easy testing)
                 31_536_000,      # 365 days vesting
@@ -685,16 +746,12 @@ create_result = algorand.new_group().add_app_call_method_call(
                 algokit_utils.PaymentParams(
                     sender=admin.address,
                     receiver=app_client.app_address,
-                    amount=algokit_utils.AlgoAmount.from_micro_algo(122_900),
+                    amount=algokit_utils.AlgoAmount.from_micro_algo(126_100),
                     note=os.urandom(8),
                 ),
             ],
             static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),
-            box_references=[
-                algokit_utils.BoxReference(
-                    app_id=app_client.app_id, name=placeholder_box_key,
-                ),
-            ],
+            box_references=[schedule_box],
             note=os.urandom(8),
         )
     )
@@ -716,15 +773,15 @@ print(f"Beneficiary opted into NFT {nft_id} and vesting token {token_id}")
 app_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="deliver_nft",
-        args=[nft_id, beneficiary.address],
+        args=[schedule_id, nft_id, beneficiary.address],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
+        box_references=[schedule_box],
         note=os.urandom(8),
     )
 )
 print(f"Delivered NFT {nft_id} to beneficiary")
 
 # Step 6: Claim vested tokens as the beneficiary
-box_key = b"v_" + struct.pack(">Q", nft_id)
 beneficiary_client = algorand.client.get_app_client_by_id(
     app_spec=app_spec,
     app_id=app_client.app_id,
@@ -733,9 +790,10 @@ beneficiary_client = algorand.client.get_app_client_by_id(
 claim_result = beneficiary_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="claim",
-        args=[nft_id],
+        args=[schedule_id, nft_id],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
-        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key)],
+        asset_references=[token_id],
+        box_references=[schedule_box],
         note=os.urandom(8),
     )
 )
@@ -772,14 +830,19 @@ new_holder_client = algorand.client.get_app_client_by_id(
 claim_result = new_holder_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="claim",
-        args=[nft_id],
+        args=[schedule_id, nft_id],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
-        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key)],
+        asset_references=[token_id],
+        box_references=[schedule_box],
         note=os.urandom(8),
     )
 )
 print(f"New holder claimed {claim_result.abi_return} tokens")
 ```
+
+Notice that the script passes an explicit `BoxReference` built from `schedule_id`. AlgoKit Utils can also populate resources automatically with `.send(params=algokit_utils.SendParams(populate_app_call_resources=True))`, and some projects enable this globally, but explicit references are clearer here. The schedule box name is known before the transaction is signed, so the same group works on LocalNet, TestNet, and MainNet without relying on a simulated inner-created asset ID staying stable.
+
+The `claim` calls also include `asset_references=[token_id]` because the method reads the vesting ASA balance and sends that ASA in an inner transaction. If you later add a client call for `revoke`, include the schedule box, the current holder account, the NFT asset argument, and the vesting ASA in `asset_references`.
 
 > **Tip:** The mint-then-deliver flow is the key coordination pattern for minting NFTs from contracts. The admin creates the schedule (which mints the NFT and returns its ID), the beneficiary opts in, and then the admin calls `deliver_nft`. This avoids the fragile simulate-then-submit approach where predicted asset IDs can shift on a live network.
 
@@ -793,9 +856,11 @@ If everything works, you will see the app ID, contract address, token ID, NFT ID
 
 ## Testing the NFT Vesting Contract
 
+Before writing tests, check dependencies and LocalNet timestamp behavior.
+
 > **Note:** Before writing tests, ensure `pytest` and `algokit-utils` are in your project's dependencies. If they are not, add them to `pyproject.toml` and run `poetry install`. See the Chapter 2 testing section for full setup details and [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit patterns.
 
-> **Reminder (from Chapter 2):** On LocalNet, block timestamps only advance when new blocks are produced. Use short durations (seconds, not months) for cliff and vesting periods in tests. Add `note=os.urandom(8)` to every test transaction to prevent deduplication errors.
+On LocalNet, block timestamps only advance when new blocks are produced. Use short durations (seconds, not months) for cliff and vesting periods in tests. Add `note=os.urandom(8)` to every test transaction to prevent deduplication errors.
 
 Save the following as `tests/test_nft_vesting.py`. These tests cover the security-critical paths --- especially that only the NFT holder can claim, and that transferring the NFT transfers claim rights:
 
@@ -807,7 +872,10 @@ import time
 import pytest
 import algokit_utils
 
-APP_SPEC = Path("smart_contracts/artifacts/nft_vesting/NftVesting.arc56.json").read_text()
+APP_SPEC_PATH = Path(
+    "smart_contracts/artifacts/nft_vesting/NftVesting.arc56.json"
+)
+APP_SPEC = APP_SPEC_PATH.read_text()
 
 
 # --- Helpers ---
@@ -856,14 +924,21 @@ def deposit(algorand, admin, app_client, token_id, amount):
         )
     )
 
-def box_key(nft_id):
-    return b"v_" + struct.pack(">Q", nft_id)
+def box_key(schedule_id):
+    return b"v_" + struct.pack(">Q", schedule_id)
+
+def schedule_box(app_client, schedule_id):
+    return algokit_utils.BoxReference(
+        app_id=app_client.app_id, name=box_key(schedule_id),
+    )
 
 def create_schedule(algorand, admin, app_client, beneficiary, total,
                     cliff, vest, token_id):
-    """Mint → opt-in → deliver. Returns the NFT asset ID."""
+    """Mint, opt in, deliver. Returns (schedule ID, NFT asset ID)."""
     url = b"ipfs://QmTest#arc3"
     meta = b"\x00" * 32
+    schedule_id = int.from_bytes(os.urandom(8), "big") or 1
+    box_ref = schedule_box(app_client, schedule_id)
 
     # Step 1: Create the schedule (contract keeps the NFT)
     result = algorand.new_group().add_app_call_method_call(
@@ -871,20 +946,17 @@ def create_schedule(algorand, admin, app_client, beneficiary, total,
             algokit_utils.AppClientMethodCallParams(
                 method="create_schedule",
                 args=[
+                    schedule_id,
                     total, cliff, vest, url, meta,
                     algokit_utils.PaymentParams(
                         sender=admin.address,
                         receiver=app_client.app_address,
-                        amount=algokit_utils.AlgoAmount.from_micro_algo(122_900),
+                        amount=algokit_utils.AlgoAmount.from_micro_algo(126_100),
                         note=os.urandom(8),
                     ),
                 ],
                 static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),
-                box_references=[
-                    algokit_utils.BoxReference(
-                        app_id=app_client.app_id, name=box_key(0),
-                    ),
-                ],
+                box_references=[box_ref],
                 note=os.urandom(8),
             )
         )
@@ -900,11 +972,12 @@ def create_schedule(algorand, admin, app_client, beneficiary, total,
 
     # Step 3: Deliver the NFT
     app_client.send.call(algokit_utils.AppClientMethodCallParams(
-        method="deliver_nft", args=[nft_id, beneficiary.address],
+        method="deliver_nft", args=[schedule_id, nft_id, beneficiary.address],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
+        box_references=[box_ref],
         note=os.urandom(8),
     ))
-    return nft_id
+    return schedule_id, nft_id
 
 def client_for(algorand, app_client, account):
     return algorand.client.get_app_client_by_id(
@@ -912,11 +985,12 @@ def client_for(algorand, app_client, account):
         default_sender=account.address,
     )
 
-def claim(client, app_client, nft_id):
+def claim(client, app_client, schedule_id, nft_id, token_id):
     return client.send.call(algokit_utils.AppClientMethodCallParams(
-        method="claim", args=[nft_id],
+        method="claim", args=[schedule_id, nft_id],
         static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
-        box_references=[algokit_utils.BoxReference(app_id=app_client.app_id, name=box_key(nft_id))],
+        asset_references=[token_id],
+        box_references=[schedule_box(app_client, schedule_id)],
         note=os.urandom(8),
     ))
 
@@ -951,16 +1025,17 @@ class TestNftVesting:
         app = deploy(algorand, admin)
         initialize(algorand, admin, app, token_id)
         deposit(algorand, admin, app, token_id, 1_000_000_000)
-        nft_id = create_schedule(algorand, admin, app, ben,
-                                 1_000_000_000, cliff=0, vest=10, token_id=token_id)
+        schedule_id, nft_id = create_schedule(algorand, admin, app, ben,
+                                              1_000_000_000, cliff=0, vest=10,
+                                              token_id=token_id)
 
         advance_time(algorand, 5)
         ben_client = client_for(algorand, app, ben)
-        r = claim(ben_client, app, nft_id)
+        r = claim(ben_client, app, schedule_id, nft_id, token_id)
         assert r.abi_return > 0
 
         advance_time(algorand, 10)
-        r = claim(ben_client, app, nft_id)
+        r = claim(ben_client, app, schedule_id, nft_id, token_id)
         assert r.abi_return > 0
 
     def test_nft_ownership_required(self, algorand):
@@ -978,8 +1053,9 @@ class TestNftVesting:
         app = deploy(algorand, admin)
         initialize(algorand, admin, app, token_id)
         deposit(algorand, admin, app, token_id, 1_000_000_000)
-        nft_id = create_schedule(algorand, admin, app, ben,
-                                 1_000_000_000, cliff=0, vest=30, token_id=token_id)
+        schedule_id, nft_id = create_schedule(algorand, admin, app, ben,
+                                              1_000_000_000, cliff=0, vest=30,
+                                              token_id=token_id)
 
         advance_time(algorand, 5)
 
@@ -989,7 +1065,34 @@ class TestNftVesting:
         ))
         attacker_client = client_for(algorand, app, attacker)
         with pytest.raises(Exception):
-            claim(attacker_client, app, nft_id)
+            claim(attacker_client, app, schedule_id, nft_id, token_id)
+
+    def test_wrong_nft_for_schedule_fails(self, algorand):
+        """A valid schedule ID cannot be paired with a different NFT."""
+        admin = algorand.account.localnet_dispenser()
+        ben = algorand.account.random()
+        fund(algorand, admin, ben, 10_000_000)
+        token_id = algorand.send.asset_create(
+            algokit_utils.AssetCreateParams(
+                sender=admin.address, total=10_000_000_000, decimals=6,
+            )
+        ).asset_id
+        wrong_nft_id = algorand.send.asset_create(
+            algokit_utils.AssetCreateParams(
+                sender=ben.address, total=1, decimals=0,
+            )
+        ).asset_id
+        app = deploy(algorand, admin)
+        initialize(algorand, admin, app, token_id)
+        deposit(algorand, admin, app, token_id, 1_000_000_000)
+        schedule_id, nft_id = create_schedule(algorand, admin, app, ben,
+                                              1_000_000_000, cliff=0, vest=30,
+                                              token_id=token_id)
+
+        advance_time(algorand, 5)
+        ben_client = client_for(algorand, app, ben)
+        with pytest.raises(Exception):
+            claim(ben_client, app, schedule_id, wrong_nft_id, token_id)
 
     def test_transfer_transfers_claim_rights(self, algorand):
         """After NFT transfer, only the new holder can claim."""
@@ -1006,8 +1109,9 @@ class TestNftVesting:
         app = deploy(algorand, admin)
         initialize(algorand, admin, app, token_id)
         deposit(algorand, admin, app, token_id, 1_000_000_000)
-        nft_id = create_schedule(algorand, admin, app, ben,
-                                 1_000_000_000, cliff=0, vest=30, token_id=token_id)
+        schedule_id, nft_id = create_schedule(algorand, admin, app, ben,
+                                              1_000_000_000, cliff=0, vest=30,
+                                              token_id=token_id)
 
         advance_time(algorand, 5)
 
@@ -1024,11 +1128,11 @@ class TestNftVesting:
         # Original holder cannot claim
         ben_client = client_for(algorand, app, ben)
         with pytest.raises(Exception):
-            claim(ben_client, app, nft_id)
+            claim(ben_client, app, schedule_id, nft_id, token_id)
 
         # New holder can claim
         buyer_client = client_for(algorand, app, buyer)
-        r = claim(buyer_client, app, nft_id)
+        r = claim(buyer_client, app, schedule_id, nft_id, token_id)
         assert r.abi_return > 0
 
     def test_admin_only_rejects_non_admin(self, algorand):
@@ -1063,17 +1167,18 @@ class TestNftVesting:
         app = deploy(algorand, admin)
         initialize(algorand, admin, app, token_id)
         deposit(algorand, admin, app, token_id, 1_000_000_000)
-        nft_id = create_schedule(algorand, admin, app, ben,
-                                 1_000_000_000, cliff=15, vest=30, token_id=token_id)
+        schedule_id, nft_id = create_schedule(algorand, admin, app, ben,
+                                              1_000_000_000, cliff=15, vest=30,
+                                              token_id=token_id)
 
         # Only 2 seconds in, cliff is 15 seconds
         advance_time(algorand, 2)
         ben_client = client_for(algorand, app, ben)
         with pytest.raises(Exception):
-            claim(ben_client, app, nft_id)
+            claim(ben_client, app, schedule_id, nft_id, token_id)
 ```
 
-The two most important tests are `test_nft_ownership_required` and `test_transfer_transfers_claim_rights`. Together they prove the contract's core security property: only the current NFT holder can claim, and that right moves with the NFT.
+The three most important tests are `test_nft_ownership_required`, `test_wrong_nft_for_schedule_fails`, and `test_transfer_transfers_claim_rights`. Together they prove the contract's core security property: only the current NFT holder can claim, the schedule ID cannot be paired with a different NFT, and the right moves with the NFT.
 
 ## How Transferability Works in Practice
 
@@ -1081,13 +1186,15 @@ With the contract deployed, here is what transferability looks like from a user'
 
 1. **Admin creates a schedule.** An NFT is minted and transferred to the beneficiary. The NFT appears in the beneficiary's wallet alongside their other assets.
 
-2. **Beneficiary claims periodically.** They call `claim` with their NFT's asset ID. The contract verifies they hold the NFT and releases vested tokens.
+   The schedule ID must travel with the NFT in your application layer. The simplest approach is to include it in the ARC-3 metadata properties. Production apps often also index `create_schedule` calls and expose the `(app_id, schedule_id, nft_id)` mapping through their UI or API.
+
+2. **Beneficiary claims periodically.** They call `claim` with the schedule ID and their NFT's asset ID. The contract verifies the NFT matches the schedule, verifies they hold it, and releases vested tokens.
 
 3. **Beneficiary transfers the NFT.** They send it to another address using a standard asset transfer --- the same transaction type used for sending any Algorand token. No contract interaction is needed.
 
-4. **New holder claims.** The new holder calls `claim` with the same NFT asset ID. The contract checks their balance, sees they hold the NFT, and releases tokens to them. The contract does not know or care that ownership changed.
+4. **New holder claims.** The new holder calls `claim` with the same schedule ID and NFT asset ID. The contract checks their balance, sees they hold the NFT, verifies it matches the schedule, and releases tokens to them. The contract does not know or care that ownership changed.
 
-5. **NFT on a marketplace.** The vesting NFT can be listed on any Algorand NFT marketplace. A buyer purchases it and receives the right to future token claims. The marketplace does not need special integration with the vesting contract --- it just facilitates an ASA transfer.
+5. **NFT on a marketplace.** The vesting NFT can be listed on any Algorand NFT marketplace. A buyer purchases it and receives the right to future token claims. The marketplace only needs to facilitate the ASA transfer, but the buyer's wallet or vesting UI must be able to recover the schedule ID from metadata or an indexer before calling `claim`.
 
 This composability is the power of the ownership-by-asset pattern. The vesting contract does not need to know about wallets, marketplaces, lending protocols, or any other system. It only checks one thing: does the caller hold the NFT?
 
@@ -1102,8 +1209,13 @@ In this chapter you learned to:
 - Use clawback to reclaim NFTs during revocation and destroy them to recover MBR
 - Calculate MBR implications when a contract creates ASAs (100,000 microAlgos per asset)
 - Coordinate opt-in timing using the mint-then-deliver pattern for contract-minted ASAs
+- Design stable box keys for resources that must be referenced before an inner-created asset ID exists
 
-| Step | Feature | Concepts Introduced |
+Table 4-3 summarizes the chapter's build sequence.
+
+Table 4-3. Chapter build sequence
+
+| Step | Feature | Concepts introduced |
 |------|---------|---------------------|
 | 1 | NFT minting | `itxn.AssetConfig` for ASA creation, role addresses (manager, clawback, freeze, reserve), inner transaction fee budgeting |
 | 2 | ARC-3 metadata | Off-chain metadata via URL + hash, IPFS hosting pattern, `#arc3` convention |
@@ -1112,7 +1224,7 @@ In this chapter you learned to:
 | 5 | Clawback on revoke | `asset_sender` field for clawback, NFT destruction via empty `AssetConfig`, MBR recovery |
 | 6 | Settle on revoke | Vested-but-unclaimed token transfer before NFT destruction, claimed_amount bookkeeping |
 | 7 | Balance-capped claims | Defensive `Asset.balance()` check prevents hard failure if contract is under-funded |
-| 8 | Box key design | Keying by asset ID instead of address, MBR tradeoffs |
+| 8 | Box key design | Keying by schedule ID instead of address, storing NFT ID in schedule state, MBR tradeoffs |
 
 In the next chapter, we build a constant product AMM (Chapter 5) where multi-token accounting, price curves, and LP token mechanics introduce a new level of complexity. The inner transaction and ASA creation patterns from this chapter will reappear --- the AMM mints its own LP token using the same `itxn.AssetConfig` approach.
 
@@ -1128,9 +1240,11 @@ In the next chapter, we build a constant product AMM (Chapter 5) where multi-tok
 
 5. **(Create)** The Known Limitation in the Revocation section describes how a holder who has not opted into the vesting token can block revocation. Design a solution: add opt-in status checking to `revoke` so that when the holder is not opted in, vested-but-unclaimed tokens are stored in a `pending_settlements` BoxMap instead of being transferred immediately. Add a `withdraw_settlement` method the holder can call after opting in. What are the MBR implications of the extra box?
 
-6. **(Create, cross-chapter)** Design a contract that combines patterns from Chapters 3 and 4: it creates an ASA (this chapter's inner transaction pattern), accepts deposits via an atomic group (Chapter 3's fund-then-call pattern), and uses wide arithmetic for a proportional calculation (Chapter 3's `mulw`/`divmodw`). Sketch the contract's `__init__`, one state-changing method, and the deployment script.
+6. **(Analyze)** A contract mints a new ASA and must write box state about that ASA in the same call. Choose a box key that clients can reference before the call is signed. How will a later wallet or marketplace buyer discover the relationship between the box key and the created ASA?
 
-> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 7.1 (creating an ASA), 7.5 (checking asset balance), 6.4 (box MBR calculation), and 9.1 (accepting a payment in a group).
+7. **(Create, cross-chapter)** Design a contract that combines patterns from Chapters 3 and 4: it creates an ASA (this chapter's inner transaction pattern), accepts deposits via an atomic group (Chapter 3's fund-then-call pattern), and uses wide arithmetic for a proportional calculation (Chapter 3's `mulw`/`divmodw`). Sketch the contract's `__init__`, one state-changing method, and the deployment script.
+
+To reinforce this chapter's concepts, work through Cookbook recipes 7.1 (creating an ASA), 7.5 (checking asset balance), 6.4 (box MBR calculation), and 9.1 (accepting a payment in a group).
 
 ## Further Reading
 
@@ -1140,6 +1254,8 @@ In the next chapter, we build a constant product AMM (Chapter 5) where multi-tok
 - [ARC-19: Mutable Metadata](https://dev.algorand.co/arc-standards/arc-0019/) --- template-based URLs using the reserve address
 - [ARC-56: Application Specification](https://dev.algorand.co/arc-standards/arc-0056/) --- the app spec format used by typed clients and tooling
 - [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/) --- foreign references, group-level sharing, box references
+- [AlgoKit Utils Transaction Composer](https://dev.algorand.co/algokit/utils/python/transaction-composer/#resource-population) --- automatic resource population and when to prefer explicit references
+- [Asset Transaction Semantics](https://specs.algorand.co/ledger/ledger-txn-semantics-asset) --- how created asset IDs are allocated
 
 ## Before You Continue
 
@@ -1152,5 +1268,6 @@ Before starting the AMM chapter, you should be able to:
 - [ ] Pass grouped transactions (payment, asset transfer) as ABI method arguments
 - [ ] Use the mint-then-deliver pattern to coordinate opt-in for contract-minted ASAs
 - [ ] Calculate MBR implications when a contract creates ASAs
+- [ ] Explain why an inner-created NFT ID is a poor box key and why a caller-supplied schedule ID fixes resource-reference timing
 
 If any of these are unclear, revisit the relevant section before proceeding.

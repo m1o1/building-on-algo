@@ -8,9 +8,13 @@ Adams, H. et al. "Uniswap v3 Core." Uniswap, 2021. https://uniswap.org/whitepape
 
 Adams, H. et al. "Uniswap v4 Core." Uniswap, 2023. https://github.com/Uniswap/v4-core/blob/main/docs/whitepaper-v4.pdf
 
-Algorand Foundation. "AlgoKit CLI Documentation." https://github.com/algorandfoundation/algokit-cli
+Algorand Foundation. "AlgoKit CLI Overview." https://dev.algorand.co/algokit/cli/overview/
 
 Algorand Foundation. "Algorand Python Documentation." https://algorandfoundation.github.io/puya/
+
+Algorand Foundation. "Algorand Python API Reference." https://algorandfoundation.github.io/puya/api.html
+
+Algorand Foundation. "Algorand Developer Portal." https://dev.algorand.co/
 
 AlgoPlonk. "PLONK verifier for the Algorand Virtual Machine." Giulio Petrocchi, 2024. https://github.com/giuliop/AlgoPlonk
 
@@ -27,5 +31,3 @@ Gentry, C., Peikert, C., and Vaikuntanathan, V. "Trapdoors for Hard Lattices and
 Gilad, Y. et al. "Algorand: Scaling Byzantine Agreements for Cryptocurrencies." *Proceedings of the 26th Symposium on Operating Systems Principles (SOSP)*, 2017.
 
 Tinyman. "Tinyman V1.0 Vulnerability Report." January 2022. https://tinymanorg.medium.com/tinyman-v1-0-vulnerability-report-2f89e84a3e53
-
-Algorand Technologies. "Algorand Developer Documentation." https://developer.algorand.org/

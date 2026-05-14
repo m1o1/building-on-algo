@@ -101,10 +101,8 @@ constants.)
 
 (See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/).)
 
-- Use the book's dated validated baseline in the Preface for walkthroughs
-- Do not use PuyaPy below v5.5.0
-- Earlier versions could inadvertently eliminate user asserts during optimization
-  (see the [Puya v5.5.0 release notes])
+- Use the Preface's dated validated baseline for book walkthroughs
+- Do not downgrade below PuyaPy v5.5.0. Earlier versions could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0))
 - Global and local state schemas are immutable after app creation
 - `algokit localnet reset` between test suites for clean state
 - Block timestamps come from the proposer's clock, accurate only within ~25 seconds
