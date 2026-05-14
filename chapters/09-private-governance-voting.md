@@ -568,13 +568,17 @@ Do not rely on `verifier_txn.sender == verifier_address` alone. If the verifier 
 
 ### Box Storage Iteration: the On-Chain Enumeration Problem
 
-Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python data structures](https://algorandfoundation.github.io/puya/lg-data-structures.html) for BoxRef and BoxMap patterns.)
+Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python storage](https://algorandfoundation.github.io/puya/lg-storage.html) for `Box`, `BoxMap`, and raw byte access patterns, and [Algorand Python data structures](https://algorandfoundation.github.io/puya/lg-data-structures.html) for BoxRef and BoxMap patterns.)
 
-**Solution 1: Maintain an explicit index.** Store voter addresses in a separate "index" box as a concatenated byte array. Each address is 32 bytes. A 32KB box can hold 1,024 voter addresses. For larger electorates, use multiple index boxes with a counter in global state. This is an illustrative extension that could be added to the voting contract:
+**Solution 1: Maintain an explicit index.** Store voter addresses in a separate "index" box as a concatenated byte array. Each address is 32 bytes. A 32KB box can hold 1,024 voter addresses, but touching the whole box requires 32KB of box I/O budget. A single app call provides only 8 box references, so a max-size index needs extra references from other transactions in the group. For a single-call-friendly design, shard the index into smaller boxes (for example, 8KB shards holding 256 voters). This is an illustrative extension that could be added to the voting contract:
 
 ```python
 # Index box: concatenated 32-byte addresses
+from algopy import Box, Bytes
+
 INDEX_BOX_KEY = b"voter_index"
+INDEX_BOX_SIZE = 32_768
+INDEX_CAPACITY = 1_024
 self.voter_count = GlobalState(UInt64(0))
 
 @arc4.abimethod
@@ -582,26 +586,34 @@ def commit_vote(self, commitment: Bytes, ...) -> None:
     # ... existing logic ...
 
     # Append voter address to index
+    voter_index = Box(Bytes, key=INDEX_BOX_KEY)
+    if not voter_index:
+        assert voter_index.create(size=UInt64(INDEX_BOX_SIZE))
+
     count = self.voter_count.value
+    assert count < UInt64(INDEX_CAPACITY), "Index full"
     # Write sender address at offset count * 32
-    op.box_replace(INDEX_BOX_KEY, count * UInt64(32), Txn.sender.bytes)
+    voter_index.replace(count * UInt64(32), Txn.sender.bytes)
     self.voter_count.value = count + UInt64(1)
 ```
 
-**Solution 2: Use BoxRef for raw access.** `BoxRef` gives you direct byte-level access to box contents, useful for packed data structures. This is an illustrative extension:
+To read from that packed index, use raw byte access with `Box(Bytes, key=...)`:
 
 ```python
-from algopy import BoxRef
+from algopy import Box, Bytes
 
 @arc4.abimethod
-def read_voter_at_index(self, index: UInt64) -> arc4.Address:
-    ref = BoxRef(key=b"voter_index")
+def read_voter_at_index(self, index: UInt64) -> Bytes:
+    voter_index = Box(Bytes, key=b"voter_index")
     # Read 32 bytes at the correct offset
-    addr_bytes = ref.extract(index * UInt64(32), UInt64(32))
-    return arc4.Address.from_bytes(addr_bytes)
+    return voter_index.extract(index * UInt64(32), UInt64(32))
 ```
 
-**Solution 3: Off-chain indexing.** For most governance systems, the indexer reads all box storage off-chain and computes tallies client-side. This is the pragmatic approach when the number of voters exceeds what can be efficiently iterated on-chain within opcode budgets.
+Each index slot stores one account's 32-byte public key, not the human-readable address string. The expression `index * 32` selects the start of that slot. Off-chain clients convert between display addresses and raw bytes at the boundary; on-chain code compares the result to another account value's `.bytes`.
+
+Older examples may use `BoxRef`; this book uses `Box(Bytes, key=...)` for the same raw byte operations.
+
+**Solution 2: Off-chain indexing.** For most governance systems, the indexer reads all box storage off-chain and computes tallies client-side. This is the pragmatic approach when the number of voters exceeds what can be efficiently iterated on-chain within opcode budgets.
 
 ### Box Size Planning for the Voting Contract
 
@@ -610,7 +622,9 @@ def read_voter_at_index(self, index: UInt64) -> arc4.Address:
 | Commitment | `c_` + address | 34 bytes | MiMC hash | 32 bytes | 2,500 + 400 × 66 = 28,900 μAlgo |
 | Proof status | `p_` + address | 34 bytes | uint64 | 8 bytes | 2,500 + 400 × 42 = 19,300 μAlgo |
 | Tally | `t_` + uint64 | 10 bytes | uint64 | 8 bytes | 2,500 + 400 × 18 = 9,700 μAlgo |
-| Voter index | `voter_index` | 12 bytes | addresses | 32,768 bytes | 2,500 + 400 × 32,780 = 13,114,500 μAlgo |
+| Voter index | `voter_index` | 11 bytes | addresses | 32,768 bytes | 2,500 + 400 × 32,779 = 13,114,100 μAlgo |
+
+The voter-index box is a one-time MBR cost only if you add the explicit-index extension. The app account or admin must fund it before the first indexed commit.
 
 Each voter costs ~48,200 μAlgo in MBR (commitment box: 28,900 + proof status box: 19,300), paid by the voter via the MBR payment pattern from the AMM chapter. The `commit_vote` method requires MBR for the commitment box (28,900 μAlgo), and `record_verified_proof` creates the proof status box requiring an additional 19,300 μAlgo. In test code, ensure the app account is funded for both boxes before calling these methods.
 
