@@ -156,8 +156,10 @@ brew install algorandfoundation/tap/algokit
 pipx install algokit
 
 # Verify the installation
-algokit --version    # Should show 2.9.x or later
+algokit --version    # Validated with 2.10.2; newer patch/minor versions may work
 ```
+
+If a later AlgoKit release changes scaffolded files or walkthrough behavior, return to the Preface's validated baseline while debugging.
 
 Run the doctor to check that all dependencies are present and correctly configured:
 
@@ -402,6 +404,6 @@ The official Algorand developer documentation at [dev.algorand.co](https://dev.a
 - [Transaction Fees](https://dev.algorand.co/concepts/transactions/fees/) --- minimum fee, fee pooling
 - [Inner Transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) --- contract-issued transactions, budget implications
 - [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) --- all consensus-level limits and costs
-- [Algorand Python Overview](https://dev.algorand.co/algokit/languages/python/overview/) --- PuyaPy compiler, language guide
+- [Algorand Python Overview](https://algorandfoundation.github.io/puya/) --- PuyaPy compiler, language guide
 - [AlgoKit Quick Start](https://dev.algorand.co/getting-started/algokit-quick-start/) --- installation, LocalNet, first deployment
 - [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) --- mapping of concepts for developers with EVM experience

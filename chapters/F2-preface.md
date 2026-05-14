@@ -60,4 +60,15 @@ Client-side code uses two styles: **AlgoKit Utils v4** (`AlgorandClient`, `AppFa
 
 All contract code in this book is Algorand Python targeting AVM v12. Every example compiles and runs on LocalNet using the toolchain versions specified below. You are free to use the code examples in your own projects --- no special permission is required.
 
-The toolchain reflects the state of Algorand development as of early 2026: AlgoKit CLI v2.9.1, PuyaPy compiler v5.7.1, and AVM version 12.
+This book pins a dated, validated baseline toolchain rather than trying to track every new package release. As of May 14, 2026, the examples were reviewed against:
+
+- AlgoKit CLI v2.10.2
+- PuyaPy compiler v5.8.1
+- `algorand-python` v3.5.0
+- `algokit-utils` v4.2.3
+- `algorand-python-testing` v1.1.0
+- AVM version 12
+
+Newer patch or minor releases may work, but treat this list as the last validated baseline, not a promise that it is always the latest. Avoid prerelease package lines unless you also rerun the affected chapter walkthroughs and tests.
+
+After `algokit project bootstrap all`, check the generated project dependencies against this baseline; proceed with newer stable versions if they work, and return to the baseline first when a walkthrough behaves differently from the text.

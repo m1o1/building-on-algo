@@ -90,7 +90,7 @@ class VestingSchedule(arc4.Struct):
 
 The struct is unchanged from Chapter 3 --- 41 bytes. We do not need to store the NFT asset ID inside the struct because it *is* the box key. We also do not store a beneficiary address because ownership is determined by who holds the NFT, not by a stored address.
 
-The key difference is in the `BoxMap` declaration. (See [Algorand Python storage guide](https://dev.algorand.co/algokit/languages/python/lg-storage/) for BoxMap type parameters.) Add the contract class below the struct:
+The key difference is in the `BoxMap` declaration. (See [Algorand Python storage guide](https://algorandfoundation.github.io/puya/lg-storage.html) for BoxMap type parameters.) Add the contract class below the struct:
 
 ```python
 from algopy import (

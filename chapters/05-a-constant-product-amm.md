@@ -278,7 +278,7 @@ The global state should show `asset_a`, `asset_b`, and `lp_token_id` populated w
 
 The first liquidity provider sets the pool's initial price ratio by choosing how much of each token to deposit. The ratio of their deposit defines the starting price: depositing 1,000 USDC and 4 ALGO sets the price at 250 USDC per ALGO (or equivalently, 0.004 ALGO per USDC).
 
-LP tokens minted for the first deposit use the geometric mean of the two amounts, minus the minimum liquidity lock. (See [Algorand Python ops](https://dev.algorand.co/algokit/languages/python/lg-ops/) for the `bsqrt` and wide arithmetic opcodes used here.)
+LP tokens minted for the first deposit use the geometric mean of the two amounts, minus the minimum liquidity lock. (See the [`algopy.op` API reference](https://algorandfoundation.github.io/puya/api-algopy.op.html) for the `bsqrt` and wide arithmetic opcodes used here.)
 
 $$LP = \sqrt{\text{amount\_A} \times \text{amount\_B}} - \text{MINIMUM\_LIQUIDITY}$$
 
@@ -534,7 +534,7 @@ LP tokens minted for subsequent deposits use the minimum of both deposit ratios,
 
 $$LP_{new} = \min\left(\frac{\Delta x}{x}, \frac{\Delta y}{y}\right) \times LP_{total}$$
 
-Taking the minimum means any tokens deposited beyond the current ratio are effectively donated to the pool. This incentivizes depositors to match the exact ratio and prevents price manipulation via unbalanced deposits. (See [Algorand Python transactions guide](https://dev.algorand.co/algokit/languages/python/lg-transactions/) for typed gtxn parameter handling.)
+Taking the minimum means any tokens deposited beyond the current ratio are effectively donated to the pool. This incentivizes depositors to match the exact ratio and prevents price manipulation via unbalanced deposits. (See [Algorand Python transactions guide](https://algorandfoundation.github.io/puya/lg-transactions.html) for typed gtxn parameter handling.)
 
 Add this method to the `ConstantProductPool` class in `smart_contracts/constant_product_pool/contract.py`:
 
@@ -1044,7 +1044,7 @@ In the next chapter, we extend this AMM with a yield farming contract --- a stak
 
 ## Further Reading
 
-- [Algorand Python Operations](https://dev.algorand.co/algokit/languages/python/lg-ops/) --- mulw, divmodw, bsqrt, and other op module functions
+- [`algopy.op` API Reference](https://algorandfoundation.github.io/puya/api-algopy.op.html) --- mulw, divmodw, bsqrt, and other op module functions
 - [Uniswap V2 TWAP Oracle](https://docs.uniswap.org/contracts/v2/guides/smart-contract-integration/building-an-oracle) --- the reference implementation for cumulative price tracking
 - [ARC-28: Event Logging](https://dev.algorand.co/arc-standards/arc-0028/) --- standardized event emission for off-chain indexing
 - [App Deployment](https://dev.algorand.co/algokit/utils/python/app-deploy/) --- idempotent deployment strategies

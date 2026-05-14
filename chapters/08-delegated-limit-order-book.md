@@ -343,7 +343,7 @@ Alice can cancel anytime by calling `cancel_order` directly. The order book mark
 
 ### The Complete LogicSig Program
 
-The LogicSig is structured in five sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, and buy-side price verification. (See [Algorand Python compilation](https://dev.algorand.co/algokit/languages/python/lg-compile/) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
+The LogicSig is structured in five sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, and buy-side price verification. (See [Algorand Python compilation](https://algorandfoundation.github.io/puya/lg-compile.html) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
 
 ```python
 from algopy import (
@@ -1286,9 +1286,9 @@ See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/
 | Resource | URL |
 |----------|-----|
 | Logic Signatures | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
-| Algorand Python Compilation | [dev.algorand.co/algokit/languages/python/lg-compile/](https://dev.algorand.co/algokit/languages/python/lg-compile/) |
-| Algorand Python Operations | [dev.algorand.co/algokit/languages/python/lg-ops/](https://dev.algorand.co/algokit/languages/python/lg-ops/) |
-| Opcode Budget Management | [dev.algorand.co/algokit/languages/python/lg-opcode-budget/](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/) |
+| Algorand Python Compilation | [algorandfoundation.github.io/puya/lg-compile.html](https://algorandfoundation.github.io/puya/lg-compile.html) |
+| Algorand Python Operations | [algorandfoundation.github.io/puya/lg-ops.html](https://algorandfoundation.github.io/puya/lg-ops.html) |
+| Opcode Budget Management | [algorandfoundation.github.io/puya/lg-opcode-budget.html](https://algorandfoundation.github.io/puya/lg-opcode-budget.html) |
 | Transaction Reference | [dev.algorand.co/concepts/transactions/reference/](https://dev.algorand.co/concepts/transactions/reference/) |
 | AVM Opcodes | [dev.algorand.co/reference/algorand-teal/opcodes/](https://dev.algorand.co/reference/algorand-teal/opcodes/) |
 | SDK: LogicSigAccount | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
