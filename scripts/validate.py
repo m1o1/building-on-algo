@@ -147,7 +147,27 @@ def localnet_smoke() -> None:
     if shutil.which("algokit") is None:
         print("Skipping LocalNet smoke: algokit is not installed")
         return
-    run(["algokit", "localnet", "status"])
+    print("+ algokit localnet status", flush=True)
+    status = subprocess.run(
+        ["algokit", "localnet", "status"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    status_output = f"{status.stdout}\n{status.stderr}"
+    if status.returncode != 0 and (
+        "Container engine not found" in status_output
+        or "Docker" in status_output
+        or "Podman" in status_output
+    ):
+        print("Skipping LocalNet smoke: Docker or Podman is not available")
+        return
+    if status.stdout:
+        print(status.stdout, end="")
+    if status.stderr:
+        print(status.stderr, end="", file=sys.stderr)
+    status.check_returncode()
     manifest = load_manifest()
     active_scripts = [
         item
