@@ -6,13 +6,65 @@ Your AMM works. Liquidity providers deposit tokens, traders swap against the poo
 
 This is the problem *yield farming* solves. In a yield farming system, LPs lock their LP tokens in a separate staking contract for a fixed duration --- 30 days, 90 days, a year --- and earn additional reward tokens on top of the trading fees they already collect from the pool. Longer lock-ups earn proportionally higher rewards, creating a direct incentive for the sticky liquidity that healthy markets depend on.
 
-We are going to build a staking contract that composes with the AMM from the previous chapter. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the AMM's global state to verify that the LP tokens are genuine and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
+We are going to build a staking contract that composes with the AMM from the previous chapter. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the configured AMM's global state, binds itself to that AMM's reported LP token, and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
 
 Two core concepts drive this chapter. First, the *reward accumulator pattern* --- a mathematical technique (popularized by Synthetix) that distributes rewards fairly across any number of stakers without iterating over them. Second, *smart contract composition* --- reading another contract's state to make trust decisions, a fundamental DeFi building block that connects isolated contracts into composable protocols.
 
-By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract verification of LP token provenance.
+By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract binding to the configured AMM's reported LP token.
 
 > **Note:** This chapter assumes you have a working AMM from the previous chapter. The farming contract reads the AMM's global state and accepts its LP tokens. If you skipped the AMM chapter, go back and build it first --- the farming contract will not compile or deploy without it.
+
+## Run It First
+
+The finished version of this chapter lives in `projects/chapter6/lp-farming/`.
+It depends on the finished AMM project in `projects/chapter5/constant-product-amm/`
+because the farm binds itself to the LP token reported by the configured AMM.
+
+Build both generated clients before running the workflow:
+
+```bash
+cd projects/chapter5/constant-product-amm
+algokit project bootstrap all
+algokit project run build
+
+cd ../../chapter6/lp-farming
+algokit project bootstrap all
+algokit project run build
+algokit localnet start
+poetry run python -m scripts.run_lp_farming
+```
+
+The script creates two pool assets and one reward asset, deploys the Chapter 5
+AMM, adds initial liquidity, transfers LP tokens to a farmer account, deploys
+the farm, initializes it with the AMM application reference, deposits rewards,
+stakes LP tokens, claims rewards, extends the lock, advances LocalNet dev-mode
+time, and unstakes. Before running it, predict which output line proves the farm
+is reading the AMM's state and which line proves the box MBR lifecycle completed.
+
+| Output checkpoint | What it proves |
+|-------------------|----------------|
+| AMM app ID | The farm has a concrete application to read during initialization |
+| LP token ID | The AMM reported the ASA that represents pool shares |
+| Farm app ID | The staking contract deployed and opted into the required assets |
+| Claimed rewards > 0 | The accumulator produced claimable rewards after time advanced |
+| Final unstake message | LP tokens and the 32,100 microAlgos box MBR were returned |
+
+Run the tests from the Chapter 6 project:
+
+```bash
+poetry run pytest -q
+```
+
+Without Docker or Podman-backed LocalNet, the integration tests skip and the
+workflow script stops with a LocalNet message. The build and static tests still
+verify that the contract compiles and that the source contains the security
+patterns this chapter teaches. LocalNet defaults to developer mode; the workflow
+uses the official timestamp-offset endpoint to move past long lock periods.
+
+Run this finished project first, then build the chapter in a separate scratch
+project with the `algokit init` commands below. Treat
+`projects/chapter6/lp-farming/` as the answer key: compare its contract,
+workflow script, and tests against your scratch project when something differs.
 
 
 ## A Simplified Staking Contract
@@ -25,7 +77,7 @@ Create a new project for this chapter:
 
 ```bash
 algokit init -t python --name lp-farming
-cd lp-farming/projects/lp-farming
+cd lp-farming
 algokit project bootstrap all
 mv smart_contracts/hello_world smart_contracts/lp_farming
 ```
@@ -221,7 +273,7 @@ This contract works. You can deploy it, stake LP tokens, claim rewards after som
 
 **Problem 2: No incentive for longer locks.** Everyone locks for the same 30 days. A user who commits for a year gets no additional reward over someone who commits for a month. This means the contract cannot attract the long-term, stable liquidity that pools need most.
 
-**Problem 3: No LP token verification.** The contract accepts any token with the right ASA ID, but it does not verify that the LP token actually came from a specific AMM pool. Someone could create a fake LP token with the same ID structure and stake it. We need cross-contract composition to verify the LP token's origin.
+**Problem 3: No AMM binding.** The contract accepts any token with the right ASA ID, but it does not bind that token to the AMM app the deployer intended to trust. We need cross-contract composition to read the configured AMM's LP token ID and reject mismatches.
 
 *Before reading the solution to Problem 1, think about this: if Alice stakes 100 LP at time 0 and Bob stakes 200 LP at time 50, and the reward rate is 10 tokens per second, how should rewards be distributed after 200 seconds? Alice was the sole staker for the first 50 seconds --- does her reward reflect that? Try to work out a fair distribution, then read on to see how the accumulator pattern solves it.*
 
@@ -238,7 +290,7 @@ Even if you could iterate, the math is wrong. When Bob stakes at time 50, the pe
 
 ### The Snapshot-and-Diff Insight
 
-Think of `reward_per_token` as a running tally that answers one question: "If you had staked exactly 1 LP token since the very beginning, how many reward tokens would you have earned by now?" This number only goes up. When you stake, you snapshot where this number is. When you claim, you calculate: `(current tally - your snapshot) × your actual stake`. That is all the accumulator does --- the rest is bookkeeping.
+Think of `reward_per_token` as a running tally that answers one question: "If you had staked exactly 1 LP token since the very beginning, how many reward tokens would you have earned by now?" This number only goes up. When you stake, you snapshot where this number is. When you claim, you calculate: `(current tally - your snapshot) x your actual stake`. That is all the accumulator does --- the rest is bookkeeping.
 
 More precisely, the solution is a global accumulator that answers the question: "How many reward tokens has one unit of LP earned since the beginning of time?" This number is called `reward_per_token`. Each user stores a snapshot of `reward_per_token` at the time they last interacted with the contract. Their pending reward is simply:
 
@@ -403,14 +455,14 @@ Note the wide arithmetic: `excess * 3000` can approach $335 \times 86400 \times 
 
 ## Smart Contract Composition
 
-*The farming contract needs to verify that LP tokens are genuine. Using only what you know about Algorand so far, how would you accomplish this? Think about what data the AMM stores on-chain and how another contract might access it.*
+*The farming contract needs to bind itself to the LP token from the configured AMM. Using only what you know about Algorand so far, how would you accomplish this? Think about what data the AMM stores on-chain and how another contract might access it.*
 
-Until now, every contract we have built has operated in isolation. The vesting contract managed its own tokens. The AMM managed its own pool. But the farming contract needs to verify that the LP tokens it receives actually come from our AMM pool --- not from some random token with the same ASA ID.
+Until now, every contract we have built has operated in isolation. The vesting contract managed its own tokens. The AMM managed its own pool. But the farming contract needs to bind deposits to the LP token reported by the AMM app chosen at deployment time.
 
 Algorand makes cross-contract reads straightforward. Any contract can read another contract's global state using `op.AppGlobal.get_ex_uint64` (for integer values) or `op.AppGlobal.get_ex_bytes` (for byte values). The target application must be included in the transaction's foreign apps array.
 
 ```python
-# Read the AMM's lp_token_id to verify our LP token
+# Read the configured AMM's lp_token_id and bind to that LP token
 lp_id, exists = op.AppGlobal.get_ex_uint64(
     amm_app, Bytes(b"lp_token_id")
 )
@@ -422,7 +474,9 @@ The `get_ex_uint64` opcode returns a tuple of `(value, exists)`. Always check `e
 
 > **Warning:** The foreign apps array has a maximum of 8 entries per transaction (shared across the group since AVM v9). Each cross-contract read consumes one slot. If your transaction already references several apps, you may not have room for the AMM reference. Plan your foreign reference budget carefully when designing multi-contract interactions.
 
-**Design tradeoff: read-on-init vs. read-on-every-call.** We could verify the LP token once during initialization and store the result, or verify it on every stake call. Reading once is cheaper (fewer opcodes per stake) but trusts that the stored value remains correct forever. Reading every time costs ~5 extra opcodes per call but guarantees correctness even if someone deploys a new farming contract pointing at a different AMM. For this contract, we read the AMM's state during initialization --- the LP token ID cannot change after the AMM is bootstrapped, so a one-time read is safe and saves opcode budget on every subsequent stake.
+**Design tradeoff: read-on-init vs. read-on-every-call.** We could read the LP token once during initialization and store the result, or read it on every stake call. Reading once is cheaper (fewer opcodes per stake) but trusts that the stored value remains correct forever. Reading every time costs ~5 extra opcodes per call but guarantees that the stored farm value still matches the configured AMM. For this contract, we read the AMM's state during initialization --- the LP token ID cannot change after the AMM is bootstrapped, so a one-time read is enough for this educational design.
+
+This is not a proof of code identity. The deployment process must choose the trusted AMM app ID. A malicious or unrelated application could expose a global key named `lp_token_id`; the check below only proves that the supplied LP token matches the app ID the farm was configured to trust.
 
 ### How Foreign Apps Work at the Protocol Level
 
@@ -471,7 +525,14 @@ class StakePosition(arc4.Struct):
     unlock_time: arc4.UInt64        # Timestamp when unstake allowed
 ```
 
-Five `arc4.UInt64` fields = 40 bytes. Box key: `b"s_"` prefix (2 bytes) + 32-byte address = 34 bytes. Box MBR: $2{,}500 + 400 \times (34 + 40) = 32{,}100$ microAlgos per staker.
+Five `arc4.UInt64` fields = 40 bytes. Box key: `b"s_"` prefix (2 bytes) + 32-byte address = 34 bytes. Box MBR: $2{,}500 + 400 \times (34 + 40) = 32{,}100$ microAlgos per staker. The production version makes the staker fund that MBR in the same atomic group as the LP-token transfer, then refunds the exact amount when the box is deleted during `unstake`.
+
+| Moment | Box lifecycle |
+|--------|---------------|
+| Before `stake` | No user box exists, so no per-user box MBR is locked |
+| `stake` group | The user pays exactly 32,100 microAlgos and the app creates the box |
+| During the lock | The box stores the position and the MBR remains locked |
+| `unstake` | The app deletes the box and refunds exactly 32,100 microAlgos |
 
 The global state schema uses 10 `UInt64` slots and 1 `Bytes` slot (the admin address). Since the default schema allows up to 64 of each, we have plenty of room. The extra `rewards_remaining` slot is a circuit breaker: every payout decrements it, so a math bug cannot distribute more reward tokens than the funded pool.
 
@@ -500,21 +561,24 @@ from algopy import (
 PRECISION = 10**9
 SCALE = 1000
 SECONDS_PER_DAY = 86400
-MIN_LOCK = 30 * SECONDS_PER_DAY
-MAX_LOCK = 365 * SECONDS_PER_DAY
+MIN_LOCK_DAYS = 30
+MAX_LOCK_DAYS = 365
+MIN_LOCK = MIN_LOCK_DAYS * SECONDS_PER_DAY
+MAX_LOCK = MAX_LOCK_DAYS * SECONDS_PER_DAY
 MAX_REWARD_DURATION = 365 * SECONDS_PER_DAY
 MAX_REWARD_RATE = 584
 MAX_UINT64 = 2**64 - 1
+STAKE_BOX_MBR = 32_100
 ```
 
 
 ## Initialization and Reward Deposit
 
-The contract class declaration and initialization method. The `initialize` method performs the cross-contract read to verify the LP token, then opts into both tokens.
+The contract class declaration and initialization method. The `initialize` method performs the cross-contract read to bind the farm to the configured AMM's LP token, then opts into both tokens.
 
 ```python
-# 5 × UInt64 = 40 bytes data. With 34-byte key (2 prefix + 32 addr),
-# box MBR = 2,500 + 400 × (34 + 40) = 32,100 μAlgo per staker.
+# 5 UInt64 fields = 40 bytes data. With 34-byte key,
+# box MBR = 2,500 + 400 * (34 + 40) = 32_100 microAlgos.
 class StakePosition(arc4.Struct):
     effective_balance: arc4.UInt64
     lp_amount: arc4.UInt64
@@ -562,10 +626,11 @@ class LPFarm(ARC4Contract):
         reward_token: Asset,
         amm_app: Application,
     ) -> None:
-        assert Txn.sender == Account(self.admin.value)
-        assert self.is_initialized.value == UInt64(0)
+        assert Global.group_size == UInt64(1), "Unexpected group size"
+        assert Txn.sender == Account(self.admin.value), "Admin only"
+        assert self.is_initialized.value == UInt64(0), "Already initialized"
 
-        # Cross-contract read: verify LP token belongs to AMM
+        # Cross-contract read: bind to the configured AMM's LP token
         lp_id, exists = op.AppGlobal.get_ex_uint64(
             amm_app, Bytes(b"lp_token_id")
         )
@@ -597,7 +662,7 @@ class LPFarm(ARC4Contract):
         self.is_initialized.value = UInt64(1)
 ```
 
-The `initialize` method reads `lp_token_id` from the AMM's global state. If the AMM has not been bootstrapped (the key does not exist), the assertion fails. If someone passes a different AMM app that happens to have a `lp_token_id` key with a different value, the token mismatch check catches it. This two-layer verification ensures the farming contract is bound to a specific, legitimate AMM pool.
+The `initialize` method reads `lp_token_id` from the configured AMM app's global state. If the AMM has not been bootstrapped (the key does not exist), the assertion fails. If someone passes an AMM app whose reported `lp_token_id` differs from the supplied LP asset, the token mismatch check catches it. The deployer still has to choose the trusted AMM app ID; this check binds the farm to that app's reported LP token, not to an independently proven code identity.
 
 The `deposit_rewards` method funds the reward pool and sets the distribution rate:
 
@@ -608,7 +673,10 @@ The `deposit_rewards` method funds the reward pool and sets the distribution rat
         reward_txn: gtxn.AssetTransferTransaction,
         duration_seconds: UInt64,
     ) -> None:
-        assert Txn.sender == Account(self.admin.value)
+        assert Global.group_size == UInt64(2), "Unexpected group size"
+        assert self.is_initialized.value == UInt64(1), "Not initialized"
+        assert Txn.sender == Account(self.admin.value), "Admin only"
+        assert reward_txn.sender == Txn.sender, "Reward sender mismatch"
         assert reward_txn.xfer_asset == Asset(
             self.reward_token_id.value
         )
@@ -674,18 +742,33 @@ The `stake` method is the heart of the contract. It updates the global accumulat
     @arc4.abimethod
     def stake(
         self,
+        mbr_payment: gtxn.PaymentTransaction,
         lp_txn: gtxn.AssetTransferTransaction,
         lock_days: UInt64,
     ) -> None:
-        assert self.is_initialized.value == UInt64(1)
+        assert Global.group_size == UInt64(3), "Unexpected group size"
+        assert self.is_initialized.value == UInt64(1), "Not initialized"
+        assert mbr_payment.sender == Txn.sender, "MBR sender mismatch"
+        assert mbr_payment.receiver == (
+            Global.current_application_address
+        )
+        assert mbr_payment.amount == UInt64(STAKE_BOX_MBR), (
+            "Wrong MBR payment"
+        )
         assert lp_txn.xfer_asset == Asset(
             self.lp_token_id.value
         )
         assert lp_txn.asset_receiver == (
             Global.current_application_address
         )
-        assert lp_txn.sender == Txn.sender
-        assert lp_txn.asset_amount > UInt64(0)
+        assert lp_txn.sender == Txn.sender, "LP sender mismatch"
+        assert lp_txn.asset_amount > UInt64(0), "Zero stake"
+        assert lock_days >= UInt64(MIN_LOCK_DAYS), (
+            "Below minimum lock"
+        )
+        assert lock_days <= UInt64(MAX_LOCK_DAYS), (
+            "Above maximum lock"
+        )
 
         # 1. Update the global accumulator
         self._update_reward()
@@ -698,6 +781,10 @@ The `stake` method is the heart of the contract. It updates the global accumulat
         q_hi, effective, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(SCALE)
         )
+        assert q_hi == UInt64(0), "Effective balance overflow"
+        assert effective > UInt64(0), "Zero effective stake"
+        capacity = UInt64(MAX_UINT64) - self.total_effective.value
+        assert effective <= capacity, "Total effective overflow"
 
         # 3. Store the stake position
         key = arc4.Address(Txn.sender)
@@ -718,7 +805,11 @@ The `stake` method is the heart of the contract. It updates the global accumulat
         self.total_effective.value += effective
 ```
 
-The assertion `key not in self.stakes` prevents double-staking. A user who wants to add more LP must first unstake (after their lock expires) and re-stake with a new duration. This simplification keeps the position struct fixed-size and avoids the complexity of merging positions with different multipliers and unlock times. Production contracts sometimes support multiple positions per user via a position ID (using a `BoxMap(arc4.UInt64, StakePosition)` keyed by a sequential counter), but that adds significant complexity --- each position needs independent accumulator snapshots, and claiming requires iterating over all positions.
+The `mbr_payment` funds the exact box MBR for the user's position. Because it is in the same atomic group as the LP transfer and app call, a failed stake returns both the LP tokens and the MBR payment automatically. The contract requires the exact amount so accidental overpayments do not get trapped in the app account.
+
+The assertion `key not in self.stakes` prevents double-staking. A user who wants to add more LP must first unstake (after their lock expires) and re-stake with a new duration. This simplification keeps the position struct fixed-size and avoids the complexity of merging positions with different multipliers and unlock times.
+
+Production contracts sometimes support multiple positions per user via a position ID (using a `BoxMap(arc4.UInt64, StakePosition)` keyed by a sequential counter), but that adds significant complexity --- each position needs independent accumulator snapshots, and claiming requires iterating over all positions.
 
 An alternative design is to allow "topping up" an existing stake by adding more LP tokens at the same multiplier and unlock time. This requires settling accrued rewards first (to avoid retroactively applying the new balance to past periods), then adding the new effective balance to both the position and the global total. The code changes are modest, but the UX complexity of explaining when top-ups are allowed (same lock duration only? extend the lock?) and the additional test surface area make it a poor tradeoff for a first implementation.
 
@@ -801,7 +892,12 @@ def _calculate_multiplier(duration: UInt64) -> UInt64:
 
 ### Deployment Script
 
-This script deploys the farming contract alongside the AMM from the previous chapter. Save it as `deploy_farm.py` in your project root:
+The finished project uses generated typed clients in `scripts/run_lp_farming.py`
+to deploy the farming contract alongside the AMM from the previous chapter.
+That script resolves the Chapter 5 AMM generated client from the repository
+root and the Chapter 6 farm generated client from this project. The excerpt
+below is the conceptual deployment flow with the generic app-client API; use
+`scripts/run_lp_farming.py` for the runnable version.
 
 ```python
 import os
@@ -919,14 +1015,16 @@ farm_client.send.call(
 print("Farm initialized!")
 ```
 
-Compile and run:
+Compile and run the finished workflow:
 
 ```bash
 algokit project run build
-python deploy_farm.py
+poetry run python -m scripts.run_lp_farming
 ```
 
-You should see the AMM and farm app IDs, the LP token ID, and "Farm initialized!" confirming that the cross-contract LP token verification succeeded.
+You should see the AMM and farm app IDs, the LP token ID, a positive claimed
+reward amount, and a final unstake message confirming that the configured-AMM
+binding and farming lifecycle succeeded.
 
 
 ## Claiming and Extending Locks
@@ -938,6 +1036,8 @@ The `claim` method settles the user's accrued rewards and sends them as an inner
 ```python
     @arc4.abimethod
     def claim(self) -> UInt64:
+        assert Global.group_size == UInt64(1), "Unexpected group size"
+        assert self.is_initialized.value == UInt64(1), "Not initialized"
         self._update_reward()
 
         key = arc4.Address(Txn.sender)
@@ -984,6 +1084,8 @@ The `accrued_rewards` field captures rewards that were calculated during a previ
 
 The `rewards_remaining` check is the reward conservation invariant in code. The accumulator should already make over-distribution impossible, but the remaining-pool counter turns that assumption into a final guard: every reward payout must be backed by tokens that were added to the distributable pool during `deposit_rewards`.
 
+> **Project vs. printed snippets.** The chapter keeps the pending-reward math inline in `claim`, `extend_lock`, and `unstake` so you can see each step where it is used. The finished project extracts that repeated calculation into `_pending_for(pos, current_rpt)`. When comparing the project to the printed snippets, map each inline `effective * (current_rpt - paid_rpt) / PRECISION` block to that helper.
+
 ### Extending a Lock
 
 Imagine Alice staked for 30 days at a 1x multiplier. Two weeks in, she decides she is comfortable locking for the full year. Rather than waiting for her lock to expire, unstaking, and re-staking at a higher multiplier --- losing her position in the accumulator and paying box MBR twice --- she can extend her lock in place, upgrading her multiplier immediately.
@@ -995,6 +1097,14 @@ This is more complex than it appears --- the effective balance changes, which af
     def extend_lock(
         self, new_lock_days: UInt64
     ) -> None:
+        assert Global.group_size == UInt64(1), "Unexpected group size"
+        assert self.is_initialized.value == UInt64(1), "Not initialized"
+        assert new_lock_days >= UInt64(MIN_LOCK_DAYS), (
+            "Below minimum lock"
+        )
+        assert new_lock_days <= UInt64(MAX_LOCK_DAYS), (
+            "Above maximum lock"
+        )
         # Step 1: Update global accumulator
         self._update_reward()
 
@@ -1063,6 +1173,8 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
 ```python
     @arc4.abimethod
     def unstake(self) -> None:
+        assert Global.group_size == UInt64(1), "Unexpected group size"
+        assert self.is_initialized.value == UInt64(1), "Not initialized"
         self._update_reward()
 
         key = arc4.Address(Txn.sender)
@@ -1117,12 +1229,12 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
         # Refund box MBR to the user
         itxn.Payment(
             receiver=Txn.sender,
-            amount=UInt64(32_100),  # MBR = 2,500 + 400 * (34 key + 40 data)
+            amount=UInt64(STAKE_BOX_MBR),
             fee=UInt64(0),
         ).submit()
 ```
 
-The MBR refund is 32,100 microAlgos --- the exact cost of the position box. When the box is deleted, the contract's MBR requirement drops by that amount, freeing the Algo for the refund payment. The contract must have been funded with enough Algo to cover all active boxes' MBR plus a buffer for inner transaction fees. This is the same MBR lifecycle pattern from the vesting contract: fund on creation, refund on cleanup.
+The MBR refund is 32,100 microAlgos --- the exact cost of the position box. The staker funded that amount in the `stake` group, and when the box is deleted the contract's MBR requirement drops by the same amount, freeing the Algo for the refund payment. This is the same MBR lifecycle pattern from the vesting contract: fund on creation, refund on cleanup.
 
 > **Warning:** The `del self.stakes[key]` call and the MBR refund payment happen *after* the state update (`total_effective -= effective`). If the box deletion or payment fails (e.g., insufficient contract balance), the entire transaction rolls back atomically --- the state update is reverted too. This is safe on Algorand because of atomic rollback semantics, but it means you must ensure the contract always has enough Algo to cover the refund.
 
@@ -1160,14 +1272,12 @@ If a farming contract needed to make on-chain decisions based on price (e.g., dy
 
 ## Testing
 
-The tests below are outline examples showing *what* to test and *how* to
-assert. They follow the same structural pattern as the AMM tests from the
-previous chapter. Helpers such as `deploy_pool`, `deploy_farm`,
-`deposit_rewards`, `stake`, `claim`, and `unstake` wrap the AlgoKit Utils calls
-shown in the deployment scripts.
-
-The following outline belongs in `tests/test_farm.py` after you implement the
-helper functions above:
+The finished project includes executable versions of these ideas in
+`tests/test_lp_farming.py`, plus source-level safety checks in
+`tests/test_contract_shape.py`. The outline below shows the coverage goals if
+you are building the tests from scratch. Helpers such as `deploy_pool`,
+`deploy_farm`, `deposit_rewards`, `stake`, `claim`, and `unstake` wrap the
+AlgoKit Utils calls shown in the workflow script.
 
 ```python
 import pytest
@@ -1185,7 +1295,7 @@ class TestLPFarm:
         # Deploy farm, initialize with AMM reference
         # Deposit rewards (1M tokens over 30 days)
         # User stakes LP for 30 days
-        # Advance time (LocalNet: submit dummy txns)
+        # Advance time (LocalNet dev-mode timestamp offset)
         # Claim --- verify reward > 0
         # Advance past lock expiry
         # Unstake --- verify LP returned, box deleted
@@ -1272,14 +1382,11 @@ class TestLPFarm:
 
 ### Testing Time-Dependent Logic on LocalNet
 
-LocalNet does not advance timestamps between blocks unless real time passes or you explicitly submit transactions that cause new blocks to be produced. To test time-dependent logic, you have two options: (1) insert `time.sleep(N)` between operations and submit a dummy transaction to produce a block with an updated timestamp, or (2) use the `dev-mode` time offset feature if your LocalNet supports it. Option 1 is simpler but makes tests slow.
+LocalNet does not advance timestamps between blocks unless time moves and a new block is produced. For tests, prefer LocalNet's developer-mode timestamp offset endpoint: set an offset, then submit a tiny transaction to create a block at the new timestamp. The finished project wraps this in `advance_localnet_time()` so tests can move ten seconds or 366 days without sleeping.
 
-For the accumulator test (`test_accumulator_two_stakers`), a 200-second sleep is impractical. The workaround is to use a rate near the chapter's safety bound with short sleeps (2--3 seconds). This way, even a short gap produces meaningful accumulation, and you can verify the proportional split within a reasonable test runtime.
+For the accumulator test (`test_accumulator_two_stakers`), a 200-second sleep is impractical. Use a rate near the chapter's safety bound and a short timestamp offset instead. This way, a few simulated seconds produce meaningful rewards, and you can verify the proportional split within a reasonable test runtime.
 
 ```python
-# Practical test timing pattern
-import time
-
 # Deposit 58,400 reward base units over 100 seconds
 # -> reward_rate = 584 base units/second
 farm_client.send.call(
@@ -1292,23 +1399,13 @@ farm_client.send.call(
 
 # Alice stakes
 farm_client.send.call(...)
-time.sleep(3)  # Wait 3 real seconds
-
-# Submit a dummy payment to advance the block timestamp
-algorand.send.payment(
-    algokit_utils.PaymentParams(
-        sender=admin.address,
-        receiver=admin.address,
-        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
-        note=os.urandom(8),
-    )
-)
+advance_localnet_time(algorand, admin, offset_seconds=3)
 
 # Bob stakes --- the block timestamp is now ~3s later
 # Alice earned ~3 * 584 base units as sole staker
 ```
 
-The `note=os.urandom(8)` on dummy payments is essential --- LocalNet deduplicates identical transactions, so the random note ensures each one is unique.
+If your LocalNet does not expose the developer-mode offset endpoint, fall back to `time.sleep(N)` plus a dummy payment with `note=os.urandom(8)` to force a fresh block. The random note is essential because LocalNet deduplicates identical transactions.
 
 ### What to Verify
 
