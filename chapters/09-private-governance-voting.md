@@ -26,7 +26,7 @@ Your contract code goes in `smart_contracts/governance_voting/contract.py`. Dele
 > **Note: Technology stack for this chapter.** This project spans two languages and three components:
 >
 > 1. **Algorand Python** (PuyaPy) --- the voting smart contract (`contract.py`), compiled with `algokit project run build`
-> 2. **Go** (gnark + AlgoPlonk) --- the ZK circuit definition and verifier LogicSig generator, compiled with `go build`. Requires Go 1.21+ and `go get github.com/consensys/gnark`
+> 2. **Go** (gnark + AlgoPlonk) --- the ZK circuit definition and verifier LogicSig generator, compiled with `go build`. This chapter pins the current AlgoPlonk-compatible Go and gnark versions in the setup section below.
 > 3. **Python client code** --- deployment scripts and test harnesses using AlgoKit Utils
 >
 > The data flow is: the Go program generates a TEAL verifier LogicSig from the circuit definition. The Python client compiles this TEAL via algod, then uses it in atomic groups alongside the voting contract. You can build and test the voting contract (component 1) independently; the Go components (component 2) are needed only for end-to-end ZK proof verification.
@@ -41,7 +41,14 @@ The critical property for this chapter is the [opcode budget](https://dev.algora
 
 The LogicSig and smart contract opcode pools are independent. This means we can use LogicSigs for the cryptographic heavy lifting (proof verification) while preserving the full smart contract budget for application logic (recording votes, managing phases, tallying results). This separation is the architectural foundation of the system we are about to build.
 
-For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it simply needs enough opcode budget to run the elliptic curve operations. The security rules from Chapter 8 (close-to, rekey-to, fee caps, group validation) all apply and are enforced in our verifier implementation.
+For this project, we use LogicSigs in **contract account mode** --- the
+LogicSig program hash determines the account address. The generated verifier
+checks the proof and public inputs, but it is still a LogicSig program and must
+be treated with the Chapter 8 safety checklist. In production, wrap or modify
+the generated verifier so it also rejects close-to, rekey-to, excessive fees,
+and unexpected group structure. The stateful app should also validate those
+fields before trusting a verifier transaction in this group, but app-side checks
+do not protect the LogicSig account from standalone misuse if it is ever funded.
 
 > **What you can build with just Python.** The voting smart contract and its deployment can be compiled and tested using only the Python tools from earlier chapters. The Go toolchain (gnark, AlgoPlonk) is only needed for ZK proof generation and verifier LogicSig compilation. If you want to explore the voting contract without the ZK components, you can deploy, initialize, commit votes, and advance phases --- skipping only the prove step.
 
@@ -193,15 +200,15 @@ func (c *VoteCircuit) Define(api frontend.API) error {
 
 This circuit has ~100-200 constraints (PLONK uses a Sparse Constraint System, or SCS, rather than R1CS) --- very small. The MiMC hash dominates the constraint count. Proof generation is near-instant on any modern CPU.
 
-> **Go project setup.** The Go code in this project is separate from the Python smart contract code. You need Go 1.21 or later installed (download from [go.dev/dl](https://go.dev/dl/)). Create a dedicated directory for the ZK components:
+> **Go project setup.** The Go code in this project is separate from the Python smart contract code. AlgoPlonk v0.1.10 uses Go 1.25 and gnark v0.14. Create a dedicated directory for the ZK components:
 >
 > ```bash
 > mkdir -p zk-voting/{circuit,cmd}
 > cd zk-voting
 > go mod init zk-voting
-> go get github.com/consensys/gnark@latest
-> go get github.com/consensys/gnark-crypto@latest
-> go get github.com/giuliop/algoplonk@latest
+> go get github.com/consensys/gnark@v0.14.0
+> go get github.com/consensys/gnark-crypto@v0.19.2
+> go get github.com/giuliop/algoplonk@v0.1.10
 > ```
 >
 > Save the circuit code above as `circuit/vote_circuit.go`. The verifier generator code (shown later in this chapter) goes in `cmd/main.go`. The resulting `go.mod` will look approximately like this (exact versions may differ):
@@ -209,16 +216,18 @@ This circuit has ~100-200 constraints (PLONK uses a Sparse Constraint System, or
 > ```
 > module zk-voting
 >
-> go 1.21
+> go 1.25
 >
 > require (
->     github.com/consensys/gnark v0.11.0
->     github.com/consensys/gnark-crypto v0.14.0
->     github.com/giuliop/algoplonk v0.3.0
+>     github.com/consensys/gnark v0.14.0
+>     github.com/consensys/gnark-crypto v0.19.2
+>     github.com/giuliop/algoplonk v0.1.10
 > )
 > ```
 >
-> The `go get` commands populate the `require` block and download dependencies automatically. You do not need to write `go.mod` by hand.
+> The `go get` commands populate the `require` block and download dependencies
+> automatically. You do not need to write `go.mod` by hand. Check AlgoPlonk's
+> own `go.mod` when upgrading; the Go and gnark versions move together.
 
 ### The Voting Smart Contract
 
@@ -423,73 +432,72 @@ Finally, a testing note specific to the phase-based design of this contract.
 
 ### The LogicSig ZK Verifier
 
-This is where AlgoPlonk generates the verifier. The following Go code shows the workflow (save as `cmd/main.go` in a Go module, separate from the Python project):
+This is where AlgoPlonk generates the verifier. The following Go code is an
+illustrative example of the workflow, not a complete listing. It uses
+placeholder variables (`computedCommitment`, `myRandomness`)
+that you must replace with concrete values before saving it as `cmd/main.go` in
+a Go module separate from the Python project:
 
 ```go
 package main
 
 import (
-    "github.com/giuliop/algoplonk"
     "github.com/consensys/gnark-crypto/ecc"
-    "github.com/consensys/gnark/backend/plonk"
-    "github.com/consensys/gnark/frontend"
-    "github.com/consensys/gnark/frontend/cs/scs"
-    "github.com/consensys/gnark/test"
+    ap "github.com/giuliop/algoplonk"
+    "github.com/giuliop/algoplonk/setup"
+    "github.com/giuliop/algoplonk/verifier"
 )
 
 func main() {
-    // 1. Compile the circuit
+    // 1. Compile the circuit and trusted setup with AlgoPlonk.
     var circuit VoteCircuit
-    ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+    compiled, _ := ap.Compile(
+        &circuit,
+        ecc.BN254,
+        setup.PerpetualPowersOfTauBN254,
+    )
 
-    // 2. Setup (trusted setup --- generates proving and verification keys)
-    srs, _ := test.NewKZGSRS(ccs)  // In production, use a ceremony
-    pk, vk, _ := plonk.Setup(ccs, srs)
+    // 2. Write a PuyaPy LogicSig verifier, then compile it separately.
+    _ = compiled.WritePuyaPyVerifier(
+        "generated/VoteVerifier.py",
+        verifier.LogicSig,
+    )
 
-    // 3. Generate the Algorand LogicSig verifier from the verification key
-    verifier, _ := algoplonk.MakeVerifier(vk, algoplonk.LogicSig)
-    // verifier.Address() gives the LogicSig contract account address
-
-    // 4. Create a proof for a specific vote
+    // 3. Create a proof for a specific vote assignment.
     witness := VoteCircuit{
         Commitment: computedCommitment,  // Public
         NumChoices: 3,                    // Public
         Choice:     1,                    // Private --- the actual vote
         Randomness: myRandomness,         // Private --- blinding factor
     }
-    fullWitness, _ := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-    proof, _ := plonk.Prove(ccs, pk, fullWitness)
+    verifiedProof, _ := compiled.Verify(&witness)
+    _ = verifiedProof.ExportProofAndPublicInputs(
+        "generated/VoteVerifier.proof",
+        "generated/VoteVerifier.public_inputs",
+    )
 
-    // 5. Generate the Algorand transactions for on-chain verification
-    // AlgoPlonk creates the transaction group with:
-    //   - The LogicSig verifier attached to padding transactions
-    //   - The proof and public inputs passed as LogicSig arguments
-    //   - ~8 transactions in the group for BN254
-    txns, _ := verifier.MakeVerifyTransactions(proof, publicWitness)
-
-    // 6. In the same atomic group, add the app call to record_verified_proof
-    // This binds the ZK verification to the governance contract state update
+    // 4. Build the app call signed by the LogicSig verifier.
+    // The generated LogicSig reads proof and public inputs from app args.
+    // Add record_verified_proof in the same atomic group.
 }
 ```
 
-> **Building and running the Go code.** The `cmd/main.go` code above is illustrative --- it shows the AlgoPlonk workflow but uses placeholder variables (`computedCommitment`, `myRandomness`, `publicWitness`). To compile and run a working version, you would fill in concrete values and import the circuit package. From the `zk-voting` directory:
->
-> ```bash
-> # Verify everything compiles (after filling in placeholder values)
-> go build ./...
->
-> # Run the verifier generator
-> go run ./cmd/main.go
-> ```
->
-> The `go build ./...` command compiles all packages in the module. If you see import errors, run `go mod tidy` to resolve dependency versions. The AlgoPlonk `MakeVerifier` call writes the generated LogicSig TEAL files to the current directory --- you then reference these from your Python deployment code.
+To turn this illustrative example into runnable code, follow AlgoPlonk's
+current workflow: `Compile`, `WritePuyaPyVerifier`, compile the generated
+PuyaPy verifier with PuyaPy or AlgoKit, export the proof and public inputs, and
+pass them to the generated LogicSig verifier as ARC-4 encoded `byte[32][]` app
+arguments. `ApplicationArgs[0]` is the ARC-4 method selector,
+`ApplicationArgs[1]` is the proof, and `ApplicationArgs[2]` is the public
+inputs. If you see Go import errors, run `go mod tidy` to resolve dependency
+versions.
 
 The generated LogicSig verifier:
 - Has a deterministic address (the hash of the verification program)
-- Takes the proof and public inputs as arguments (`Arg[0]`, `Arg[1]`, etc.)
+- Reads the proof from `ApplicationArgs[1]`
+- Reads the public inputs from `ApplicationArgs[2]`
 - Executes the PLONK verification algorithm using the AVM's `ec_*` opcodes
 - Returns true if and only if the proof is valid for the given public inputs
-- Costs ~8 minimum transaction fees per verification (for BN254)
+- Needs pooled LogicSig opcode budget, roughly eight transactions for BN254
 
 ### The Atomic Group That Ties Everything Together
 
@@ -497,20 +505,28 @@ The full proof submission is a single atomic group:
 
 ```
 Transaction Group:
-[0] LogicSig verifier txn 1 (budget: +20,000 opcodes)    ← ZK verification
-[1] LogicSig verifier txn 2 (budget: +20,000 opcodes)    ← ZK verification
-[2] LogicSig verifier txn 3 (budget: +20,000 opcodes)    ← ZK verification
-[3] LogicSig verifier txn 4 (budget: +20,000 opcodes)    ← ZK verification
-[4] LogicSig verifier txn 5 (budget: +20,000 opcodes)    ← ZK verification
-[5] LogicSig verifier txn 6 (budget: +20,000 opcodes)    ← ZK verification
-[6] LogicSig verifier txn 7 (budget: +20,000 opcodes)    ← ZK verification
-[7] LogicSig verifier txn 8 (budget: +20,000 opcodes)    ← ZK verification (proof valid!)
-[8] Voter -> Contract: App call to record_verified_proof  ← State update
+[0] LogicSig-signed call to verifier anchor app       <- ZK verification
+[1..6] Companion transactions for LogicSig budget     <- +20,000 each
+[7] Voter -> GovernanceVoting.record_verified_proof   <- State update
 ```
 
-All 9 transactions succeed or fail atomically. If the proof is invalid, the LogicSig returns false, the entire group fails, and no state changes occur. If the proof is valid, the app call records the verification in the contract's box storage.
+All transactions succeed or fail atomically. If the proof is invalid, the
+LogicSig returns false, the entire group fails, and no state changes occur. If
+the proof is valid, the contract app call records the verification in box
+storage.
 
-The security binding: the smart contract's `record_verified_proof` method must verify that the LogicSig verifier is present in the group (by checking for a transaction from the verifier's known address) and that the proof's public inputs (the commitment hash and number of choices) match what's stored on-chain.
+The security binding: the smart contract's `record_verified_proof` method must
+verify that the LogicSig verifier is present in the group by checking for a
+transaction from the verifier's known address. It must also verify that the
+verifier call targeted the expected anchor app/method and that the proof's
+public inputs, such as the commitment hash and number of choices, match what is
+stored on-chain.
+
+Here `make_verify_transactions` is a project helper, not an AlgoPlonk API. It
+builds a LogicSig-signed app call to a small verifier anchor app/method, usually
+named `verify(proof, public_inputs)`, with ARC-4 encoded proof and public-input
+arguments. Then it adds the companion transactions needed for pooled LogicSig
+opcode budget.
 
 
 ## Part 5: Advanced Box Storage Patterns for Vote Tracking
@@ -646,9 +662,17 @@ If you cannot install the Go toolchain (gnark, AlgoPlonk), you can still test th
 
 ### Test Scenario: 3 Voters, 3 Choices
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `generate_vote_proof`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are outline examples showing *what* to test and *how* to
+assert. Deployment, funding, app-call, box, and round-advancement helpers wrap
+the AlgoKit Utils patterns shown earlier in this chapter. Crypto and proof
+helpers such as `generate_random_scalar`, `mimc_hash`, and
+`generate_vote_proof` must use the gnark/AlgoPlonk workflow or the
+simulate-based MiMC path described earlier. The patterns here --- lifecycle
+tests, failure-path tests, invariant tests --- are the ones you should
+implement for any production contract.
 
-The following test outlines go in `tests/test_governance_voting.py` (not part of the contract code).
+The following outline belongs in `tests/test_governance_voting.py` after you
+implement the helper functions above (not part of the contract code).
 
 The end-to-end test walks through all four phases with three voters, each casting a different vote. It verifies that commitments, proofs, and reveals all work correctly and produce the expected tally:
 
@@ -695,8 +719,12 @@ class TestGovernanceVoting:
         for voter, choice, rand, commitment in zip(
             voters, choices, randomness, commitments
         ):
-            proof = generate_vote_proof(choice, rand, commitment, num_choices=3)
-            verify_txns = algoplonk_verifier.make_verify_transactions(proof)
+            proof, public_inputs = generate_vote_proof(
+                choice, rand, commitment, num_choices=3
+            )
+            verify_txns = algoplonk_verifier.make_verify_transactions(
+                proof, public_inputs
+            )
             record_params = voting_client.params.call(
                 algokit_utils.AppClientMethodCallParams(
                     method="record_verified_proof",

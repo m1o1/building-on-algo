@@ -1049,9 +1049,16 @@ For additional safety, the LogicSig can include a unique nonce as a template var
 
 ## Part 7: Testing the Complete System
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `fund_account`, `deploy_order_book`, `compile_and_sign_limit_order`, `execute_fill`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are outline examples showing *what* to test and *how* to
+assert. The helper functions (`create_test_asa`, `fund_account`,
+`deploy_order_book`, `compile_and_sign_limit_order`, `execute_fill`,
+`advance_rounds`, etc.) are project-specific wrappers around the AlgoKit Utils,
+algod, and algosdk patterns shown earlier in this chapter. The patterns here
+--- lifecycle tests, failure-path tests, invariant tests --- are the ones you
+should implement for any production contract.
 
-The following test outlines go in `tests/test_limit_order.py` (not part of the contract code):
+The following outline belongs in `tests/test_limit_order.py` after you
+implement the helper functions above (not part of the contract code):
 
 ```python
 class TestLimitOrderBook:

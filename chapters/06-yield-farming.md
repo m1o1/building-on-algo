@@ -1092,9 +1092,14 @@ If a farming contract needed to make on-chain decisions based on price (e.g., dy
 
 ## Testing
 
-Test outlines for the farming contract. These follow the same structural pattern as the AMM tests from the previous chapter --- `deploy_pool` and similar helpers wrap the AlgoKit Utils calls shown in the deployment scripts.
+The tests below are outline examples showing *what* to test and *how* to
+assert. They follow the same structural pattern as the AMM tests from the
+previous chapter. Helpers such as `deploy_pool`, `deploy_farm`,
+`deposit_rewards`, `stake`, `claim`, and `unstake` wrap the AlgoKit Utils calls
+shown in the deployment scripts.
 
-Save the following in `tests/test_farm.py`:
+The following outline belongs in `tests/test_farm.py` after you implement the
+helper functions above:
 
 ```python
 import pytest

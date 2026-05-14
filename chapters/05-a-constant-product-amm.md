@@ -893,7 +893,13 @@ Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC
 
 ## Testing the AMM
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are outline examples showing *what* to test and *how* to
+assert. Helper functions and fixtures such as `bootstrap_pool`,
+`add_liquidity`, `swap`, `call_method`, `fund`, `usdc`, `algo`,
+`transfer_usdc`, `pool`, `reserve_a`, and `reserve_b` are project-specific
+wrappers around the deployment and interaction code shown earlier in this
+chapter. The patterns here --- lifecycle tests, failure-path tests, invariant
+tests --- are the ones you should implement for any production contract.
 
 As with Chapter 3, here is one complete test helper showing how the Chapter 2 pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
 
@@ -931,7 +937,8 @@ def deploy_pool(algorand, admin):
 
 > **Exercise:** Implement `bootstrap_pool(algorand, admin, pool, token_a, token_b)` using the bootstrap deployment script as a template. It should call the `bootstrap` method with a seed payment and both token IDs, then return the LP token ID.
 
-The following test outlines go in `tests/test_amm.py` (not part of the contract code):
+The following outline belongs in `tests/test_amm.py` after you implement the
+helper functions above (not part of the contract code):
 
 ```python
 class TestConstantProductPool:
