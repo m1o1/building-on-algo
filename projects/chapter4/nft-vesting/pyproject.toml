@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "nft-vesting"
+version = "0.1.0"
+description = "Algorand smart contracts"
+authors = ["redacted <redacted>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+algokit-utils = "^4.0.0"
+python-dotenv = "^1.0.0"
+algorand-python = "^3"
+algorand-python-testing = "^1"
+
+[tool.poetry.group.dev.dependencies]
+algokit-client-generator = "^2.1.0"
+puyapy = "*"
+pytest = "^9.0.3"
+
+[tool.pytest.ini_options]
+markers = [
+    "localnet: tests that require AlgoKit LocalNet",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
