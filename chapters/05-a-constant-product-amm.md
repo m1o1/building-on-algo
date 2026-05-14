@@ -299,6 +299,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
         assert a_txn.asset_receiver == Global.current_application_address
         assert b_txn.asset_receiver == Global.current_application_address
+        assert a_txn.sender == Txn.sender
+        assert b_txn.sender == Txn.sender
         assert a_txn.xfer_asset == Asset(self.asset_a.value)
         assert b_txn.xfer_asset == Asset(self.asset_b.value)
 
@@ -336,6 +338,10 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 ```
 
 The `BigUInt` multiplication prevents overflow in the product --- if both amounts are 10^12, the product is 10^24, far beyond uint64. The `op.bsqrt` opcode computes the integer floor square root natively on the AVM.
+
+The sender-binding checks are not redundant. The ABI router verifies that `a_txn` and `b_txn` are asset-transfer transactions, but it does not know that the LP tokens should go only to the account that sent both deposits. If Alice signs a group containing her two deposits and Bob's app call, Bob would receive the LP tokens unless the contract checks that both deposit senders equal `Txn.sender`.
+
+> **Check your understanding:** What relationship does the typed transaction argument prove, and what relationship does it *not* prove?
 
 > **Warning:** The caller must have already opted into the LP token before calling this method. If they have not, the inner `AssetTransfer` sending LP tokens will fail, and the entire atomic group rolls back --- the pool receives no tokens and no state changes. This is the "lazy opt-in" pattern: the contract does not check the opt-in explicitly; the protocol enforces it automatically. Client code must perform a zero-amount self-transfer of the LP token before calling `add_initial_liquidity`.
 
@@ -388,6 +394,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         self._update_twap()
 
         assert input_txn.asset_receiver == Global.current_application_address
+        assert input_txn.sender == Txn.sender
 
         input_asset = input_txn.xfer_asset
         input_amount = input_txn.asset_amount
@@ -420,6 +427,14 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         # Update reserves
         new_reserve_in = reserve_in + input_amount
         new_reserve_out = reserve_out - output_amount
+
+        # Defense-in-depth: the rounded swap must never reduce k.
+        old_k_high, old_k_low = op.mulw(reserve_in, reserve_out)
+        new_k_high, new_k_low = op.mulw(new_reserve_in, new_reserve_out)
+        assert new_k_high > old_k_high or (
+            new_k_high == old_k_high and new_k_low >= old_k_low
+        ), "Invariant violated"
+
         if input_asset == Asset(self.asset_a.value):
             self.reserve_a.value = new_reserve_in
             self.reserve_b.value = new_reserve_out
@@ -430,19 +445,9 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         return output_amount
 ```
 
-The invariant check --- verifying that `new_reserve_a * new_reserve_b >= old_reserve_a * old_reserve_b` --- is implicit in the formula. Because the output is calculated from the formula and rounded down, the invariant is mathematically guaranteed to hold. For additional defense-in-depth, you can add an explicit check using wide arithmetic. Insert this in the `swap` method, after calculating `new_reserve_in` and `new_reserve_out` and before writing them to global state, in `smart_contracts/constant_product_pool/contract.py`:
+The `input_txn.sender == Txn.sender` check binds the grouped asset transfer to the app-call sender who receives the swap output. If Alice signs a group containing her asset transfer and Bob's app call, the transaction argument is still a valid asset transfer --- but without sender binding, the contract would send the output tokens to Bob. Typed transaction arguments prove transaction shape; your contract must still validate the business relationship between that transfer and the app call.
 
-```python
-        # Explicit invariant verification (defense-in-depth)
-        old_k_high, old_k_low = op.mulw(reserve_in, reserve_out)
-        new_k_high, new_k_low = op.mulw(new_reserve_in, new_reserve_out)
-        # new_k >= old_k (compare 128-bit values)
-        assert new_k_high > old_k_high or (
-            new_k_high == old_k_high and new_k_low >= old_k_low
-        ), "Invariant violated"
-```
-
-Tinyman V2 made this explicit check mandatory after every operation --- it was one of the key lessons from the V1 exploit. Even if the swap formula is correct, an explicit invariant check catches implementation bugs that the formula alone might not.
+The explicit invariant check verifies that `new_reserve_a * new_reserve_b >= old_reserve_a * old_reserve_b` using wide arithmetic. The formula and floor rounding should already guarantee this, but defense-in-depth matters for AMMs. Tinyman V2 made this explicit check mandatory after every operation --- it was one of the key lessons from the V1 exploit. Even if the swap formula is correct, an explicit invariant check catches implementation bugs that the formula alone might not.
 
 ## Executing Your First Swap on LocalNet
 
@@ -552,6 +557,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
         assert a_txn.asset_receiver == Global.current_application_address
         assert b_txn.asset_receiver == Global.current_application_address
+        assert a_txn.sender == Txn.sender
+        assert b_txn.sender == Txn.sender
         assert a_txn.xfer_asset == Asset(self.asset_a.value)
         assert b_txn.xfer_asset == Asset(self.asset_b.value)
 
@@ -594,6 +601,8 @@ Wide arithmetic appears again: `amount_a * total_lp` can overflow if both are la
 
 The floor division on both `lp_from_a` and `lp_from_b` means depositors receive slightly fewer LP tokens than the mathematically precise amount. This is correct: existing LPs should not be diluted by rounding errors in new deposits.
 
+As in `add_initial_liquidity`, sender binding ensures the account receiving LP tokens is the account that sent the deposits. For normal asset transfers, ask: *did the same account fund the operation that benefits `Txn.sender`?* If yes, assert it directly. Clawback-enabled assets add an additional `asset_sender` wrinkle; this AMM uses ordinary user-sent transfers.
+
 ## Removing Liquidity
 
 Withdrawal is the inverse of deposit: burn LP tokens, receive proportional shares of both reserves. The calculation is straightforward:
@@ -618,6 +627,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
         assert lp_txn.asset_receiver == Global.current_application_address
         assert lp_txn.xfer_asset == Asset(self.lp_token_id.value)
+        assert lp_txn.sender == Txn.sender
 
         lp_amount = lp_txn.asset_amount
         assert lp_amount > UInt64(0)
@@ -661,6 +671,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
 The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
 
+The `lp_txn.sender == Txn.sender` check applies the same sender-binding rule in reverse: the account sending LP tokens to the pool is the account receiving the underlying assets.
+
 
 ## Understanding Impermanent Loss
 
@@ -701,15 +713,17 @@ On January 1, 2022, attackers exploited a vulnerability in Tinyman V1's burn (re
 
 The key lessons from this exploit shape our contract's security posture.
 
-First, **explicit invariant verification after every operation**. Our swap method calculates the output from the formula and relies on the math being correct. But the Tinyman exploit showed that complex TEAL logic can have subtle control flow bugs that bypass the intended math. Adding an explicit check that $k_{new} \geq k_{old}$ after every state-changing operation catches implementation bugs that the formula alone might miss.
+First, **explicit invariant verification after state-changing AMM operations**. Our swap method calculates the output from the formula and then checks that $k_{new} \geq k_{old}$. The Tinyman exploit showed that complex TEAL logic can have subtle control flow bugs that bypass intended math. This tutorial demonstrates the post-condition in `swap`; production AMMs should apply equivalent post-condition reasoning across liquidity operations too.
 
 Second, **immutable contracts cannot be patched**. When Tinyman discovered the exploit, they could not update the contracts because they were immutable. They could only recommend that users withdraw their liquidity. This is actually the correct tradeoff --- immutability is what makes the contracts trustless. But it means your code must be correct before deployment. There is no hot-fix option.
 
 Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the swap method. It checks `a_txn.xfer_asset == Asset(self.asset_a.value)` in add_liquidity. It checks `lp_txn.xfer_asset == Asset(self.lp_token_id.value)` in remove_liquidity. Never assume the correct asset was sent --- always verify.
 
+Fourth, **sender binding for transaction arguments**. Typed transaction arguments prove that the argument has the expected transaction type, but they do not prove that the transfer came from the app-call sender. When a grouped payment or asset transfer funds an operation whose benefit goes to `Txn.sender`, assert the transaction argument's `sender == Txn.sender`.
+
 Beyond the Tinyman case study, the Trail of Bits "Not So Smart Contracts" database and the Panda static analysis framework (USENIX Security 2023) identified systematic vulnerability patterns. Panda found that 27.73\% of deployed Algorand applications had at least one vulnerability. The most common categories include missing authorization checks, group size validation gaps, inner transaction fee drains, and --- for Logic Signatures --- missing close-to and rekey-to checks (the #1 finding, though not applicable to stateful contracts like ours).
 
-Our contract addresses the categories that apply to stateful contracts: the contract is immutable (update/delete rejected), all inner transaction fees are zero (preventing fee drain), every incoming transfer is verified for asset ID and receiver, and all privileged methods check caller authorization.
+Our contract addresses the categories that apply to stateful contracts: the contract is immutable (update/delete rejected), all inner transaction fees are zero (preventing fee drain), every incoming transfer is verified for asset ID, receiver, and sender binding where needed, and all privileged methods check caller authorization.
 
 Regarding reentrancy: classical reentrancy attacks are impossible on Algorand. The AVM has no fallback functions or callbacks triggered by token transfers. When your contract sends tokens via an inner transaction, no user code executes on the receiving side. The contract maintains full, uninterrupted control flow. This eliminates the entire class of *reentrancy* exploits that have caused hundreds of millions of dollars in losses on other blockchains. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a detailed security model comparison.)
 
@@ -931,7 +945,7 @@ def deploy_pool(algorand, admin):
 
 > **Exercise:** Implement `bootstrap_pool(algorand, admin, pool, token_a, token_b)` using the bootstrap deployment script as a template. It should call the `bootstrap` method with a seed payment and both token IDs, then return the LP token ID.
 
-The following test outlines go in `tests/test_amm.py` (not part of the contract code):
+The following structural outlines belong in `tests/test_amm.py` after you implement the fixtures and helper functions (not part of the contract code):
 
 ```python
 class TestConstantProductPool:
@@ -955,10 +969,53 @@ class TestConstantProductPool:
         with pytest.raises(Exception, match="Slippage exceeded"):
             call_method(pool, "swap", [transfer_usdc(100), 999999999])
 
+    def test_initial_liquidity_rejects_mismatched_sender(self, algorand):
+        # The initial deposits must come from the account receiving LP tokens.
+        with pytest.raises(Exception):
+            call_method(
+                pool, "add_initial_liquidity",
+                [
+                    transfer_usdc(1000, sender=alice),
+                    transfer_algo(4, sender=alice),
+                ],
+                sender=bob,
+            )
+
+    def test_swap_rejects_mismatched_sender(self, algorand):
+        # Alice signs the input transfer, but Bob submits the app call.
+        # Without input_txn.sender == Txn.sender, Bob would receive output.
+        with pytest.raises(Exception):
+            call_method(
+                pool, "swap",
+                [transfer_usdc(100, sender=alice), 0],
+                sender=bob,
+            )
+
+    def test_add_liquidity_rejects_mismatched_sender(self, algorand):
+        # Both deposits must come from the account receiving LP tokens.
+        with pytest.raises(Exception):
+            call_method(
+                pool, "add_liquidity",
+                [
+                    transfer_usdc(1000, sender=alice),
+                    transfer_algo(4, sender=alice),
+                ],
+                sender=bob,
+            )
+
     def test_remove_liquidity_proportional(self, algorand):
         # Add liquidity, then remove half
         call_method(pool, "remove_liquidity", [burn_lp(half), 0, 0])
         # Verify reserves decreased proportionally
+
+    def test_remove_liquidity_rejects_mismatched_sender(self, algorand):
+        # The LP-token transfer must come from the account receiving reserves.
+        with pytest.raises(Exception):
+            call_method(
+                pool, "remove_liquidity",
+                [burn_lp(half, sender=alice), 0, 0],
+                sender=bob,
+            )
 
     def test_immutability(self, algorand):
         with pytest.raises(Exception):
@@ -1006,6 +1063,7 @@ In this chapter you learned to:
 - Implement safe swap logic with fee deduction, slippage protection, and explicit invariant verification
 - Calculate LP token minting amounts using the geometric mean for initial liquidity and proportional ratios for subsequent deposits
 - Implement proportional liquidity withdrawal with dual slippage protection
+- Bind grouped transaction senders to `Txn.sender` when the app-call sender receives the benefit
 - Apply the Tinyman V1 lesson: defense-in-depth invariant checks that catch exploits even when individual validations fail
 - Build a TWAP price oracle using `BigUInt` cumulative price tracking for manipulation-resistant price feeds
 - Build client-side quote calculations using free global state reads
@@ -1021,7 +1079,7 @@ This chapter applied the foundational concepts from the vesting contract to a si
 | Add liquidity | Proportional minting with min() ratio, unbalanced deposit penalty |
 | Remove liquidity | Proportional withdrawal, dual slippage protection |
 | TWAP oracle | Cumulative price tracking, BigUInt, manipulation resistance |
-| Security | Tinyman V1 case study, defense-in-depth invariant checks, MEV on Algorand |
+| Security | Tinyman V1 case study, sender binding, invariant checks, MEV on Algorand |
 | Client integration | Off-chain quote calculation, free state reads |
 
 In the next chapter, we extend this AMM with a yield farming contract --- a staking system where LPs lock their LP tokens to earn reward tokens, introducing the reward accumulator pattern and smart contract composition.
