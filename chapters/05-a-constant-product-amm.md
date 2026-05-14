@@ -907,7 +907,13 @@ Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC
 
 ## Testing the AMM
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are outline examples showing *what* to test and *how* to
+assert. Helper functions and fixtures such as `bootstrap_pool`,
+`add_liquidity`, `swap`, `call_method`, `fund`, `usdc`, `algo`,
+`transfer_usdc`, `pool`, `reserve_a`, and `reserve_b` are project-specific
+wrappers around the deployment and interaction code shown earlier in this
+chapter. The patterns here --- lifecycle tests, failure-path tests, invariant
+tests --- are the ones you should implement for any production contract.
 
 As with Chapter 3, here is one complete test helper showing how the Chapter 2 pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
 

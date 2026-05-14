@@ -668,7 +668,12 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 > Run it from the project environment created by `algokit project bootstrap all`.
 > (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 
-The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`, `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the AlgoKit Utils calls shown earlier in this chapter. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+The tests below are outline examples showing *what* to test and *how* to assert.
+The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`,
+`get_claimable`, `advance_time`, etc.) are project-specific wrappers around the
+AlgoKit Utils calls shown earlier in this chapter. The patterns here ---
+lifecycle tests, failure-path tests, invariant tests --- are the ones you
+should implement for any production contract.
 
 To show how Chapter 2's `setup_initialized_contract` pattern translates to a new contract, here is the complete `deploy_vesting` helper. The remaining helpers follow the same approach --- adapt the interaction patterns from the deployment section above:
 
@@ -708,7 +713,12 @@ def deploy_vesting(algorand, admin):
 
 Before diving into the test code, there are two LocalNet behaviors that will affect how you write your test helpers.
 
-> **LocalNet time advancement:** On LocalNet, block timestamps only advance when new blocks are produced, and blocks are produced on demand (when transactions are submitted). Calling `time.sleep(N)` alone does NOT advance the block timestamp --- you must also submit a transaction (even a zero-amount self-payment) to produce a block with the updated timestamp. A typical `advance_time` helper sleeps for the desired duration, then sends a dummy transaction to trigger a new block:
+> **Caution:** On LocalNet, block timestamps only advance when new blocks are
+> produced, and blocks are produced on demand when transactions are submitted.
+> Calling `time.sleep(N)` alone does NOT advance the block timestamp. You must
+> also submit a transaction, even a zero-amount self-payment, to produce a block
+> with the updated timestamp. A typical `advance_time` helper sleeps for the
+> desired duration, then sends a dummy transaction to trigger a new block:
 >
 > ```python
 > import time
@@ -725,13 +735,23 @@ Before diving into the test code, there are two LocalNet behaviors that will aff
 >     )
 > ```
 >
-> For testing, use short durations (seconds rather than months) for cliff and vesting periods. For example, set a cliff of 8 seconds and total vesting of 30 seconds instead of 90 days and 365 days.
+> For testing, use short durations for cliff and vesting periods. For example,
+> set a cliff of 8 seconds and total vesting of 30 seconds instead of 90 days
+> and 365 days.
 
 A second LocalNet quirk affects rapid-fire test transactions.
 
-> **LocalNet tip: transaction deduplication.** Sending identical app calls in rapid succession on LocalNet can produce identical transaction IDs, causing `"transaction already in ledger"` errors. To avoid this, add a unique `note` field to each transaction (e.g., `note=os.urandom(8)` or `note=f"test-{i}".encode()`). This ensures every transaction has a distinct ID even when the parameters are otherwise identical. In practice, add `note=os.urandom(8)` to every `AppClientMethodCallParams` and `PaymentParams`/`AssetTransferParams` in your test helpers --- it costs nothing and prevents intermittent test failures.
+> **Caution:** Sending identical app calls in rapid succession on LocalNet can
+> produce identical transaction IDs, causing `"transaction already in ledger"`
+> errors. Add a unique `note` field to each transaction, such as
+> `note=os.urandom(8)` or `note=f"test-{i}".encode()`. In practice, add
+> `note=os.urandom(8)` to every `AppClientMethodCallParams` and
+> `PaymentParams`/`AssetTransferParams` in your test helpers; it costs nothing
+> and prevents intermittent test failures.
 
-With those LocalNet behaviors in mind, the following test outlines go in `tests/test_vesting.py` (not part of the contract code):
+With those LocalNet behaviors in mind, the following outline belongs in
+`tests/test_vesting.py` after you implement the helper functions above (not
+part of the contract code):
 
 ```python
 import pytest

@@ -64,7 +64,23 @@ Client-side code uses two styles: **AlgoKit Utils v4** (`AlgorandClient`, `AppFa
 
 ### Using Code Examples
 
-All contract code in this book is Algorand Python targeting AVM v12. Every example compiles and runs on LocalNet using the toolchain versions specified below. You are free to use the code examples in your own projects --- no special permission is required.
+All contract code in this book is Algorand Python targeting AVM v12. Complete
+project listings and runnable scripts are intended to compile and run on
+LocalNet using the toolchain versions specified below. Shorter snippets have a
+specific role in the teaching sequence:
+
+- **Complete listing** means the block is intended to be copied into the named
+  file after completing the preceding steps.
+- **Fragment** means the block belongs inside the surrounding class, function,
+  or script already under construction.
+- **Outline** means the block shows the structure of a test or client workflow;
+  project-specific helpers are placeholders that you implement using the
+  deployment and interaction patterns already shown.
+- **Illustrative example** means the block is intentionally explanatory rather
+  than a complete project listing; it is labeled in the surrounding prose.
+
+You are free to use the code examples in your own projects --- no special
+permission is required.
 
 This book pins a dated, validated baseline toolchain rather than trying to track every new package release. As of May 14, 2026, the examples were reviewed against:
 
