@@ -7,10 +7,11 @@ Every gotcha from every chapter in one scannable list.
 
 ## Box Storage
 
-(See [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
+(See [Box Storage] for behavior and [Protocol Parameters] for current box I/O
+constants.)
 
 - MBR formula includes name length: `2,500 + 400 × (name_len + data_size)` microAlgos
-- Each box reference provides only 1KB of I/O budget --- a 4KB box needs 4 references
+- Each box reference provides 2KB of I/O budget --- a 4KB box needs 2 references
 - Boxes cannot be accessed in the ClearStateProgram --- all box opcodes fail immediately
 - Box size was immutable prior to AVM v10; since AVM v10, `box_resize` and `box_splice` allow in-place resizing without deleting and recreating
 - If an app is deleted, its boxes are NOT deleted and the MBR is locked forever
@@ -22,7 +23,9 @@ Every gotcha from every chapter in one scannable list.
 
 (See [Inner Transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/).)
 
-- **Always** set `fee=UInt64(0)` on inner transactions; otherwise the contract's Algo balance pays
+- Set `fee=UInt64(0)` on inner transactions so fee pooling is explicit
+- In the book's validated PuyaPy baseline, inner transaction fees default to zero
+- Lower-level tools may default to a non-zero inner fee
 - Budget adds +700 opcodes per inner app call when submitted
 - Maximum 16 inner transactions per application call (pooled to 256 across the group)
 - Maximum call depth of 8 --- the 8th contract cannot make further app calls
@@ -70,10 +73,16 @@ Every gotcha from every chapter in one scannable list.
 
 (See [Resource Usage](https://dev.algorand.co/concepts/smart-contracts/resource-usage/).)
 
-- 8 foreign references *per type* per transaction (8 accounts, 8 assets, 8 applications, 8 box references)
+- Legacy arrays: up to 8 total references per app call
+- Access lists: AVM v12 allows up to 16 entries
+- Do not mix access lists with legacy arrays in the same transaction
 - References are pooled across the group since AVM v9 --- spread across multiple txns if needed
-- For compound references (asset holdings), both account and asset must appear in the same top-level transaction's arrays
+- Legacy compound references require the component resources in the same
+  top-level transaction's arrays
+- Access lists use explicit holding, local-state, and box entries instead
 - The transaction sender and current application are implicitly available
+- In AlgoKit Utils Python, automatic resource population is opt-in
+- Pass required references explicitly, or enable `populate_app_call_resources=True`
 
 ## Logic Signatures
 
@@ -92,7 +101,8 @@ Every gotcha from every chapter in one scannable list.
 
 (See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/).)
 
-- PuyaPy versions below 5.5.0 could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0)) --- always use v5.7.1+
+- Use the Preface's dated validated baseline for book walkthroughs
+- Do not downgrade below PuyaPy v5.5.0. Earlier versions could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0))
 - Global and local state schemas are immutable after app creation
 - `algokit localnet reset` between test suites for clean state
 - Block timestamps come from the proposer's clock, accurate only within ~25 seconds
@@ -104,8 +114,15 @@ Every gotcha from every chapter in one scannable list.
 
 - For Logic Signatures, missing close-to / rekey checks are the #1 audit finding: assert `close_remainder_to` (payments), `asset_close_to` (asset transfers), and `rekey_to` (all types). These checks are not needed in stateful contracts --- the fields affect the sender's account, not the contract's
 - Always verify group size matches expectations
+- When a grouped transaction funds a method and output or credit goes to
+  `Txn.sender`, assert the funding transaction's sender equals `Txn.sender`
+- If you support third-party sponsorship, model the beneficiary explicitly
 - Always verify asset IDs in every transfer (don't assume)
 - Always verify the receiver of incoming transfers is the contract address
 - ClearState always succeeds --- design for users being able to exit at any time
 - Rejected UpdateApplication and DeleteApplication makes a contract immutable (recommended for DeFi)
 - Run Tealer static analysis: `tealer approval.teal --detect all`
+
+[Box Storage]: https://dev.algorand.co/concepts/smart-contracts/storage/box/
+[Protocol Parameters]: https://dev.algorand.co/concepts/protocol/protocol-parameters/
+[Puya v5.5.0 release notes]: https://github.com/algorandfoundation/puya/releases/tag/v5.5.0

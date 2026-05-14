@@ -271,8 +271,9 @@ $$1{,}000{,}000 \times 86{,}400 \times 10^9 = 8.64 \times 10^{19}$$
 This exceeds `UInt64`'s maximum. We apply the same wide arithmetic pattern from Chapters 3 and 5 --- `op.mulw` for the 128-bit intermediate product and `op.divmodw` for the division:
 
 ```python
-# reward_rate * delta_t fits in UInt64 for realistic
-# parameters, so we compute it directly:
+# Enforce the bounds that make reward_rate * delta_t safe:
+assert reward_rate <= UInt64(MAX_REWARD_RATE)
+assert delta_t <= UInt64(MAX_REWARD_DURATION)
 rate_time = reward_rate * delta_t
 # Multiply by PRECISION (128-bit via mulw),
 # then divide by total_staked:
@@ -282,7 +283,7 @@ q_hi, increment, r_hi, r_lo = op.divmodw(
 )
 ```
 
-> **Note:** The `rate_time = reward_rate * delta_t` product must fit in `UInt64`. With a maximum reward rate of $10^6$ tokens/second and a maximum delta of one year ($\approx 3.15 \times 10^7$ seconds), the product is $\approx 3.15 \times 10^{13}$ --- safely within the $1.84 \times 10^{19}$ `UInt64` limit. If your reward parameters are extreme (rate exceeding $\approx 5 \times 10^{11}$ tokens/second), use an additional `mulw` stage or switch to `BigUInt`.
+> **Note:** The `rate_time = reward_rate * delta_t` product must fit in `UInt64`, and so must the scaled increment when `total_staked` is as small as 1. With `MAX_REWARD_RATE` set to 584 base units per second and `MAX_REWARD_DURATION` set to 365 days, `reward_rate * delta_t * PRECISION` is still below the $1.84 \times 10^{19}$ `UInt64` limit. If you need more extreme parameters, use `BigUInt` or a carefully designed multiword arithmetic helper.
 
 ### Visual Trace: Two Stakers
 
@@ -329,7 +330,7 @@ $$\text{reward\_per\_token} = 10{,}000{,}000{,}000 + 3{,}333{,}333{,}333 = 13{,}
 Alice: $100 \times (13{,}333{,}333{,}333 - 0) / 10^9 = 1{,}333$ tokens.
 Bob: $200 \times (13{,}333{,}333{,}333 - 10{,}000{,}000{,}000) / 10^9 = 666$ tokens.
 
-Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor.
+Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor. The production contract tracks only the distributable portion in `rewards_remaining`; dust stays in the contract outside that pool.
 
 > **Warning:** The total rewards distributed must never exceed `reward_rate * elapsed_time`. Rounding in `op.divmodw` floors toward zero, ensuring the contract always retains dust. If you ever observe total distributions exceeding the reward pool, you have a bug. This is the single most important property to verify in your tests.
 
@@ -341,9 +342,9 @@ With `PRECISION = 10^9`, the `reward_per_token_stored` value grows by `(reward_r
 
 $$\frac{10^6 \times 86{,}400 \times 10^9}{1} = 8.64 \times 10^{19}$$
 
-This exceeds `UInt64`'s maximum of $\approx 1.84 \times 10^{19}$. However, the numerator before division is computed in 128-bit via `mulw`, and the division via `divmodw` produces a 64-bit quotient. The quotient itself overflows only if `total_staked = 1` and the numerator is enormous --- which means a single user with 1 LP token is staked while $10^6$ reward tokens per second are distributed. In practice, total staked values are orders of magnitude larger, keeping the increment well within 64-bit range.
+This exceeds `UInt64`'s maximum of $\approx 1.84 \times 10^{19}$ if computed as a plain 64-bit product. The production code therefore computes the `* PRECISION` step with `mulw`, checks `q_hi == 0` after `divmodw`, and checks that adding `increment` cannot overflow the stored accumulator. The only plain multiplication left is `reward_rate * delta_t`, and the contract now asserts the rate and duration bounds that make that product safe.
 
-If your reward parameters are extreme, add a check: `assert increment < UInt64(2**63)` after the `divmodw`. This panic-on-overflow approach is safer than silently wrapping, which would corrupt the accumulator and allow some stakers to claim more than their share.
+If your reward parameters are more extreme than the chapter's bounds allow, switch to `BigUInt` or a carefully designed multiword arithmetic helper. Do not merely increase `MAX_REWARD_RATE`; the proof obligation is that every intermediate value is either bounded or computed with wide arithmetic.
 
 *Recall the wide arithmetic pattern from the AMM's swap calculation in the previous chapter. What was the purpose of `mulw` and `divmodw` there? The same pattern --- 128-bit intermediate product divided back to 64 bits --- reappears throughout this chapter.*
 
@@ -472,7 +473,17 @@ class StakePosition(arc4.Struct):
 
 Five `arc4.UInt64` fields = 40 bytes. Box key: `b"s_"` prefix (2 bytes) + 32-byte address = 34 bytes. Box MBR: $2{,}500 + 400 \times (34 + 40) = 32{,}100$ microAlgos per staker.
 
-The global state schema uses 9 `UInt64` slots and 1 `Bytes` slot (the admin address). Since the default schema allows up to 64 of each, we have plenty of room.
+The global state schema uses 10 `UInt64` slots and 1 `Bytes` slot (the admin address). Since the default schema allows up to 64 of each, we have plenty of room. The extra `rewards_remaining` slot is a circuit breaker: every payout decrements it, so a math bug cannot distribute more reward tokens than the funded pool.
+
+Reward accounting follows one invariant:
+
+```text
+deposited = distributable + dust
+distributable = reward_rate * duration_seconds
+claimed + rewards_remaining = sum(accepted distributable deposits)
+```
+
+Dust is not a user reward. It remains in the contract until a production sweep path handles it.
 
 > **Note:** `Global.latest_timestamp` is the timestamp of the block containing the current transaction, not the wall-clock time. It is accurate to within about 25 seconds and is set by the block proposer. For a staking contract with lock periods measured in days, this precision is more than adequate. Do not use timestamps for sub-minute precision requirements.
 
@@ -491,6 +502,9 @@ SCALE = 1000
 SECONDS_PER_DAY = 86400
 MIN_LOCK = 30 * SECONDS_PER_DAY
 MAX_LOCK = 365 * SECONDS_PER_DAY
+MAX_REWARD_DURATION = 365 * SECONDS_PER_DAY
+MAX_REWARD_RATE = 584
+MAX_UINT64 = 2**64 - 1
 ```
 
 
@@ -520,6 +534,7 @@ class LPFarm(ARC4Contract):
         self.reward_end_time = GlobalState(UInt64(0))
         self.last_update_time = GlobalState(UInt64(0))
         self.reward_per_token_stored = GlobalState(UInt64(0))
+        self.rewards_remaining = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
         # arc4.Address gives a fixed 32-byte key with O(1)
         # lookup by staker address --- ideal for per-user data.
@@ -601,6 +616,10 @@ The `deposit_rewards` method funds the reward pool and sets the distribution rat
             Global.current_application_address
         )
         assert duration_seconds > UInt64(0)
+        assert duration_seconds <= UInt64(MAX_REWARD_DURATION)
+        assert Global.latest_timestamp >= self.reward_end_time.value, (
+            "Reward period active"
+        )
 
         # Settle any accrued rewards before changing rate
         self._update_reward()
@@ -608,7 +627,28 @@ The `deposit_rewards` method funds the reward pool and sets the distribution rat
         amount = reward_txn.asset_amount
         assert amount > UInt64(0), "Zero reward deposit"
 
-        self.reward_rate.value = amount // duration_seconds
+        new_rate = amount // duration_seconds
+        assert new_rate > UInt64(0), "Reward rate rounds to zero"
+        assert new_rate <= UInt64(MAX_REWARD_RATE), "Reward rate too high"
+
+        distributable = new_rate * duration_seconds
+        capacity = UInt64(MAX_UINT64) - self.rewards_remaining.value
+        assert distributable <= capacity, "Reward pool overflow"
+
+        h, worst_increment = op.mulw(
+            distributable, UInt64(PRECISION)
+        )
+        assert h == UInt64(0), "Accumulator capacity overflow"
+        acc_capacity = (
+            UInt64(MAX_UINT64)
+            - self.reward_per_token_stored.value
+        )
+        assert worst_increment <= acc_capacity, (
+            "Accumulator capacity overflow"
+        )
+
+        self.rewards_remaining.value += distributable
+        self.reward_rate.value = new_rate
         self.last_update_time.value = (
             Global.latest_timestamp
         )
@@ -617,9 +657,13 @@ The `deposit_rewards` method funds the reward pool and sets the distribution rat
         )
 ```
 
-The reward rate is tokens per second. Integer division means some dust is lost --- depositing 1,000,000 tokens over 86,401 seconds yields a rate of 11 tokens/second, distributing $11 \times 86{,}401 = 950{,}411$ tokens total. The remaining 49,589 tokens stay in the contract. This is standard behavior; production systems often add a "sweep" function for the admin to recover undistributed dust after the reward period ends.
+The reward rate is token base units per second. Integer division means some dust is left undistributed --- depositing 1,000,000 base units over 86,401 seconds yields a rate of 11 base units/second, distributing $11 \times 86{,}401 = 950{,}411$ base units total. Only the distributable amount is added to `rewards_remaining`; the remaining 49,589 base units stay in the contract as dust. This is standard behavior; production systems often add a "sweep" function for the admin to recover undistributed dust after the reward period ends.
 
-> **Warning:** The `deposit_rewards` method replaces an existing reward period rather than extending it. The `_update_reward()` call at the top settles accrued rewards at the old rate before the new rate takes effect --- without it, stakers would lose rewards earned under the previous period. However, any undistributed tokens from the old period (between `last_update_time` and the old `reward_end_time`) are effectively abandoned. A production contract should either prevent overlapping deposits or calculate a new rate that accounts for both the remaining and newly deposited rewards. For simplicity, our contract assumes a single reward period.
+The bounds are machine-checked. `duration_seconds` cannot exceed `MAX_REWARD_DURATION`, and the derived `reward_rate` cannot exceed `MAX_REWARD_RATE`. Together these assertions guarantee that `_update_reward()` can safely compute `reward_rate * delta_t` as a plain `UInt64` product and that the scaled accumulator increment fits even when `total_effective == 1`.
+
+The accumulator-capacity check is intentionally conservative. It assumes the worst case: one effective staking unit receives the entire new schedule. If that worst-case increment would overflow the lifetime `reward_per_token_stored` accumulator, the deposit is rejected immediately instead of accepting a schedule that could later block `claim()` or `unstake()`.
+
+> **Warning:** The `deposit_rewards` method rejects overlapping reward periods. New rewards can be deposited after the previous period has ended, while unclaimed rewards from earlier periods remain covered by `rewards_remaining`. A production contract that accepts top-ups during an active period must explicitly roll the unearned old schedule into the new rate or account for it separately.
 
 
 ## Staking LP Tokens
@@ -702,8 +746,10 @@ This is the accumulator update, called at the top of every state-changing method
         rate = self.reward_rate.value
         total = self.total_effective.value
 
-        # rate * delta_t fits in UInt64 for any realistic
-        # parameters (max ~10^6 * 31536000 = 3.15e13)
+        assert delta_t <= UInt64(MAX_REWARD_DURATION)
+        assert rate <= UInt64(MAX_REWARD_RATE)
+
+        # The deposit bounds make this UInt64 product safe.
         rate_time = rate * delta_t
         # Multiply by PRECISION via mulw (128-bit result),
         # then divide by total via divmodw
@@ -715,11 +761,24 @@ This is the accumulator update, called at the top of every state-changing method
         )
         assert q_hi == UInt64(0), "Accumulator overflow"
 
+        capacity = UInt64(MAX_UINT64) - self.reward_per_token_stored.value
+        assert increment <= capacity, "Accumulator overflow"
         self.reward_per_token_stored.value += increment
         self.last_update_time.value = effective_now
 ```
 
-The two-stage wide arithmetic is straightforward. First, `rate * delta_t` is computed as a plain `UInt64` product. For any realistic parameters --- a reward rate up to $10^6$ tokens/second and a maximum delta of one year (31,536,000 seconds) --- this product is at most $3.15 \times 10^{13}$, well within `UInt64` range. The `mulw` then multiplies this intermediate result by `PRECISION` ($10^9$) to produce a 128-bit value, and `divmodw` divides by `total` to yield the 64-bit increment. If your reward parameters are extreme enough that `rate * delta_t` itself could exceed $2^{64}$, you would need an additional `mulw` stage or `BigUInt` arithmetic --- but this would require a reward rate exceeding $5 \times 10^{14}$ tokens/second, far beyond any realistic deployment.
+The two-stage wide arithmetic is straightforward. First, `rate * delta_t` is computed as a plain `UInt64` product, but only after checking the same bounds enforced by `deposit_rewards`. The `mulw` then multiplies this intermediate result by `PRECISION` ($10^9$) to produce a 128-bit value, and `divmodw` divides by `total` to yield the 64-bit increment. The `q_hi == 0` and accumulator-capacity assertions make accumulator overflow fail loudly instead of corrupting reward accounting.
+
+| Assumption | Checked where | Protects |
+|------------|---------------|----------|
+| Reward period is bounded | `deposit_rewards`, `_update_reward` | `rate * delta_t` fits in `UInt64` |
+| Reward rate is bounded | `deposit_rewards`, `_update_reward` | Scaled increment fits even when total is 1 |
+| Precision multiply may exceed `UInt64` | `_update_reward` uses `mulw` | 128-bit numerator is preserved |
+| Division result must fit | `_update_reward` checks `q_hi == 0` | Accumulator increment is 64-bit |
+| Stored accumulator must not wrap | `_update_reward` checks capacity | `reward_per_token_stored` stays monotonic |
+| New schedules must fit lifetime capacity | `deposit_rewards` checks worst-case increment | Future updates cannot trap users |
+| Per-user reward quotient must fit | `claim`, `extend_lock`, `unstake` check `q_hi` | Pending reward is not truncated |
+| Payouts must be funded | `claim`, `unstake` check `rewards_remaining` | Claims cannot exceed the distributable pool |
 
 ### The `_calculate_multiplier` Subroutine
 
@@ -895,17 +954,20 @@ The `claim` method settles the user's accrued rewards and sends them as an inner
         q_hi, new_rewards, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(PRECISION)
         )
+        assert q_hi == UInt64(0), "Reward overflow"
         total_pending: UInt64 = (
             pos.accrued_rewards.as_uint64() + new_rewards
         )
 
         assert total_pending > UInt64(0), "Nothing to claim"
+        assert total_pending <= self.rewards_remaining.value
 
         # Update position: snapshot current accumulator,
         # zero out accrued
         pos.reward_per_token_paid = arc4.UInt64(current_rpt)
         pos.accrued_rewards = arc4.UInt64(0)
         self.stakes[key] = pos.copy()
+        self.rewards_remaining.value -= total_pending
 
         # Send rewards
         itxn.AssetTransfer(
@@ -919,6 +981,8 @@ The `claim` method settles the user's accrued rewards and sends them as an inner
 ```
 
 The `accrued_rewards` field captures rewards that were calculated during a previous interaction (like `_update_reward` during another user's stake) but not yet claimed. This ensures no rewards are lost between interactions.
+
+The `rewards_remaining` check is the reward conservation invariant in code. The accumulator should already make over-distribution impossible, but the remaining-pool counter turns that assumption into a final guard: every reward payout must be backed by tokens that were added to the distributable pool during `deposit_rewards`.
 
 ### Extending a Lock
 
@@ -948,6 +1012,7 @@ This is more complex than it appears --- the effective balance changes, which af
         q_hi, new_rewards, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(PRECISION)
         )
+        assert q_hi == UInt64(0), "Reward overflow"
         accrued = pos.accrued_rewards.as_uint64() + new_rewards
 
         # Step 3: Calculate new multiplier and effective
@@ -1017,6 +1082,7 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
         q_hi, new_rewards, r_hi, r_lo = op.divmodw(
             high, low, UInt64(0), UInt64(PRECISION)
         )
+        assert q_hi == UInt64(0), "Reward overflow"
         total_pending: UInt64 = (
             pos.accrued_rewards.as_uint64() + new_rewards
         )
@@ -1034,6 +1100,8 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
 
         # Send final rewards (if any)
         if total_pending > UInt64(0):
+            assert total_pending <= self.rewards_remaining.value
+            self.rewards_remaining.value -= total_pending
             itxn.AssetTransfer(
                 xfer_asset=Asset(
                     self.reward_token_id.value
@@ -1153,11 +1221,38 @@ class TestLPFarm:
         # Expect failure: "Lock not expired"
 
     def test_rewards_cap_at_pool(self, algorand):
-        """Total distributed never exceeds deposited."""
+        """Total distributed never exceeds distributable pool."""
         # Deposit 1000 reward tokens
         # Stake, advance past reward_end_time
-        # Claim --- verify total claimed <= 1000
+        # Compute distributable = reward_rate * duration_seconds
+        # Claim --- verify total claimed <= distributable
+        # Verify claimed + rewards_remaining == distributable
+        # Verify rewards_remaining decreased by claimed amount
+        # Verify integer-division dust remains in contract
         # No further rewards accrue after end time
+
+    def test_reward_deposit_bounds(self, algorand):
+        """Reward duration/rate bounds are enforced."""
+        # Deposit with duration_seconds == MAX_REWARD_DURATION
+        # Expect success if rate is within MAX_REWARD_RATE
+        # Deposit with duration_seconds == MAX_REWARD_DURATION + 1
+        # Expect failure: duration bound
+        # Deposit amount/duration that implies rate == MAX_REWARD_RATE
+        # Expect success
+        # Deposit amount/duration that implies rate == MAX_REWARD_RATE + 1
+        # Expect failure: reward rate bound
+        # Deposit amount smaller than duration
+        # Expect failure: reward rate rounds to zero
+        # Deposit a second max schedule after one max schedule accrued
+        # Expect failure: accumulator lifetime capacity
+
+    def test_accumulator_overflow_guard(self, algorand):
+        """Accumulator overflow fails instead of wrapping."""
+        # Hardening test: create a tiny total_effective position
+        # and a high allowed rate
+        # Advance close to MAX_REWARD_DURATION
+        # Trigger _update_reward through claim/stake
+        # If increment cannot fit, expect "Accumulator overflow"
 
     def test_extend_lock_increases_share(
         self, algorand
@@ -1179,14 +1274,14 @@ class TestLPFarm:
 
 LocalNet does not advance timestamps between blocks unless real time passes or you explicitly submit transactions that cause new blocks to be produced. To test time-dependent logic, you have two options: (1) insert `time.sleep(N)` between operations and submit a dummy transaction to produce a block with an updated timestamp, or (2) use the `dev-mode` time offset feature if your LocalNet supports it. Option 1 is simpler but makes tests slow.
 
-For the accumulator test (`test_accumulator_two_stakers`), a 200-second sleep is impractical. The workaround is to use a very high reward rate --- say, $10^6$ reward tokens per second --- with short sleeps (2--3 seconds). This way, even a 2-second gap produces 2 million reward tokens of meaningful accumulation, and you can verify the proportional split within a reasonable test runtime.
+For the accumulator test (`test_accumulator_two_stakers`), a 200-second sleep is impractical. The workaround is to use a rate near the chapter's safety bound with short sleeps (2--3 seconds). This way, even a short gap produces meaningful accumulation, and you can verify the proportional split within a reasonable test runtime.
 
 ```python
 # Practical test timing pattern
 import time
 
-# Deposit 10^12 rewards over 100 seconds
-# -> reward_rate = 10^10 tokens/second
+# Deposit 58,400 reward base units over 100 seconds
+# -> reward_rate = 584 base units/second
 farm_client.send.call(
     algokit_utils.AppClientMethodCallParams(
         method="deposit_rewards",
@@ -1210,18 +1305,20 @@ algorand.send.payment(
 )
 
 # Bob stakes --- the block timestamp is now ~3s later
-# Alice earned ~3 * 10^10 tokens as sole staker
+# Alice earned ~3 * 584 base units as sole staker
 ```
 
 The `note=os.urandom(8)` on dummy payments is essential --- LocalNet deduplicates identical transactions, so the random note ensures each one is unique.
 
 ### What to Verify
 
-The most important property to test is the **reward conservation invariant**: the total rewards claimed by all users must never exceed the total rewards deposited. After every claim in your test, track the running total of claimed rewards and assert it is less than or equal to the deposited amount. If this invariant ever fails, you have a critical bug in the accumulator math.
+The most important property to test is the **reward conservation invariant**: the total rewards claimed by all users must never exceed the distributable reward pool. Compute `distributable = reward_rate * duration_seconds`, track the running total of claimed rewards, and assert `claimed_total + rewards_remaining == sum(distributable_i)` for all accepted deposits. Also assert that `rewards_remaining` decreases by exactly the claimed amount. If this invariant ever fails, you have a critical bug in the accumulator math.
 
-Second, verify **proportional fairness**: if Alice has 2x the effective balance of Bob and both stake for the same duration, Alice should receive approximately 2x the rewards. The "approximately" accounts for integer rounding --- the difference should be at most a few tokens, not a percentage.
+Second, verify **dust behavior**: if `amount` is not evenly divisible by `duration_seconds`, only `reward_rate * duration_seconds` enters the distributable pool. The leftover tokens stay in the contract as dust until a production sweep path handles them. Rounding should always favor the contract, never the user.
 
-Third, test **edge cases**: staking when the reward period has already ended (no new rewards should accrue), claiming when accrued rewards are zero (should revert), extending a lock to a shorter duration than the current lock (should revert), and unstaking immediately after the lock expires (should succeed and return the correct LP amount).
+Third, verify **proportional fairness**: if Alice has 2x the effective balance of Bob and both stake for the same duration, Alice should receive approximately 2x the rewards. The "approximately" accounts for integer rounding --- the difference should be at most a few tokens, not a percentage.
+
+Fourth, test **edge cases**: staking when the reward period has already ended (no new rewards should accrue), claiming when accrued rewards are zero (should revert), extending a lock to a shorter duration than the current lock (should revert), unstaking immediately after the lock expires (should succeed and return the correct LP amount), and reward deposits that exceed the configured rate or duration bounds.
 
 
 ## Summary
@@ -1229,11 +1326,12 @@ Third, test **edge cases**: staking when the reward period has already ended (no
 In this chapter you learned to:
 
 - Identify why naive per-user reward tracking fails at scale and implement the Synthetix-style reward-per-token accumulator pattern
-- Use `op.mulw` and `op.divmodw` for two-stage wide arithmetic that prevents overflow in reward calculations
+- Use `op.mulw`, `op.divmodw`, and explicit bounds to prevent overflow in reward calculations
 - Design duration-based multipliers that incentivize long-term liquidity commitment
 - Read another contract's global state via `op.AppGlobal.get_ex_uint64` for cross-contract verification
 - Consume the AMM's TWAP oracle for manipulation-resistant position valuation
 - Manage the full staking lifecycle: stake, claim, extend, unstake with MBR refund
+- Enforce the reward conservation invariant so payouts cannot exceed the funded distributable pool
 
 This chapter extended the AMM from the previous chapter into a two-contract system --- the first example of smart contract composition in this book. The farming contract does not modify the AMM; it reads its state and accepts its LP tokens. This *composability* --- contracts interacting through shared state and token standards without needing to trust each other --- is what makes DeFi protocols interoperable. Any contract that holds LP tokens can integrate with the farm. Any contract that needs a price feed can read the AMM's TWAP oracle. A lending protocol could accept staked LP positions as collateral by reading the farming contract's box state. Each contract is a building block, and the system's value comes from the combinations.
 
@@ -1242,7 +1340,8 @@ The accumulator pattern you learned here appears in virtually every DeFi staking
 | Feature | New Concepts |
 |---------|-------------|
 | Reward distribution | Accumulator pattern, reward_per_token, snapshot-and-diff |
-| Wide arithmetic | Two-stage mulw/divmodw for overflow-safe accumulator updates |
+| Wide arithmetic | Bounded rate-time product plus `mulw`/`divmodw` accumulator updates |
+| Reward conservation | `rewards_remaining`, rounding dust, distributable pool invariant |
 | Duration multipliers | Linear scaling, effective balance, SCALE factor |
 | Composition | Cross-contract state reads, foreign apps array, get_ex_uint64 |
 | Position management | Box lifecycle, MBR refund on cleanup, double-stake prevention |
@@ -1268,8 +1367,8 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 - [Synthetix StakingRewards](https://github.com/Synthetixio/synthetix/blob/develop/contracts/StakingRewards.sol) --- the original Solidity implementation of the reward accumulator pattern
 - [Curve Finance](https://curve.fi/whitepaper) --- multi-token gauge reward systems with vote-escrow multipliers
-- [Algorand Python Storage](https://dev.algorand.co/algokit/languages/python/lg-storage/) --- BoxMap, GlobalState, and BigUInt storage patterns
-- [Algorand Python Operations](https://dev.algorand.co/algokit/languages/python/lg-ops/) --- mulw, divmodw, and wide arithmetic reference
+- [Algorand Python Storage](https://algorandfoundation.github.io/puya/lg-storage.html) --- BoxMap, GlobalState, and BigUInt storage patterns
+- [`algopy.op` API Reference](https://algorandfoundation.github.io/puya/api-algopy.op.html) --- mulw, divmodw, and wide arithmetic reference
 - [Cross-App State Reading](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) --- get_ex_uint64 and foreign app references
 
 
@@ -1278,7 +1377,8 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 Before starting the next chapter, you should be able to:
 
 - [ ] Explain why the naive per-user reward formula fails with concurrent stakers
-- [ ] Implement the reward-per-token accumulator with correct wide arithmetic
+- [ ] Implement the reward-per-token accumulator with bounded wide arithmetic
+- [ ] Explain why reward payouts cannot exceed the distributable reward pool and why undistributed dust remains in the contract
 - [ ] Calculate a user's pending rewards given their snapshot and the current accumulator value
 - [ ] Read another contract's global state and handle the case where the key does not exist
 - [ ] Explain how the farming contract consumes the AMM's TWAP oracle for position valuation

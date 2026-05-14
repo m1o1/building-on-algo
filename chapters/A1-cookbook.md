@@ -178,7 +178,7 @@ class MultiAction(ARC4Contract):
 
 ## 3. Types and Arithmetic {#3-types-and-arithmetic}
 
-(See [Algorand Python types](https://dev.algorand.co/algokit/languages/python/lg-types/).)
+(See [Algorand Python types](https://algorandfoundation.github.io/puya/lg-types.html).)
 
 ### 3.1 --- Native types: UInt64 and Bytes
 
@@ -421,9 +421,11 @@ class BalanceMap(ARC4Contract):
         del self.balances[sender]  # Deletes the box, frees MBR
 ```
 
-### 6.3 --- Raw box access (Box with low-level methods)
+### 6.3 --- Raw byte access with Box
 
-> **Note:** `BoxRef` is deprecated in current PuyaPy (see the `@deprecated` annotation in the [PuyaPy `_box` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/_box.pyi)). Use `Box` instead. Methods like `create`, `extract`, `replace`, `resize`, and `splice` are available directly on `Box`. Deletion uses the property deleter: `del box.value`.
+Use `Box(Bytes, key=...)` when you need low-level methods such as `create`, `extract`, `replace`, `resize`, and `splice` for packed binary data.
+
+> **Note:** `BoxRef` still appears in the API for compatibility, but the PuyaPy v5.8.1 [`_box` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/_box.pyi) mark it deprecated because the same methods are available directly on `Box`.
 
 ```python
 from algopy import ARC4Contract, Box, Bytes, UInt64, arc4
@@ -449,7 +451,7 @@ class RawBoxAccess(ARC4Contract):
         del self.data.value  # Property deleter removes the box
 ```
 
-`Box` gives byte-level access via `create`, `extract`, `replace`, `resize`, and `splice`. Essential for packed data structures.
+This pattern is for packed data structures where typed `Box` values or `BoxMap` entries are too coarse-grained.
 
 ### 6.4 --- Box MBR calculation helper
 
@@ -471,7 +473,7 @@ def box_mbr(name_length: UInt64, data_size: UInt64) -> UInt64:
 
 ```python
 # CLIENT-SIDE: you must declare box references in the transaction
-# Each reference grants 1KB of I/O budget
+# Each reference grants 2KB of I/O budget
 
 # For a box named "data" with 4KB of content:
 app_call = transaction.ApplicationCallTxn(
@@ -480,10 +482,8 @@ app_call = transaction.ApplicationCallTxn(
     index=app_id,
     app_args=["read_data"],
     boxes=[
-        (app_id, b"data"),  # 1KB budget
-        (app_id, b"data"),  # +1KB budget (same box, more budget)
-        (app_id, b"data"),  # +1KB budget
-        (app_id, b"data"),  # +1KB budget (total: 4KB)
+        (app_id, b"data"),  # 2KB budget
+        (app_id, b"data"),  # +2KB budget (same box, total: 4KB)
     ],
 )
 ```
@@ -637,11 +637,11 @@ class AppFactory(ARC4Contract):
         return result.created_app.id
 ```
 
-### 8.4 --- Fee pooling: inner txn fees should ALWAYS be zero
+### 8.4 --- Fee Pooling: Set Inner Transaction Fees to Zero
 
 ```python
-# WRONG --- contract pays fee from its own balance:
-itxn.Payment(receiver=user, amount=amt).submit()  # fee defaults to min_fee
+# WRONG --- non-zero inner fee drains the app account:
+itxn.Payment(receiver=user, amount=amt, fee=UInt64(1000)).submit()
 
 # RIGHT --- caller covers via fee pooling:
 itxn.Payment(receiver=user, amount=amt, fee=UInt64(0)).submit()
@@ -651,6 +651,11 @@ sp = algod.suggested_params()
 sp.fee = 2000  # Covers outer txn (1000) + inner txn (1000)
 sp.flat_fee = True
 ```
+
+In the book's validated PuyaPy baseline, inner transaction builders default
+`fee` to zero, but the explicit field makes the security intent visible in
+examples and reviews. If you use lower-level TEAL or another builder, verify
+its fee default before you omit this field.
 
 
 ## 9. Group Transactions {#9-group-transactions}
@@ -672,7 +677,14 @@ class ReceivePayment(ARC4Contract):
         return payment.amount
 ```
 
-The `gtxn.PaymentTransaction` parameter type makes the ABI router expect a payment transaction at the corresponding group position.
+The `gtxn.PaymentTransaction` parameter type makes the ABI router expect a
+payment transaction at the corresponding group position.
+
+If the method credits `Txn.sender`, mints to `Txn.sender`, or sends output to
+`Txn.sender`, also assert `payment.sender == Txn.sender`. Otherwise a caller
+can pair their app call with someone else's funding transaction and receive the
+benefit. Treat third-party sponsorship as a separate pattern with an explicit
+beneficiary and authorization checks.
 
 ### 9.2 --- Accepting an asset transfer in a group
 
@@ -884,7 +896,7 @@ class GroupSizeCheck(ARC4Contract):
 
 ## 12. Subroutines and Code Organization {#12-subroutines-and-code-organization}
 
-(See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/).)
+(See [Algorand Python structure guide](https://algorandfoundation.github.io/puya/lg-structure.html).)
 
 ### 12.1 --- Module-level subroutine (shared across contracts)
 
@@ -1174,7 +1186,7 @@ class TxnFields(ARC4Contract):
 
 ## 16. Compilation and Deployment {#16-compilation-and-deployment}
 
-(See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/) and [Algorand Python compilation guide](https://dev.algorand.co/algokit/languages/python/lg-compile/).)
+(See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/) and [Algorand Python compilation guide](https://algorandfoundation.github.io/puya/lg-compile.html).)
 
 ### 16.1 --- Compiling with PuyaPy
 
@@ -1255,6 +1267,11 @@ result = app_client.send.call(
 )
 print(f"Return value: {result.abi_return}")
 ```
+
+AlgoKit Utils Python can populate missing app-call resources by simulating the
+call when `populate_app_call_resources=True`, but that is off-chain client
+behavior. The examples in this book pass references explicitly so the
+transaction's resource set stays visible during review.
 
 ### 16.5 --- Building and submitting a transaction group (client-side)
 
@@ -1352,7 +1369,8 @@ algorand.send.payment(
 | Box size | 0–32,768 bytes |
 | Box name | 1–64 bytes |
 | Box MBR | 2,500 + 400 × (name_len + data_size) μAlgo |
-| Foreign refs per txn | 8 per type (accounts, assets, apps); shared across group since AVM v9 |
+| Legacy foreign-resource arrays | 8 total per app call |
+| AVM v12 access-list entries | 16 entries |
 | ASA opt-in MBR | 100,000 μAlgo |
 | Min account balance | 100,000 μAlgo |
 | Min transaction fee | 1,000 μAlgo |

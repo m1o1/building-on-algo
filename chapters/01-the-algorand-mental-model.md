@@ -81,7 +81,14 @@ Smart contracts need to persist data between transactions. Algorand provides thr
 
 **Box storage** is application-controlled key-value storage. Each entry is an independent "box" with a name (1--64 bytes) containing up to 32,768 bytes of data. Only the application's code can create, read, modify, or delete its own boxes --- users cannot unilaterally remove them. This makes boxes the correct choice for any per-user data the application must control: balances, vesting schedules, order records, vote commitments.
 
-Box storage introduces one concept that surprises newcomers: **box references**. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. Each declared reference grants 1,024 bytes (1KB) of I/O budget. If a box's name plus contents exceed 1KB, you need multiple references to the same box. Forgetting to declare box references produces a "box read/write budget exceeded" error. We will see this in practice when we build the vesting contract in Chapter 3.
+Box storage introduces one concept that surprises newcomers: **box references**.
+Every transaction that reads or writes a box must declare which boxes it will
+access in a `boxes` array on the transaction. Each declared reference grants
+2,048 bytes (2KB) of I/O budget for box data. If a box's data exceeds 2KB, you
+need multiple references to the same box. The box name still matters for MBR,
+but not for the I/O budget. Forgetting to declare box references produces a
+"box read/write budget exceeded" error. We will see this in practice when we
+build the vesting contract in Chapter 3.
 
 *Before looking at the table: if you needed to store per-user financial data (like vesting schedules) for potentially thousands of users, which storage type would you choose and why? Consider who controls deletion, capacity limits, and cost.*
 
@@ -134,7 +141,7 @@ Understanding limits is as important as understanding capabilities:
 - **No floating point.** The AVM has only `uint64` and `bytes` types. All math is integer-only. Prices must be represented as rational numbers (numerator/denominator). (See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).)
 - **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction consumes a certain number of units from the opcode budget (most cost 1 unit; cryptographic operations like `ed25519verify` cost more), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in Chapter 7). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group, since AVM v10.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
 - **No callbacks or fallback functions.** When your contract sends tokens via an inner transaction, no code executes on the receiving side. This eliminates classical reentrancy attacks. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a comparison of security models.)
-- **No cross-contract function calls.** Within a single TEAL execution, you cannot call another contract and read its return value synchronously. To modify another contract's state, you must issue an inner transaction that calls that contract. Your contract can *read* another contract's global state via `app_global_get_ex`, but cannot write to it directly. State changes committed by earlier transactions in the same atomic group ARE visible to later transactions --- the group shares a single copy-on-write state object, and the aggregate changes are committed to the ledger only after every transaction succeeds. (See [AVM specification](https://dev.algorand.co/concepts/smart-contracts/avm/) and [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/).)
+- **Constrained app-to-app interaction.** Contracts can submit inner application-call transactions, but that is transaction coordination, not a call stack with an arbitrary synchronous return value. State, logs, and group ordering are the coordination mechanisms. Your contract can *read* another contract's global state via `app_global_get_ex`, but cannot write to it directly. State changes committed by earlier transactions in the same atomic group *are* visible to later transactions --- the group shares a single copy-on-write state object, and the aggregate changes are committed to the ledger only after every transaction succeeds. (See [AVM specification](https://dev.algorand.co/concepts/smart-contracts/avm/) and [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/).)
 - **No private on-chain data.** All state (global, local, boxes) is publicly readable off-chain via algod and indexer APIs. Boxes are private *on-chain* (only the owning app can read them in TEAL), but anyone can read them via the REST API.
 - **No upgradeable contracts by default.** If you reject `UpdateApplication`, the code is immutable. This is the recommended default for DeFi contracts. (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)
 
@@ -142,9 +149,32 @@ Understanding limits is as important as understanding capabilities:
 
 Before starting the projects in the following chapters, you need a working development environment. The Algorand toolchain is centered on [AlgoKit](https://dev.algorand.co/algokit/algokit-intro/), a CLI that orchestrates project scaffolding, local network management, contract compilation, client generation, and deployment. Think of it as the `cargo` or `create-react-app` of Algorand --- one entry point to the entire toolchain. (See the [AlgoKit Quick Start](https://dev.algorand.co/getting-started/algokit-quick-start/) for installation.)
 
-For AI-assisted development, the ecosystem also offers **VibeKit** (`vibekit init`), a CLI that configures AI coding agents (Claude Code, Cursor, VS Code Copilot) for Algorand development. VibeKit installs agent skills, documentation lookup tools, and blockchain interaction tools so your AI assistant can write, compile, deploy, and debug contracts within a single conversation --- with private keys kept safely isolated from the language model. VibeKit is complementary to AlgoKit: AlgoKit is the build system, VibeKit teaches your AI how to use it. See https://getvibekit.ai for setup.
+For AI-assisted development, the ecosystem also offers **VibeKit** (`vibekit init`), a CLI that configures AI coding agents (Claude Code, Cursor, VS Code Copilot) for Algorand development. VibeKit installs agent skills, documentation lookup tools, and blockchain interaction tools so your AI assistant can write, compile, deploy, and debug contracts within a single conversation --- with private keys kept safely isolated from the language model. VibeKit is complementary to AlgoKit: AlgoKit is the build system, VibeKit teaches your AI how to use it. See [VibeKit](https://getvibekit.ai) for setup.
 
-You need three things installed: **Python 3.12 or later** (for writing Algorand Python contracts and running tests), **Docker with Compose v2.5.0 or later** (for running a local Algorand network in containers), and **AlgoKit itself**.
+You need three things installed: **Python 3.12** (the version validated for this book), **Docker with Compose v2.5.0 or later** (for running a local Algorand network in containers), and **AlgoKit itself**.
+
+AlgoKit supports Python 3.12 or later, but use Python 3.12 for the walkthroughs first. If your system default is newer, install Python 3.12 and tell the generated project to use it before bootstrapping.
+
+Use this setup checklist on Windows, macOS, or Linux.
+
+Install once:
+
+1. Install Python 3.12.
+
+   Verify the interpreter you will use: `python3 --version` on many macOS/Linux setups, `python --version` where configured, or `py -3.12 --version` on Windows.
+2. If you install AlgoKit with `pipx`, install `pipx` and make sure its scripts directory is on your `PATH`.
+3. Install Git and Docker Desktop or Docker Engine with Compose v2.5.0 or later.
+4. Install AlgoKit with `pipx install algokit` or your platform package manager.
+5. Run `algokit doctor` and fix every reported dependency problem.
+6. Start LocalNet with `algokit localnet start`.
+
+For each new project:
+
+1. Scaffold with `algokit init`.
+2. Navigate into the generated contract project directory.
+3. If the project uses Poetry and your default Python is not 3.12, run `poetry env use 3.12` or `poetry env use <path-to-python-3.12>`.
+4. Run `algokit project bootstrap all`.
+5. Verify the active project environment is using Python 3.12 before running tests or scripts.
 
 Install AlgoKit:
 
@@ -156,8 +186,10 @@ brew install algorandfoundation/tap/algokit
 pipx install algokit
 
 # Verify the installation
-algokit --version    # Should show 2.9.x or later
+algokit --version    # Validated with 2.10.2; newer patch/minor versions may work
 ```
+
+If a later AlgoKit release changes scaffolded files or walkthrough behavior, return to the Preface's validated baseline while debugging.
 
 Run the doctor to check that all dependencies are present and correctly configured:
 
@@ -217,6 +249,8 @@ Install the project's Python dependencies:
 ```bash
 algokit project bootstrap all
 ```
+
+After bootstrapping, verify the project environment before you run scripts or tests. Use the command style for the environment AlgoKit generated on your platform, such as `python --version`, `python3 --version`, or `py -3.12 --version`; it should report Python 3.12.
 
 This command installs all project dependencies by running the appropriate package manager (Poetry, in the default Python template). It installs `algorand-python` (the type stubs that provide IDE autocompletion and type checking), `puyapy` (the compiler that transforms your Python code into TEAL bytecode), `algokit-utils` (the client library for interacting with Algorand), and testing dependencies. If you already ran bootstrap during `algokit init`, you can skip this step.
 
@@ -359,7 +393,7 @@ In this chapter you learned to:
 - Calculate Minimum Balance Requirements for accounts, ASAs, boxes, and application state
 - Describe atomic groups and fee pooling and explain why they are foundational to DeFi on Algorand
 - Distinguish atomic groups (off-chain bundling) from inner transactions (on-chain contract-issued transactions)
-- Identify what the AVM cannot do: no floating point, no unbounded loops, no callbacks, no cross-contract function calls, no private on-chain data
+- Identify key AVM constraints: no floating point, no unbounded loops, no arbitrary callbacks or EVM-style reentrancy, no private on-chain data, and no arbitrary synchronous app-to-app calls
 - Set up a complete Algorand development environment with AlgoKit, LocalNet, and PuyaPy
 - Deploy a contract to LocalNet and call its methods using AlgoKit Utils
 
@@ -402,6 +436,6 @@ The official Algorand developer documentation at [dev.algorand.co](https://dev.a
 - [Transaction Fees](https://dev.algorand.co/concepts/transactions/fees/) --- minimum fee, fee pooling
 - [Inner Transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) --- contract-issued transactions, budget implications
 - [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) --- all consensus-level limits and costs
-- [Algorand Python Overview](https://dev.algorand.co/algokit/languages/python/overview/) --- PuyaPy compiler, language guide
+- [Algorand Python Overview](https://algorandfoundation.github.io/puya/) --- PuyaPy compiler, language guide
 - [AlgoKit Quick Start](https://dev.algorand.co/getting-started/algokit-quick-start/) --- installation, LocalNet, first deployment
 - [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) --- mapping of concepts for developers with EVM experience

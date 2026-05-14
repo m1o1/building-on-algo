@@ -1,0 +1,11 @@
+#2 AMM sender binding vulnerable: ACCEPTED - minted LP tokens to bob; deposits funded by alice
+#2 AMM sender binding hardened: REJECTED - asset A sender alice != app sender bob
+#3 NFT resource population vulnerable: REJECTED - missing schedule box for inner-created asset 1001
+#3 NFT resource population hardened: ACCEPTED - resource population added schedule:1001 box reference
+#4 LogicSig network binding vulnerable: ACCEPTED - app id matched, but network was not checked
+#4 LogicSig network binding hardened: REJECTED - genesis hash mismatch
+#6 ZK proof binding vulnerable: ACCEPTED - admin marked proof verified without checking verifier/public inputs
+#6 ZK proof binding hardened: REJECTED - missing verifier transaction
+#12 reward bounds vulnerable: ACCEPTED - deposit accepted, but later accumulator update overflows
+#12 reward bounds hardened: REJECTED - reward rate too high
+#12 reward lifetime capacity hardened: REJECTED - accumulator capacity overflow
