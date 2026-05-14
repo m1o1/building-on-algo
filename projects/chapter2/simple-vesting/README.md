@@ -1,4 +1,4 @@
-# Simple Vesting
+# Chapter 2: Simple Vesting
 
 This is the completed Chapter 2 integration-test project from *Building on Algorand*. It intentionally preserves the simplified `SimpleVesting` contract from the chapter: one beneficiary, global-state storage, plain `UInt64` vesting math, and no revoke method.
 
@@ -15,23 +15,37 @@ If Poetry chooses the wrong interpreter, set it explicitly before bootstrapping:
 poetry env use 3.12
 ```
 
-## Run It First
+## Run It First!
 
-Before running, predict three things: why the pre-cliff claim returns `0`, why the contract account must opt into the ASA before the deposit, and which limitations the tests document.
+Before running, predict three things: why the pre-cliff claim returns `0`, why
+the contract account must opt into the ASA before the deposit, and which
+limitations the tests document.
 
-Full LocalNet demo:
+Prepare the project and start LocalNet:
 
 ```bash
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_simple_vesting
-poetry run pytest -q
 ```
 
-The workflow script deploys `SimpleVesting`, creates a test ASA, funds a beneficiary, opts the beneficiary and contract into the asset, atomically deposits tokens while initializing the vesting schedule, attempts a claim before the cliff, advances LocalNet time, and claims the fully vested amount.
+The chapter walks through the specific lines in
+`scripts/run_simple_vesting.py`. In summary, that script:
 
-Expected output shape:
+- uses the LocalNet dispenser as admin
+- deploys `SimpleVesting`
+- creates the test ASA
+- funds and opts in the beneficiary
+- funds and opts in the app account
+- submits the grouped deposit plus `initialize` call
+- claims before and after the vesting period
+
+```bash
+poetry run python -m scripts.run_simple_vesting
+algokit project run test
+```
+
+The workflow helper prints output with this shape:
 
 ```text
 1. Deploy SimpleVesting
@@ -47,13 +61,17 @@ Expected output shape:
 8. Beneficiary ASA balance: 1000000
 ```
 
-No Docker or LocalNet yet? You can still build the contract and run the static known-gap checks:
+No Docker or LocalNet yet? You can still build the contract and run the static
+known-gap checks:
 
 ```bash
 algokit project bootstrap all
 algokit project run build
-poetry run pytest tests/test_simple_vesting_gaps.py -q
+algokit project run test-static
 ```
+
+`scripts/run_simple_vesting.py` is retained as a development shortcut for the
+line-by-line workflow explained in the chapter.
 
 ## Tests
 
@@ -67,7 +85,7 @@ The chapter discusses a fourth limitation, rounding across multiple claims, in t
 ## Project Layout
 
 - `smart_contracts/simple_vesting/contract.py` contains the Chapter 2 contract.
-- `scripts/run_simple_vesting.py` runs the complete LocalNet user workflow.
+- `scripts/run_simple_vesting.py` is a convenience shortcut for the runbook.
 - `scripts/localnet_helpers.py` contains shared deploy, funding, opt-in, and time helpers.
 - `tests/test_simple_vesting.py` contains LocalNet integration tests.
 - `tests/test_simple_vesting_gaps.py` contains static known-gap checks.

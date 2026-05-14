@@ -8,7 +8,7 @@ In Chapter 2, you built a simplified version of this contract and discovered its
 
 We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
 
-## Run It First
+## Run It First!
 
 If you want to see the destination before studying each piece, the finished
 Chapter 3 project is in `projects/chapter3/token-vesting/`. You do not need to
@@ -23,16 +23,85 @@ cd projects/chapter3/token-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_token_vesting
-poetry run pytest -q
 ```
 
-The script prints the generated admin, Alice, and Bob accounts, the ASA ID, the
-app ID, Alice's claimed amount, Bob's claimable amount before revocation, Bob's
-unvested amount returned to the admin, and the cleanup steps. A successful run
-ends with `Chapter 3 workflow complete`. With LocalNet running, the tests repeat
-the important end-to-end workflows so you can verify that the contract still
-behaves as expected after edits.
+Before running the workflow, predict why each schedule needs a box MBR payment,
+what Bob's revocation should return to the admin, and why cleanup is a separate
+step after claims and revocation.
+
+The finished project keeps the runnable workflow in
+`scripts/run_token_vesting.py`. Read the key lines before you run it.
+
+The workflow starts by creating LocalNet accounts and funding them:
+
+```python
+admin = algorand.account.random()
+alice = algorand.account.random()
+bob = algorand.account.random()
+fund_account(algorand, admin)
+fund_account(algorand, alice)
+fund_account(algorand, bob)
+```
+
+It creates the vesting ASA, deploys the app, funds the app account, and
+initializes the app so it opts into that ASA:
+
+```python
+asset_id = create_vesting_token(algorand, admin)
+app_client, create_result = factory.send.create.bare(...)
+fund_app_account(algorand, admin, app_address)
+app_client.send.initialize(InitializeArgs(vesting_asset=asset_id), ...)
+```
+
+The deposit is an ASA transfer passed into the ABI method as a grouped
+transaction argument:
+
+```python
+deposit_txn = algorand.create_transaction.asset_transfer(...)
+app_client.send.deposit_tokens(
+    DepositTokensArgs(deposit_txn=TransactionWithSigner(...)),
+    ...
+)
+```
+
+Alice's schedule shows the happy path: opt in, pay box MBR, create the
+schedule, advance time, claim, and clean up:
+
+```python
+opt_account_into_asset(algorand, alice, asset_id)
+alice_mbr_txn = algorand.create_transaction.payment(...)
+app_client.send.create_schedule(...)
+advance_time(algorand, 6)
+alice_claim = app_client.send.claim(...)
+app_client.send.cleanup_schedule(...)
+```
+
+Bob's schedule shows the revocation path:
+
+```python
+bob_claimable = app_client.send.get_claimable(...)
+revoked = app_client.send.revoke(...)
+bob_claim = app_client.send.claim(...)
+app_client.send.cleanup_schedule(...)
+```
+
+After tracing those lines, run the assembled workflow once:
+
+```bash
+poetry run python -m scripts.run_token_vesting
+```
+
+Then run the tests:
+
+```bash
+algokit project run test
+```
+
+With LocalNet running, the tests repeat the important end-to-end workflows so
+you can verify that the contract still behaves as expected after edits.
+
+Use `scripts/run_token_vesting.py` when you need a quick reset, but keep the
+explicit runbook as the mental model.
 
 If you do not have Docker or Podman available for LocalNet, you can still
 compile the contract and run the non-network checks:
@@ -41,7 +110,7 @@ compile the contract and run the non-network checks:
 cd projects/chapter3/token-vesting
 algokit project bootstrap all
 algokit project run build
-poetry run pytest tests/test_contract_shape.py -q
+algokit project run test-static
 ```
 
 Those commands are not a substitute for the LocalNet workflow, but they catch

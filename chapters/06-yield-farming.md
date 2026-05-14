@@ -12,9 +12,12 @@ Two core concepts drive this chapter. First, the *reward accumulator pattern* --
 
 By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract binding to the configured AMM's reported LP token.
 
-> **Note:** This chapter assumes you have a working AMM from the previous chapter. The farming contract reads the AMM's global state and accepts its LP tokens. If you skipped the AMM chapter, go back and build it first --- the farming contract will not compile or deploy without it.
+This chapter assumes you have a working AMM from the previous chapter. The
+farming workflow and integration tests require the Chapter 5 generated client
+and an initialized AMM app; the farm initializes against that AMM application
+reference and accepts the LP token it reports.
 
-## Run It First
+## Run It First!
 
 The finished version of this chapter lives in `projects/chapter6/lp-farming/`.
 It depends on the finished AMM project in `projects/chapter5/constant-product-amm/`
@@ -31,40 +34,146 @@ cd ../../chapter6/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
+```
+
+The finished project keeps the runnable workflow in `scripts/run_lp_farming.py`.
+Before running it, predict which line binds the farm to the AMM's reported LP
+token, which line funds the stake box MBR, and why the workflow advances
+LocalNet time twice.
+
+The workflow creates and funds the admin and farmer, then creates two pool
+assets and one reward asset:
+
+```python
+admin = algorand.account.random()
+farmer = algorand.account.random()
+fund_account(algorand, dispenser, admin)
+fund_account(algorand, dispenser, farmer)
+token_a = create_test_asset(algorand, admin, name="Token A", unit="TKNA")
+token_b = create_test_asset(algorand, admin, name="Token B", unit="TKNB")
+reward_token = create_test_asset(algorand, admin, name="Reward Token", unit="RWD")
+```
+
+It deploys and bootstraps the Chapter 5 AMM, capturing the LP token returned by
+the AMM:
+
+```python
+pool, pool_create = amm_factory.send.create.bare()
+bootstrap = pool.send.bootstrap(...)
+lp_token = bootstrap.abi_return
+```
+
+The farmer opts into the assets needed for the workflow, then receives LP tokens
+from the initial AMM liquidity position:
+
+```python
+for asset_id in (token_a, token_b, lp_token, reward_token):
+    opt_account_into_asset(algorand, farmer, asset_id)
+initial_lp = pool.send.add_initial_liquidity(...).abi_return
+lp_to_stake = initial_lp // 4
+transfer_asset(algorand, admin, farmer, lp_token, lp_to_stake)
+```
+
+The farm is deployed, funded, and initialized with the LP token, reward token,
+and AMM app ID. The contract reads the configured AMM's global state during this
+call:
+
+```python
+farm, farm_create = farm_factory.send.create.bare()
+algorand.send.payment(...)
+farm.send.initialize(
+    farm_client.InitializeArgs(
+        lp_token=lp_token,
+        reward_token=reward_token,
+        amm_app=pool.app_id,
+    ),
+    params=CommonAppCallParams(app_references=[pool.app_id], ...),
+)
+```
+
+The admin deposits rewards, and the farmer stakes LP tokens with the exact box
+MBR payment:
+
+```python
+farm.send.deposit_rewards(
+    farm_client.DepositRewardsArgs(
+        reward_txn=asset_transfer_arg(...),
+        duration_seconds=reward_duration,
+    ),
+    ...
+)
+farm.send.stake(
+    farm_client.StakeArgs(
+        mbr_payment=payment_arg(algorand, farmer, farm.app_address, STAKE_BOX_MBR),
+        lp_txn=asset_transfer_arg(...),
+        lock_days=30,
+    ),
+    ...
+)
+```
+
+The workflow advances LocalNet developer-mode time, claims, extends the lock,
+advances beyond the unlock time, and unstakes:
+
+```python
+advance_localnet_time(algorand, admin, offset_seconds=10)
+claim = farm.send.claim(...)
+farm.send.extend_lock(farm_client.ExtendLockArgs(new_lock_days=365), ...)
+advance_localnet_time(algorand, admin, offset_seconds=366 * 86400)
+farm.send.unstake(...)
+```
+
+After tracing those lines, run the assembled workflow once:
+
+```bash
 poetry run python -m scripts.run_lp_farming
 ```
 
-The script creates two pool assets and one reward asset, deploys the Chapter 5
-AMM, adds initial liquidity, transfers LP tokens to a farmer account, deploys
-the farm, initializes it with the AMM application reference, deposits rewards,
-stakes LP tokens, claims rewards, extends the lock, advances LocalNet dev-mode
-time, and unstakes. Before running it, predict which output line proves the farm
-is reading the AMM's state and which line proves the box MBR lifecycle completed.
+Table 6-1 lists the output checkpoints to compare against the workflow output.
 
-| Output checkpoint | What it proves |
-|-------------------|----------------|
+Table 6-1. Output checkpoints for the LP farming workflow
+
+| Output checkpoint | What to watch for |
+|-------------------|-------------------|
 | AMM app ID | The farm has a concrete application to read during initialization |
 | LP token ID | The AMM reported the ASA that represents pool shares |
-| Farm app ID | The staking contract deployed and opted into the required assets |
+| Farm initialized | The staking contract opted into the required assets |
 | Claimed rewards > 0 | The accumulator produced claimable rewards after time advanced |
-| Final unstake message | LP tokens and the 32,100 microAlgos box MBR were returned |
+| Final unstake message | The unstake path returned LP tokens and refunded box MBR |
 
 Run the tests from the Chapter 6 project:
 
 ```bash
-poetry run pytest -q
+algokit project run test
 ```
 
 Without Docker or Podman-backed LocalNet, the integration tests skip and the
-workflow script stops with a LocalNet message. The build and static tests still
+workflow helper stops with a LocalNet message. The build and static tests still
 verify that the contract compiles and that the source contains the security
 patterns this chapter teaches. LocalNet defaults to developer mode; the workflow
 uses the official timestamp-offset endpoint to move past long lock periods.
 
-Run this finished project first, then build the chapter in a separate scratch
-project with the `algokit init` commands below. Treat
+For the static path only:
+
+```bash
+cd ../../chapter5/constant-product-amm
+algokit project bootstrap all
+algokit project run build
+
+cd ../../chapter6/lp-farming
+algokit project bootstrap all
+algokit project run build
+algokit project run test-static
+```
+
+Use `scripts/run_lp_farming.py` as an iteration shortcut after you understand
+the AMM setup, account funding, farm initialization, reward deposit, staking,
+claiming, and unstaking sequence.
+
+Follow this finished-project runbook first, then build the chapter in a
+separate scratch project with the `algokit init` commands below. Treat
 `projects/chapter6/lp-farming/` as the answer key: compare its contract,
-workflow script, and tests against your scratch project when something differs.
+workflow helper, and tests against your scratch project when something differs.
 
 
 ## A Simplified Staking Contract
@@ -1015,16 +1124,16 @@ farm_client.send.call(
 print("Farm initialized!")
 ```
 
-Compile and run the finished workflow:
+Compile the project before trying the finished runbook from the beginning of
+this chapter:
 
 ```bash
 algokit project run build
-poetry run python -m scripts.run_lp_farming
 ```
 
-You should see the AMM and farm app IDs, the LP token ID, a positive claimed
-reward amount, and a final unstake message confirming that the configured-AMM
-binding and farming lifecycle succeeded.
+During the LocalNet workflow, you should see the AMM and farm app IDs, the LP
+token ID, a positive claimed reward amount, and a final unstake message. The
+tests verify the configured-AMM binding and farming lifecycle.
 
 
 ## Claiming and Extending Locks
@@ -1277,7 +1386,7 @@ The finished project includes executable versions of these ideas in
 `tests/test_contract_shape.py`. The outline below shows the coverage goals if
 you are building the tests from scratch. Helpers such as `deploy_pool`,
 `deploy_farm`, `deposit_rewards`, `stake`, `claim`, and `unstake` wrap the
-AlgoKit Utils calls shown in the workflow script.
+AlgoKit Utils calls shown in the finished project runbook.
 
 ```python
 import pytest

@@ -16,7 +16,7 @@ We will rebuild the vesting contract from Chapter 3 with these changes. Along th
 - **`revoke`** adds clawback of the NFT, NFT destruction, and unvested token return --- a multi-step inner transaction sequence not needed in Chapter 3.
 - **`create_schedule`** mints an NFT via inner transaction, stores the returned NFT asset ID inside the schedule, and returns it to the caller.
 
-## Run It First
+## Run It First!
 
 The finished Chapter 4 project lives in `projects/chapter4/nft-vesting/`. Run it before
 reading the implementation details so you can see the full transferability loop working
@@ -27,15 +27,83 @@ cd projects/chapter4/nft-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-poetry run python -m scripts.run_nft_vesting
-poetry run pytest -q
 ```
 
-The driver deploys the contract, creates a LocalNet vesting ASA, funds the app, deposits
-vesting tokens, mints a schedule NFT, delivers it to a beneficiary, claims vested tokens,
-transfers the NFT to a buyer, claims the remainder as the buyer, revokes a second
-schedule, and cleans up both settled schedule boxes. A successful run ends with
-`Chapter 4 workflow complete`.
+The finished project keeps the runnable workflow in `scripts/run_nft_vesting.py`.
+Read the key lines before you run it. First, the workflow creates and funds the
+three actors:
+
+```python
+admin = algorand.account.random()
+beneficiary = algorand.account.random()
+buyer = algorand.account.random()
+fund_account(algorand, admin)
+fund_account(algorand, beneficiary)
+fund_account(algorand, buyer)
+```
+
+It creates the vesting ASA, deploys the app, funds the app account, initializes
+the app, and deposits vesting tokens:
+
+```python
+asset_id = create_vesting_token(algorand, admin)
+app_client, create_result = factory.send.create.bare(...)
+fund_app_account(algorand, admin, app_address)
+app_client.send.initialize(...)
+app_client.send.deposit_tokens(...)
+```
+
+Schedule creation pays the combined MBR for the schedule box and the
+inner-created NFT, then records the returned NFT asset ID:
+
+```python
+mbr_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=admin.address,
+        receiver=app_address,
+        amount=AlgoAmount.from_micro_algo(SCHEDULE_MBR),
+    )
+)
+result = app_client.send.create_schedule(...)
+nft_id = result.abi_return
+```
+
+The beneficiary opts into the NFT before the app can deliver it:
+
+```python
+opt_account_into_asset(algorand, beneficiary, nft_id)
+app_client.send.deliver_nft(...)
+```
+
+Ownership is transferable because the NFT moves with a normal ASA transfer, and
+the next `claim` checks the current holder:
+
+```python
+beneficiary_claim = app_client.send.claim(...)
+opt_account_into_asset(algorand, buyer, nft_id)
+transfer_asset(algorand, beneficiary, buyer.address, nft_id, 1)
+buyer_claim = app_client.send.claim(...)
+```
+
+The second schedule demonstrates revocation and cleanup:
+
+```python
+claimable = app_client.send.get_claimable(...)
+revoked = app_client.send.revoke(...)
+app_client.send.cleanup_schedule(...)
+```
+
+After tracing those lines, run the assembled workflow once:
+
+```bash
+poetry run python -m scripts.run_nft_vesting
+```
+
+Then run the tests:
+
+```bash
+algokit project run test
+```
 
 As it runs, watch for these checkpoints:
 
@@ -55,7 +123,7 @@ the static source checks:
 cd projects/chapter4/nft-vesting
 algokit project bootstrap all
 algokit project run build
-poetry run pytest tests/test_contract_shape.py -q
+algokit project run test-static
 ```
 
 Those static source checks are sanity checks, not a substitute for LocalNet behavior
@@ -69,7 +137,10 @@ tests. They confirm that the expected source patterns are present:
 - revocation claws back and destroys the NFT
 - inner transactions use fee pooling
 
-The full driver and LocalNet tests provide the behavioral confirmation.
+The full workflow helper and LocalNet tests provide the behavioral confirmation.
+
+Use `scripts/run_nft_vesting.py` as an iteration shortcut after you understand
+the account funding, opt-in, deployment, and user-action sequence.
 
 The finished project uses generated typed client wrappers such as
 `app_client.send.create_schedule(...)`. Later in the chapter, the shorter walkthrough
@@ -1367,9 +1438,10 @@ In the next chapter, we build a constant product AMM (Chapter 5) where multi-tok
    after the beneficiary transfers the NFT to a buyer, and after `revoke`. Which contract
    assertion enforces each answer?
 
-2. **(Modify)** In the finished project, change the driver to deposit fewer vesting
-   tokens than the first schedule tries to reserve. What assertion fails, and why is this
-   better than letting the schedule be created and failing later during `claim`?
+2. **(Modify)** In the finished project, change the workflow helper to
+   deposit fewer vesting tokens than the first schedule tries to reserve. What
+   assertion fails, and why is this better than letting the schedule be created
+   and failing later during `claim`?
 
 3. **(Apply)** The `cleanup_schedule` method does not destroy the NFT for fully-claimed (non-revoked) schedules. Add a `close_nft` method where the NFT holder can voluntarily return the NFT to the contract for destruction, recovering the 100,000 microAlgo MBR. What should happen to the recovered MBR --- should it go to the holder, the admin, or be split?
 
