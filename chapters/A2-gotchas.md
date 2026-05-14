@@ -92,7 +92,8 @@ Every gotcha from every chapter in one scannable list.
 
 (See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/).)
 
-- PuyaPy versions below 5.5.0 could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0)) --- always use v5.7.1+
+- Use the Preface's dated validated baseline for book walkthroughs
+- PuyaPy versions below 5.5.0 could inadvertently eliminate user asserts during optimization (see the [v5.5.0 release notes](https://github.com/algorandfoundation/puya/releases/tag/v5.5.0)) --- do not downgrade below v5.5.0
 - Global and local state schemas are immutable after app creation
 - `algokit localnet reset` between test suites for clean state
 - Block timestamps come from the proposer's clock, accurate only within ~25 seconds

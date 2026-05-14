@@ -383,7 +383,7 @@ def calculate_output(
 
 ```
 
-Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swap, add-liquidity, and remove-liquidity all needing the same output calculation, extracting it to a subroutine saves significant program bytes. Given the 8KB program size limit, this matters. (See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/) for subroutine best practices.)
+Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swap, add-liquidity, and remove-liquidity all needing the same output calculation, extracting it to a subroutine saves significant program bytes. Given the 8KB program size limit, this matters. (See [Algorand Python structure guide](https://algorandfoundation.github.io/puya/lg-structure.html) for subroutine best practices.)
 
 **When to subroutine vs inline:**
 - **Subroutine:** Logic used in 2+ methods, or logic longer than ~10 TEAL instructions
@@ -434,7 +434,7 @@ def complex_operation(self) -> None:
     # ... expensive computation that needs the extra budget ...
 ```
 
-The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = caller-funded via fee pooling, `OpUpFeeSource.AppAccount` = from contract balance). Always use `GroupCredit` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See [Algorand Python opcode budget guide](https://dev.algorand.co/algokit/languages/python/lg-opcode-budget/).)
+The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = caller-funded via fee pooling, `OpUpFeeSource.AppAccount` = from contract balance). Always use `GroupCredit` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See [Algorand Python opcode budget guide](https://algorandfoundation.github.io/puya/lg-opcode-budget.html).)
 
 **How many opcodes does your AMM need?** A standard constant product swap with fee calculation, safety checks, and one inner transaction typically fits within 700 opcodes. Add-liquidity with the square root calculation for initial minting may need ~1,400. Budget padding is more commonly needed for operations involving multiple box reads/writes or cryptographic operations.
 

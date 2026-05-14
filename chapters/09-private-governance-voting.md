@@ -568,7 +568,7 @@ Do not rely on `verifier_txn.sender == verifier_address` alone. If the verifier 
 
 ### Box Storage Iteration: the On-Chain Enumeration Problem
 
-Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python data structures](https://dev.algorand.co/algokit/languages/python/lg-data-structures/) for BoxRef and BoxMap patterns.)
+Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python data structures](https://algorandfoundation.github.io/puya/lg-data-structures.html) for BoxRef and BoxMap patterns.)
 
 **Solution 1: Maintain an explicit index.** Store voter addresses in a separate "index" box as a concatenated byte array. Each address is 32 bytes. A 32KB box can hold 1,024 voter addresses. For larger electorates, use multiple index boxes with a counter in global state. This is an illustrative extension that could be added to the voting contract:
 
@@ -991,7 +991,7 @@ See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full sp
 | Falcon CLI tool | [github.com/algorandfoundation/falcon-signatures](https://github.com/algorandfoundation/falcon-signatures) |
 | Algorand Post-Quantum | [algorand.co/technology/post-quantum](https://algorand.co/technology/post-quantum) |
 | Falcon Technical Brief | algorand.co/blog/technical-brief-quantum-resistant-transactions |
-| LogicSig Security Guidelines | developer.algorand.org/docs/get-details/dapps/smart-contracts/guidelines/ |
+| LogicSig Concepts and Security Considerations | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
 | Building Secure Contracts (Algorand) | secure-contracts.com/not-so-smart-contracts/algorand/ |
 | MiMC Hash Specification | eprint.iacr.org/2016/492 |
 | PLONK Paper | eprint.iacr.org/2019/953 |

@@ -178,7 +178,7 @@ class MultiAction(ARC4Contract):
 
 ## 3. Types and Arithmetic {#3-types-and-arithmetic}
 
-(See [Algorand Python types](https://dev.algorand.co/algokit/languages/python/lg-types/).)
+(See [Algorand Python types](https://algorandfoundation.github.io/puya/lg-types.html).)
 
 ### 3.1 --- Native types: UInt64 and Bytes
 
@@ -884,7 +884,7 @@ class GroupSizeCheck(ARC4Contract):
 
 ## 12. Subroutines and Code Organization {#12-subroutines-and-code-organization}
 
-(See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/).)
+(See [Algorand Python structure guide](https://algorandfoundation.github.io/puya/lg-structure.html).)
 
 ### 12.1 --- Module-level subroutine (shared across contracts)
 
@@ -1174,7 +1174,7 @@ class TxnFields(ARC4Contract):
 
 ## 16. Compilation and Deployment {#16-compilation-and-deployment}
 
-(See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/) and [Algorand Python compilation guide](https://dev.algorand.co/algokit/languages/python/lg-compile/).)
+(See [AlgoKit CLI overview](https://dev.algorand.co/algokit/cli/overview/) and [Algorand Python compilation guide](https://algorandfoundation.github.io/puya/lg-compile.html).)
 
 ### 16.1 --- Compiling with PuyaPy
 

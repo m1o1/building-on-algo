@@ -1362,8 +1362,8 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 - [Synthetix StakingRewards](https://github.com/Synthetixio/synthetix/blob/develop/contracts/StakingRewards.sol) --- the original Solidity implementation of the reward accumulator pattern
 - [Curve Finance](https://curve.fi/whitepaper) --- multi-token gauge reward systems with vote-escrow multipliers
-- [Algorand Python Storage](https://dev.algorand.co/algokit/languages/python/lg-storage/) --- BoxMap, GlobalState, and BigUInt storage patterns
-- [Algorand Python Operations](https://dev.algorand.co/algokit/languages/python/lg-ops/) --- mulw, divmodw, and wide arithmetic reference
+- [Algorand Python Storage](https://algorandfoundation.github.io/puya/lg-storage.html) --- BoxMap, GlobalState, and BigUInt storage patterns
+- [`algopy.op` API Reference](https://algorandfoundation.github.io/puya/api-algopy.op.html) --- mulw, divmodw, and wide arithmetic reference
 - [Cross-App State Reading](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) --- get_ex_uint64 and foreign app references
 
 
