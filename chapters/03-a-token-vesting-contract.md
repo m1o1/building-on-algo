@@ -8,6 +8,51 @@ In Chapter 2, you built a simplified version of this contract and discovered its
 
 We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
 
+## Run It First
+
+If you want to see the destination before studying each piece, the finished
+Chapter 3 project is in `projects/chapter3/token-vesting/`. You do not need to
+understand every step yet. The demo shows the whole loop: deploy and fund the
+app, create vesting schedules, then exercise claim, revoke, and cleanup
+workflows with a test Algorand Standard Asset (ASA).
+
+From the repository root:
+
+```bash
+cd projects/chapter3/token-vesting
+algokit project bootstrap all
+algokit project run build
+algokit localnet start
+poetry run python -m scripts.run_token_vesting
+poetry run pytest -q
+```
+
+The script prints the generated admin, Alice, and Bob accounts, the ASA ID, the
+app ID, Alice's claimed amount, Bob's claimable amount before revocation, Bob's
+unvested amount returned to the admin, and the cleanup steps. A successful run
+ends with `Chapter 3 workflow complete`. With LocalNet running, the tests repeat
+the important end-to-end workflows so you can verify that the contract still
+behaves as expected after edits.
+
+If you do not have Docker or Podman available for LocalNet, you can still
+compile the contract and run the non-network checks:
+
+```bash
+cd projects/chapter3/token-vesting
+algokit project bootstrap all
+algokit project run build
+poetry run pytest tests/test_contract_shape.py -q
+```
+
+Those commands are not a substitute for the LocalNet workflow, but they catch
+contract syntax, typed-client generation, and source-shape guards for grouped
+transactions, wide arithmetic, and inner-transaction fee patterns before you run
+the full demo.
+
+Treat `projects/chapter3/token-vesting/` as a reference implementation. When
+you are ready to build the contract yourself, return to the repository root or
+your usual workspace, then follow the setup steps below in a fresh project.
+
 ## Project Setup
 
 If you scaffolded `my-first-contract` in Chapter 1, use that project. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
@@ -67,6 +112,7 @@ class TokenVesting(ARC4Contract):
         self.asset_id = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
         self.beneficiary_count = GlobalState(UInt64(0))
+        self.available_tokens = GlobalState(UInt64(0))
         # Per-beneficiary vesting data, keyed by address.
         # Declared here but boxes are created on demand in create_schedule.
         self.schedules = BoxMap(Account, VestingSchedule, key_prefix=b"v_")
@@ -83,7 +129,16 @@ class TokenVesting(ARC4Contract):
         return arc4.Address.from_bytes(self.admin.value)
 ```
 
-We declare `beneficiary_count` and `schedules` in `__init__` even though they are not used until later sections. As with `asset_id`, the global state schema is fixed at deployment, so all fields must be declared upfront. The `BoxMap` declaration uses box storage (introduced in Chapter 1) --- it does not create any boxes on-chain. It tells the compiler the type signature for the mapping: keys are `Account` addresses, values are `VestingSchedule` structs, and each box name is prefixed with `b"v_"`. Boxes are created individually on demand when `create_schedule` is called later.
+We declare `beneficiary_count`, `available_tokens`, and `schedules` in
+`__init__` even though they are not used until later sections. As with
+`asset_id`, the global state schema is fixed at deployment, so all fields must
+be declared upfront. The `available_tokens` counter tracks deposited tokens that
+have not yet been reserved for a vesting schedule. The `BoxMap` declaration uses
+box storage (introduced in Chapter 1) --- it does not create any boxes on-chain.
+It tells the compiler the type signature for the mapping: keys are `Account`
+addresses, values are `VestingSchedule` structs, and each box name is prefixed
+with `b"v_"`. Boxes are created individually on demand when `create_schedule`
+is called later.
 
 `GlobalState` declares a piece of persistent storage tied to this application. The AVM has exactly two native types: `UInt64` (unsigned 64-bit integer, maximum value approximately 1.8 times 10 to the 19th power) and `Bytes` (a byte array, maximum 4,096 bytes in the AVM stack). Everything else --- addresses, strings, structs, arrays --- is encoding on top of these two primitives. Here we store the admin address as raw `Bytes` and the asset ID as `UInt64`.
 
@@ -356,10 +411,16 @@ from algopy import gtxn
         assert deposit_txn.xfer_asset == Asset(self.asset_id.value)
         assert deposit_txn.asset_amount > UInt64(0)
 
+        self.available_tokens.value += deposit_txn.asset_amount
         return deposit_txn.asset_amount
 ```
 
 The essential validations for an incoming grouped transaction in a stateful contract are: **who sent it** (authorization), **what asset** (correct token), **how much** (positive amount), and **where it went** (to the contract's address). These are the checks shown above.
+
+After validation, `available_tokens` increases by the amount received. Later,
+`create_schedule` will reserve from this counter before writing a new
+beneficiary schedule, which prevents the admin from promising more tokens than
+the contract actually holds.
 
 You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in Chapter 7), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
 
@@ -396,7 +457,7 @@ Recall the `VestingSchedule` struct we defined at the start of the chapter. We u
 Now we encounter **box references** in practice --- the concept introduced in
 Chapter 1. Every transaction that reads or writes a box must declare which
 boxes it will access in a `boxes` array on the transaction. The AVM uses these
-declarations to allocate I/O budget: each reference grants 2,048 bytes (2KB)
+declarations to allocate I/O budget: each reference grants 1,024 bytes (1KB)
 of read/write capacity for box data. For `create_schedule`, the stored data is
 41 bytes, well within a single reference. The 34-byte box name matters for MBR,
 but not for the I/O budget.
@@ -426,7 +487,7 @@ app_client.send.call(
 Forgetting this declaration produces "box read/write budget exceeded" --- the
 single most common error new Algorand developers encounter. If you see this
 error, your first check should always be: did I declare the box references?
-For boxes larger than 2KB, you need multiple references to the same box (for
+For boxes larger than 1KB, you need multiple references to the same box (for
 example, a 4KB box needs two references). The Cookbook (Recipe 6.5) shows this
 pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
 `algokit_utils.BoxReference` are client-side representations of this same
@@ -448,15 +509,17 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
     ) -> None:
         """Create a vesting schedule for a team member."""
         assert Txn.sender.bytes == self.admin.value, "Only admin"
+        assert Global.group_size == UInt64(2), "Expected 2 transactions"
         assert self.is_initialized.value == UInt64(1), "Not initialized"
         assert beneficiary not in self.schedules, "Schedule already exists"
         assert total_amount > UInt64(0), "Amount must be positive"
         assert vesting_duration > cliff_duration, "Vesting must exceed cliff"
+        assert self.available_tokens.value >= total_amount, "Insufficient tokens"
 
         box_mbr = UInt64(2500) + UInt64(400) * (UInt64(34) + UInt64(41))
         assert mbr_payment.receiver == Global.current_application_address
         assert mbr_payment.sender == Txn.sender
-        assert mbr_payment.amount >= box_mbr
+        assert mbr_payment.amount == box_mbr
 
         now = Global.latest_timestamp
         self.schedules[beneficiary] = VestingSchedule(
@@ -467,8 +530,16 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
             vesting_end=arc4.UInt64(now + vesting_duration),
             is_revoked=arc4.Bool(False),
         )
+        self.available_tokens.value -= total_amount
         self.beneficiary_count.value += UInt64(1)
 ```
+
+Two details keep the accounting honest. First, the schedule amount must fit
+inside `available_tokens`, and the contract subtracts it as soon as the schedule
+is created. Tokens committed to a schedule are reserved, even if they have not
+vested yet. Second, the MBR payment must equal `box_mbr` exactly. Accepting
+overpayment would strand the excess Algo in the app account because
+`cleanup_schedule` refunds only the storage MBR.
 
 
 ## Claiming Vested Tokens
@@ -577,17 +648,20 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         schedule = self.schedules[beneficiary].copy()
         assert not schedule.is_revoked.native, "Already revoked"
 
+        now = Global.latest_timestamp
         vested = calculate_vested(
             schedule.total_amount.as_uint64(),
             schedule.start_time.as_uint64(),
             schedule.cliff_end.as_uint64(),
             schedule.vesting_end.as_uint64(),
-            Global.latest_timestamp,
+            now,
         )
         unvested = schedule.total_amount.as_uint64() - vested
 
         schedule.is_revoked = arc4.Bool(True)
         schedule.total_amount = arc4.UInt64(vested)
+        schedule.cliff_end = arc4.UInt64(now)
+        schedule.vesting_end = arc4.UInt64(now)
         self.schedules[beneficiary] = schedule.copy()
 
         if unvested > UInt64(0):
@@ -601,7 +675,11 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         return unvested
 ```
 
-Setting `total_amount = vested` after revocation means the claim math works without a special branch: the beneficiary gets exactly what they earned, no more.
+After revocation, the schedule's `total_amount` becomes the amount that had
+vested at the revocation timestamp. We also set `cliff_end` and `vesting_end`
+to that same timestamp so a later `claim` treats the capped amount as fully
+vested. Without that freeze, `claim` would apply the original vesting curve to
+the already-capped amount and underpay the beneficiary.
 
 
 ## Cleaning Up Completed Schedules
