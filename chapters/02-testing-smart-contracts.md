@@ -16,6 +16,32 @@ An important distinction before we begin: smart contract testing has two layers.
 
 By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
 
+## Run It First!
+
+The completed integration-test project for this chapter is in `projects/chapter2/simple-vesting/`. It preserves the deliberately simplified contract from the chapter, including the limitations that the "Tests That Fail" section turns into Chapter 3's production requirements.
+
+Before running it, make three predictions: why the pre-cliff claim returns `0`, why the contract account must opt into the ASA before the deposit, and which limitations the test suite documents.
+
+From the repository root, bootstrap the project, build the contract, start LocalNet, then run the workflow and tests:
+
+```bash
+cd projects/chapter2/simple-vesting
+algokit project bootstrap all
+algokit project run build
+algokit localnet start
+poetry run python -m scripts.run_simple_vesting
+poetry run pytest -q
+```
+
+The script deploys `SimpleVesting`, creates a test ASA, funds a beneficiary, opts both the beneficiary and the contract into the asset, submits the grouped deposit-plus-initialize call, tries a claim before the cliff, advances LocalNet time, and claims the fully vested amount. The pytest suite is expected to pass. It reruns those behaviors as tests and includes static known-gap checks for three intentionally limited production properties: overflow-prone arithmetic, one-beneficiary global state, and no revoke method. The fourth gap, rounding across multiple claims, is discussed later in the step-by-step "Tests That Fail" section.
+
+Without Docker or LocalNet, you can still build the contract and run the static known-gap checks:
+
+```bash
+algokit project run build
+poetry run pytest tests/test_simple_vesting_gaps.py -q
+```
+
 
 ## The Simplified Vesting Contract
 
@@ -346,6 +372,7 @@ import os
 from pathlib import Path
 import pytest
 import algokit_utils
+from algosdk.atomic_transaction_composer import TransactionWithSigner
 
 from tests.conftest import (
     advance_time,
@@ -408,9 +435,8 @@ def setup_initialized_contract(
 
     # Step 5: Fund the contract for MBR.
     # 300,000 microAlgo covers base MBR (100,000)
-    # plus ASA opt-in (100,000), with headroom for
-    # inner transaction fees. See Chapter 1 for
-    # MBR details.
+    # plus ASA opt-in (100,000), with operational
+    # buffer. See Chapter 1 for MBR details.
     algorand.send.payment(
         algokit_utils.PaymentParams(
             sender=admin.address,
@@ -438,8 +464,7 @@ def setup_initialized_contract(
     )
 
     # Step 7: Group the deposit + initialize call
-    composer = algorand.new_group()
-    composer.add_asset_transfer(
+    deposit_txn = algorand.create_transaction.asset_transfer(
         algokit_utils.AssetTransferParams(
             sender=admin.address,
             receiver=app_client.app_address,
@@ -448,6 +473,11 @@ def setup_initialized_contract(
             note=os.urandom(8),
         )
     )
+    deposit_arg = TransactionWithSigner(
+        deposit_txn,
+        algorand.account.get_signer(admin.address),
+    )
+    composer = algorand.new_group()
     composer.add_app_call_method_call(
         app_client.params.call(
             algokit_utils.AppClientMethodCallParams(
@@ -458,6 +488,7 @@ def setup_initialized_contract(
                     total,
                     cliff,
                     vesting,
+                    deposit_arg,
                 ],
                 note=os.urandom(8),
             )
@@ -678,16 +709,22 @@ The first five tests verified correct behavior --- the contract does what it sho
         )
 
         with pytest.raises(Exception):
-            composer = algorand.new_group()
-            composer.add_asset_transfer(
-                algokit_utils.AssetTransferParams(
-                    sender=imposter.address,
-                    receiver=app_client.app_address,
-                    asset_id=token_id,
-                    amount=1_000_000,
-                    note=os.urandom(8),
+            deposit_txn = (
+                algorand.create_transaction.asset_transfer(
+                    algokit_utils.AssetTransferParams(
+                        sender=imposter.address,
+                        receiver=app_client.app_address,
+                        asset_id=token_id,
+                        amount=1_000_000,
+                        note=os.urandom(8),
+                    )
                 )
             )
+            deposit_arg = TransactionWithSigner(
+                deposit_txn,
+                algorand.account.get_signer(imposter.address),
+            )
+            composer = algorand.new_group()
             composer.add_app_call_method_call(
                 app_client.params.call(
                     algokit_utils
@@ -697,6 +734,7 @@ The first five tests verified correct behavior --- the contract does what it sho
                             token_id,
                             imposter.address,
                             1_000_000, 5, 20,
+                            deposit_arg,
                         ],
                         sender=imposter.address,
                         static_fee=(
@@ -859,17 +897,22 @@ Here is the same pattern applied to the admin-only `initialize` check:
             )
         )
 
+        deposit_txn = algorand.create_transaction.asset_transfer(
+            algokit_utils.AssetTransferParams(
+                sender=admin.address,
+                receiver=app_client.app_address,
+                asset_id=token_id,
+                amount=1_000_000,
+                note=os.urandom(8),
+            )
+        )
+        deposit_arg = TransactionWithSigner(
+            deposit_txn,
+            algorand.account.get_signer(admin.address),
+        )
+
         result = (
             algorand.new_group()
-            .add_asset_transfer(
-                algokit_utils.AssetTransferParams(
-                    sender=admin.address,
-                    receiver=app_client.app_address,
-                    asset_id=token_id,
-                    amount=1_000_000,
-                    note=os.urandom(8),
-                )
-            )
             .add_app_call_method_call(
                 app_client.params.call(
                     algokit_utils
@@ -879,6 +922,7 @@ Here is the same pattern applied to the admin-only `initialize` check:
                             token_id,
                             imposter.address,
                             1_000_000, 5, 20,
+                            deposit_arg,
                         ],
                         sender=imposter.address,
                         static_fee=(
@@ -987,16 +1031,22 @@ The comment explains what *would* happen with production parameters. We cannot e
 
         # Attempt to initialize again
         with pytest.raises(Exception):
-            composer = algorand.new_group()
-            composer.add_asset_transfer(
-                algokit_utils.AssetTransferParams(
-                    sender=admin.address,
-                    receiver=app_client.app_address,
-                    asset_id=token_id,
-                    amount=500_000,
-                    note=os.urandom(8),
+            deposit_txn = (
+                algorand.create_transaction.asset_transfer(
+                    algokit_utils.AssetTransferParams(
+                        sender=admin.address,
+                        receiver=app_client.app_address,
+                        asset_id=token_id,
+                        amount=500_000,
+                        note=os.urandom(8),
+                    )
                 )
             )
+            deposit_arg = TransactionWithSigner(
+                deposit_txn,
+                algorand.account.get_signer(admin.address),
+            )
+            composer = algorand.new_group()
             composer.add_app_call_method_call(
                 app_client.params.call(
                     algokit_utils
@@ -1006,6 +1056,7 @@ The comment explains what *would* happen with production parameters. We cannot e
                             token_id,
                             second_ben.address,
                             500_000, 5, 20,
+                            deposit_arg,
                         ],
                         static_fee=(
                             algokit_utils.AlgoAmount
@@ -1388,7 +1439,7 @@ In this chapter you learned to:
 
 4. **(Apply)** Write a test that verifies the contract rejects `DeleteApplication`. Use the simulate endpoint and check that the failure message contains "immutable."
 
-5. **(Analyze)** The simplified contract does not check `Global.group_size` in the `initialize` method. Write a test that submits an `initialize` call with an extra payment transaction appended to the group. Does the contract reject it? If not, explain what an attacker could do with the extra transaction, and add a group size check to the contract.
+5. **(Analyze)** The simplified contract does not check `Global.group_size` in the `initialize` method. Write a test that submits an `initialize` call with an extra payment transaction appended to the group. Does the contract reject it? Why is exact group-shape validation a useful hardening habit even when the typed transaction argument still binds the deposit to the expected transaction?
 
 6. **(Evaluate)** Review the four gaps identified in "Tests That Fail." Classify each as a **security issue** (could lead to loss of funds) or a **feature gap** (limits functionality but does not create a vulnerability). Justify each classification.
 
