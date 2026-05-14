@@ -78,4 +78,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as exc:
+        print(exc)
+        raise SystemExit(1) from exc
