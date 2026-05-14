@@ -620,7 +620,10 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 
 ## Testing the Vesting Contract
 
-> **Note:** The project template from `algokit init` does not include `pytest` in its dependencies or create a `tests/` directory. Before running tests, install pytest (`pip install pytest` or add it to `pyproject.toml` under `[project.optional-dependencies]`) and create a `tests/` directory in your project root. This applies to all four projects in this book. (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
+> **Note:** Use the Chapter 2 pytest setup for this project: check whether `pytest` is already listed in the generated `pyproject.toml`, add it to the project environment if it is missing, and create a `tests/` directory in your project root.
+> Avoid installing pytest into an unrelated system Python.
+> Run it from the project environment created by `algokit project bootstrap all`.
+> (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 
 The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`, `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the AlgoKit Utils calls shown earlier in this chapter. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 

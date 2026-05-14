@@ -6,7 +6,13 @@ This book takes a senior software engineer from zero smart contract knowledge to
 
 ### Who This Book Is For
 
-This book is written for experienced software engineers who know Python well but have never built a smart contract. You should be comfortable with Python 3.12+ (type annotations, classes, decorators), basic command-line tooling, and Docker. The projects assume you can read and write Python fluently --- the learning curve here is blockchain concepts and AVM constraints, not the programming language.
+This book is written for experienced software engineers who know Python well but have never built a smart contract.
+
+You should be comfortable with modern Python: type annotations, classes, decorators, and virtual environments.
+
+The walkthroughs are validated on Python 3.12. You should also be comfortable with basic command-line tooling and Docker.
+
+The projects assume you can read and write Python fluently --- the learning curve here is blockchain concepts and AVM constraints, not the programming language.
 
 This book is *not* for you if you are looking for Solidity or EVM development (Algorand's execution model is fundamentally different), or if you want a theory-only treatment of blockchain concepts without building working software.
 

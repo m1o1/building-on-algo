@@ -144,7 +144,30 @@ Before starting the projects in the following chapters, you need a working devel
 
 For AI-assisted development, the ecosystem also offers **VibeKit** (`vibekit init`), a CLI that configures AI coding agents (Claude Code, Cursor, VS Code Copilot) for Algorand development. VibeKit installs agent skills, documentation lookup tools, and blockchain interaction tools so your AI assistant can write, compile, deploy, and debug contracts within a single conversation --- with private keys kept safely isolated from the language model. VibeKit is complementary to AlgoKit: AlgoKit is the build system, VibeKit teaches your AI how to use it. See https://getvibekit.ai for setup.
 
-You need three things installed: **Python 3.12 or later** (for writing Algorand Python contracts and running tests), **Docker with Compose v2.5.0 or later** (for running a local Algorand network in containers), and **AlgoKit itself**.
+You need three things installed: **Python 3.12** (the version validated for this book), **Docker with Compose v2.5.0 or later** (for running a local Algorand network in containers), and **AlgoKit itself**.
+
+AlgoKit supports Python 3.12 or later, but use Python 3.12 for the walkthroughs first. If your system default is newer, install Python 3.12 and tell the generated project to use it before bootstrapping.
+
+Use this setup checklist on Windows, macOS, or Linux.
+
+Install once:
+
+1. Install Python 3.12.
+
+   Verify the interpreter you will use: `python3 --version` on many macOS/Linux setups, `python --version` where configured, or `py -3.12 --version` on Windows.
+2. If you install AlgoKit with `pipx`, install `pipx` and make sure its scripts directory is on your `PATH`.
+3. Install Git and Docker Desktop or Docker Engine with Compose v2.5.0 or later.
+4. Install AlgoKit with `pipx install algokit` or your platform package manager.
+5. Run `algokit doctor` and fix every reported dependency problem.
+6. Start LocalNet with `algokit localnet start`.
+
+For each new project:
+
+1. Scaffold with `algokit init`.
+2. Navigate into the generated contract project directory.
+3. If the project uses Poetry and your default Python is not 3.12, run `poetry env use 3.12` or `poetry env use <path-to-python-3.12>`.
+4. Run `algokit project bootstrap all`.
+5. Verify the active project environment is using Python 3.12 before running tests or scripts.
 
 Install AlgoKit:
 
@@ -217,6 +240,8 @@ Install the project's Python dependencies:
 ```bash
 algokit project bootstrap all
 ```
+
+After bootstrapping, verify the project environment before you run scripts or tests. Use the command style for the environment AlgoKit generated on your platform, such as `python --version`, `python3 --version`, or `py -3.12 --version`; it should report Python 3.12.
 
 This command installs all project dependencies by running the appropriate package manager (Poetry, in the default Python template). It installs `algorand-python` (the type stubs that provide IDE autocompletion and type checking), `puyapy` (the compiler that transforms your Python code into TEAL bytecode), `algokit-utils` (the client library for interacting with Algorand), and testing dependencies. If you already ran bootstrap during `algokit init`, you can skip this step.
 
