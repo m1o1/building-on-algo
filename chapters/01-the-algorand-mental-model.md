@@ -81,7 +81,14 @@ Smart contracts need to persist data between transactions. Algorand provides thr
 
 **Box storage** is application-controlled key-value storage. Each entry is an independent "box" with a name (1--64 bytes) containing up to 32,768 bytes of data. Only the application's code can create, read, modify, or delete its own boxes --- users cannot unilaterally remove them. This makes boxes the correct choice for any per-user data the application must control: balances, vesting schedules, order records, vote commitments.
 
-Box storage introduces one concept that surprises newcomers: **box references**. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. Each declared reference grants 1,024 bytes (1KB) of I/O budget. If a box's name plus contents exceed 1KB, you need multiple references to the same box. Forgetting to declare box references produces a "box read/write budget exceeded" error. We will see this in practice when we build the vesting contract in Chapter 3.
+Box storage introduces one concept that surprises newcomers: **box references**.
+Every transaction that reads or writes a box must declare which boxes it will
+access in a `boxes` array on the transaction. Each declared reference grants
+2,048 bytes (2KB) of I/O budget for box data. If a box's data exceeds 2KB, you
+need multiple references to the same box. The box name still matters for MBR,
+but not for the I/O budget. Forgetting to declare box references produces a
+"box read/write budget exceeded" error. We will see this in practice when we
+build the vesting contract in Chapter 3.
 
 *Before looking at the table: if you needed to store per-user financial data (like vesting schedules) for potentially thousands of users, which storage type would you choose and why? Consider who controls deletion, capacity limits, and cost.*
 
