@@ -17,8 +17,14 @@ Chapter sources live in chapters/. File prefixes control ordering:
     Z*  = back matter      (What's Next, Glossary, Bibliography)
 
 Prerequisites:
-    brew install mdbook     # for mdbook target
-    brew install pandoc     # for pdf target (also needs xelatex)
+    mdbook CLI              # for mdbook target
+    pandoc + xelatex        # for pdf target
+
+Install mdbook from the official guide:
+    https://rust-lang.github.io/mdBook/guide/installation.html
+    cargo install mdbook
+    # or download a precompiled binary for Windows/macOS/Linux
+    # or, on macOS with Homebrew: brew install mdbook
 """
 
 import argparse
@@ -369,7 +375,21 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
 
     # Run mdbook
     if not shutil.which("mdbook"):
-        print("\nmdbook not installed. Install with: brew install mdbook")
+        print(
+            """
+mdBook (`mdbook`) not installed.
+
+Install mdBook using one of the options in the official installation guide:
+  https://rust-lang.github.io/mdBook/guide/installation.html
+
+Common choices:
+  - Download a precompiled mdbook binary for Windows, macOS, or Linux
+  - Install Rust and run: cargo install mdbook
+  - On macOS with Homebrew: brew install mdbook
+
+After installing, make sure the mdbook executable is on your PATH.
+""".strip()
+        )
         sys.exit(1)
 
     if serve:
