@@ -443,10 +443,18 @@ The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = call
 
 Algorand doesn't have Ethereum-style events, but you can emit structured data by logging from your contract. Indexers and off-chain services parse these logs to build analytics, trigger notifications, or update UI state.
 
+The following fragment mirrors the Chapter 5 grouped-transfer pattern: the input transfer is validated first, then `input_amount` is derived from that transaction before the event is emitted.
+
 ```python
 @arc4.abimethod
-def swap(self, ...) -> UInt64:
-    # ... swap logic ...
+def swap(
+    self,
+    input_txn: gtxn.AssetTransferTransaction,
+    min_output: UInt64,
+) -> UInt64:
+    # ... validate input_txn sender, receiver, asset ID, and amount ...
+    input_amount = input_txn.asset_amount
+    # ... compute output_amount, enforce min_output, and update reserves ...
 
     # Emit an ARC-28 event for indexers.
     # arc4.emit() computes the 4-byte selector (SHA-512/256 of the event
@@ -471,7 +479,13 @@ Here is how to read those events from the Algorand Indexer, the off-chain servic
 
 ```python
 import base64
+import hashlib
 import requests
+from algosdk import abi
+
+SWAP_EVENT = "Swap(address,uint64,uint64,uint64,uint64)"
+SWAP_PREFIX = hashlib.new("sha512_256", SWAP_EVENT.encode()).digest()[:4]
+SWAP_ARGS = abi.ABIType.from_string("(address,uint64,uint64,uint64,uint64)")
 
 # Search for all swap events from our AMM (by application ID)
 indexer_url = "http://localhost:8980"  # LocalNet indexer
@@ -490,11 +504,12 @@ for txn in response.json().get("transactions", []):
     for log in logs:
         # Decode base64 log entry
         raw = base64.b64decode(log)
-        # Check for our "swap" event prefix
-        if raw[:4] == b"swap":
-            input_amount = int.from_bytes(raw[4:12], "big")
-            output_amount = int.from_bytes(raw[12:20], "big")
-            print(f"Swap: {input_amount} in → {output_amount} out")
+        # Check for the ARC-28 selector, then decode the ARC-4 payload.
+        if raw[:4] == SWAP_PREFIX:
+            sender, input_amount, output_amount, reserve_a, reserve_b = (
+                SWAP_ARGS.decode(raw[4:])
+            )
+            print(f"Swap by {sender}: {input_amount} in -> {output_amount} out")
 ```
 
 For production, use Nodely's indexer at `https://mainnet-idx.4160.nodely.dev` (free tier, no API key). The indexer supports filtering by time range (`after-time`, `before-time`), round range (`min-round`, `max-round`), and sender address. Pagination uses cursor-based `next` tokens for efficient traversal of large result sets.
@@ -526,11 +541,11 @@ actual_balance = asset.balance(Global.current_application_address)
 input_amount = actual_balance - last_known_reserve
 ```
 
-**Pros:** Automatically accounts for any tokens sent to the contract, including donations. Enables flash-loan patterns where tokens are borrowed and returned in the same transaction.
+**Pros:** Automatically accounts for any tokens sent to the contract, including donations. Supports designs where an asset is borrowed, used, and repaid before the atomic group commits.
 
 **Cons:** More complex, requires careful handling of the "sync" between actual balance and expected reserves. On Algorand, reading asset holdings requires the account and asset to be in the foreign arrays, consuming reference slots.
 
-**For this book, tracked reserves are simpler and sufficient.** Uniswap V2's balance-reading pattern is more relevant in environments with flash loans. If you later want to add flash swaps, you'd switch to balance reading. (See [Global Storage](https://dev.algorand.co/concepts/smart-contracts/storage/global/) for how tracked reserves are persisted.)
+**For this book, tracked reserves are simpler and sufficient.** Balance reading is more relevant when your protocol intentionally accepts single-group balance changes, such as borrowing an asset, using it, and repaying it before the group commits. This is flash-loan-like in outcome, but group-native in mechanism: the borrow, use, and repay transactions succeed or fail together in one atomic group. The final balance check must run after the repay transaction, because balance reads observe prior group effects, not future transactions. See [Atomic Transaction Groups](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/) for group atomicity and [Global Storage](https://dev.algorand.co/concepts/smart-contracts/storage/global/) for how tracked reserves are persisted.
 
 
 ## Pattern 12: Client-Side Quote Calculation
