@@ -8,7 +8,9 @@ Part IV pushes the AVM to its limits with advanced cryptography. You will build 
 
 Your DAO needs to hold a vote, but the community demands ballot secrecy --- no one should be able to see how anyone voted until results are final. On a public blockchain where all state is readable, this seems impossible. Zero-knowledge proofs make it possible.
 
-In this project we build a privacy-preserving governance voting system where voters prove they cast a valid ballot without revealing their choice. Along the way, we explore the AVM's native elliptic curve opcodes, zero-knowledge proof construction and on-chain verification, advanced box storage patterns, and Algorand's Falcon-based post-quantum security architecture.
+In this project we build the on-chain state machine for a privacy-preserving governance voting system and map the verifier architecture needed to prove that each ballot is valid without revealing its choice during the voting period. Along the way, we explore the AVM's native elliptic curve opcodes, zero-knowledge proof construction and on-chain verification, advanced box storage patterns, and Algorand's Falcon-based post-quantum security architecture.
+
+> **Note: Implementation Scope.** The PuyaPy voting contract in this chapter is the runnable core: deployment, proposal setup, commitment storage, phase transitions, reveal, and tallying. The Go/gnark/AlgoPlonk sections are an advanced integration path with placeholders you must complete in a real Go module. Until you add the production verifier-group binding described below, `record_verified_proof` is an admin-trusted teaching hook, not a trustless proof-verification method.
 
 ### Project Setup
 
@@ -31,6 +33,15 @@ Your contract code goes in `smart_contracts/governance_voting/contract.py`. Dele
 >
 > The data flow is: the Go program generates a TEAL verifier LogicSig from the circuit definition. The Python client compiles this TEAL via algod, then uses it in atomic groups alongside the voting contract. You can build and test the voting contract (component 1) independently; the Go components (component 2) are needed only for end-to-end ZK proof verification.
 
+Table 9-1 summarizes the two implementation tracks in this chapter.
+
+Table 9-1. Chapter implementation tracks
+
+| Track | What works | What it proves |
+|-------|------------|----------------|
+| Python-only state machine | Compile/deploy the PuyaPy contract, commit, use the admin hook as a test seam, reveal, tally | Phase logic, box storage, MBR, and commit-reveal correctness |
+| Full ZK integration | Complete the Go circuit/verifier, submit the verifier group, bind public inputs in the app | Trustless proof verification plus the state-machine checks |
+
 > **Note:** This chapter covers advanced cryptography. You do not need to understand elliptic curve math to build the voting system --- AlgoPlonk handles the heavy lifting. We explain the concepts so you can reason about what the system *proves* and where its security guarantees come from. If the math feels dense, focus on the architecture (phases, atomic groups, state management) and treat the curve operations as black boxes.
 
 ## LogicSig Recap: Why They Are the ZK Engine
@@ -41,9 +52,9 @@ The critical property for this chapter is the [opcode budget](https://dev.algora
 
 The LogicSig and smart contract opcode pools are independent. This means we can use LogicSigs for the cryptographic heavy lifting (proof verification) while preserving the full smart contract budget for application logic (recording votes, managing phases, tallying results). This separation is the architectural foundation of the system we are about to build.
 
-For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it simply needs enough opcode budget to run the elliptic curve operations. The security rules from Chapter 8 (close-to, rekey-to, fee caps, group validation) all apply and are enforced in our verifier implementation.
+For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it needs enough pooled LogicSig opcode budget to run the elliptic curve operations. The security rules from Chapter 8 still matter, but generated verifier code may only verify the cryptographic proof. Your wrapper group must also prevent rekeying, constrain the app call shape, and bind the proof inputs to the governance state update.
 
-> **What you can build with just Python.** The voting smart contract and its deployment can be compiled and tested using only the Python tools from earlier chapters. The Go toolchain (gnark, AlgoPlonk) is only needed for ZK proof generation and verifier LogicSig compilation. If you want to explore the voting contract without the ZK components, you can deploy, initialize, commit votes, and advance phases --- skipping only the prove step.
+> **Note: Python-Only Track.** Without the Go toolchain, you can still test the contract state machine by using the admin-trusted proof hook as a test seam. That path does not test trustless ZK verification.
 
 ## Part 2: The AVM's Cryptographic Toolkit
 
@@ -79,7 +90,7 @@ This is a single pairing check with 4 pairs, which `ec_pairing_check` handles na
 
 The AVM includes a native `mimc` opcode --- a hash function designed specifically for efficient evaluation inside ZK circuits. MiMC has **known collisions** for inputs that are multiples of the elliptic curve modulus, so it is NOT a general-purpose hash function. It exists solely for ZK applications where the hash must be efficiently provable in a SNARK/PLONK circuit.
 
-For our governance voting system, MiMC will be used inside the ZK circuit to hash vote commitments. The on-chain verifier uses the native `mimc` opcode to validate the hash, and the ZK prover uses the same MiMC function in its circuit --- ensuring the hash values match without expensive SHA-256 circuit emulation.
+For our governance voting system, MiMC is used in two places. The ZK circuit proves that a private `choice` and `randomness` produce the public commitment, and the PLONK verifier checks that proof. Later, during reveal, the PuyaPy app recomputes the same MiMC commitment with `op.mimc()` and compares it with the stored commitment.
 
 > **Client-side MiMC computation.** The AVM provides a native `op.mimc()` opcode, but there is no standard Python library for computing MiMC hashes with the BN254Mp110 configuration. To test the commit-reveal flow, you need a client-side MiMC implementation that matches the AVM's output. Options: (1) use the Go gnark-crypto library's `mimc.NewMiMC()` from a Go test harness, (2) use AlgoPlonk's Go utilities which include compatible MiMC, or (3) compute the commitment on-chain via a `simulate` call and capture the result. Option 3 is the simplest approach: build a helper contract with a single method that takes `choice` and `randomness`, computes `op.mimc(MiMCConfigurations.BN254Mp110, ...)`, and returns the hash. Call it via `simulate` (no fees, no state changes) to get the commitment value for your tests.
 
@@ -137,6 +148,12 @@ The voting system has four phases, using [box storage](https://dev.algorand.co/c
 **Phase 3 --- Proof submission:** After the voting period closes, voters submit ZK proofs that their commitment corresponds to a valid choice without revealing which choice. This prevents last-minute vote changes (the commitment is already locked) while proving validity.
 
 **Phase 4 --- Tallying:** Once all proofs are verified, voters reveal their votes with their randomness. The contract verifies each reveal matches its commitment and tallies the results. (Alternatively, with a more advanced circuit, the ZK proof itself can include a homomorphic tally contribution, eliminating the reveal phase entirely.)
+
+### Privacy Scope: Delayed Disclosure, Not Permanent Secrecy
+
+The design in this chapter gives *delayed disclosure*: votes are hidden during the commitment and proof phases, then revealed during tallying. After reveal, each voter's choice and randomness are public, and anyone can recompute the MiMC commitment.
+
+Permanent ballot secrecy requires a different final phase. Common designs move tally contribution into the ZK circuit, use nullifiers to prevent double voting, and reveal only aggregate totals. That is a larger protocol than this chapter implements, so treat the commit-reveal design here as a bridge between ordinary transparent voting and fully private tallying.
 
 ### The ZK Circuit: Proving Vote Validity
 
@@ -214,11 +231,11 @@ This circuit has ~100-200 constraints (PLONK uses a Sparse Constraint System, or
 > require (
 >     github.com/consensys/gnark v0.11.0
 >     github.com/consensys/gnark-crypto v0.14.0
->     github.com/giuliop/algoplonk v0.3.0
+>     github.com/giuliop/algoplonk v0.1.10
 > )
 > ```
 >
-> The `go get` commands populate the `require` block and download dependencies automatically. You do not need to write `go.mod` by hand.
+> The `go get` commands populate the `require` block and download dependencies automatically. You do not need to write `go.mod` by hand. Before publishing production code, pin gnark and gnark-crypto to the versions used by AlgoPlonk's own `go.mod`.
 
 ### The Voting Smart Contract
 
@@ -277,6 +294,7 @@ The `initialize` method sets up the proposal parameters and creates tally boxes 
         self.prove_end_round.value = Global.round + commit_duration + prove_duration
         self.phase.value = UInt64(PHASE_COMMIT)
 
+        assert num_choices > UInt64(0), "At least one choice"
         assert num_choices <= UInt64(16), "Max 16 choices"
         for i in urange(16):
             if i >= num_choices:
@@ -284,7 +302,7 @@ The `initialize` method sets up the proposal parameters and creates tally boxes 
             self.tallies[arc4.UInt64(i)] = UInt64(0)
 ```
 
-The `commit_vote` method accepts a voter's MiMC commitment hash during the commit phase. Each voter can commit only once, and must provide an MBR payment to cover the box storage cost:
+The `commit_vote` method accepts a voter's 32-byte MiMC commitment hash during the commit phase. Each voter can commit only once, and must provide an MBR payment to cover the box storage cost:
 
 ```python
     @arc4.abimethod
@@ -296,6 +314,7 @@ The `commit_vote` method accepts a voter's MiMC commitment hash during the commi
         """Submit a vote commitment. commitment = MiMC(choice, randomness)."""
         assert self.phase.value == UInt64(PHASE_COMMIT)
         assert Global.round <= self.commit_end_round.value
+        assert commitment.length == UInt64(32), "Commitment must be 32 bytes"
 
         sender = arc4.Address(Txn.sender)
         assert sender not in self.commitments
@@ -308,7 +327,7 @@ The `commit_vote` method accepts a voter's MiMC commitment hash during the commi
         self.total_votes.value += UInt64(1)
 ```
 
-The `record_verified_proof` method records that a voter's ZK proof was validated by the LogicSig verifier. This is the critical security link between the off-chain proof and the on-chain state. The production warning in the code comments describes the additional group validation needed for a secure deployment:
+The `record_verified_proof` method records that a voter's ZK proof was validated. In the runnable teaching contract below, this is deliberately admin-trusted so you can compile and test the Python state machine without completing the Go verifier integration. The production binding requirements immediately after the snippet describe what must replace this trust boundary before deployment:
 
 ```python
     @arc4.abimethod
@@ -321,34 +340,46 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
 
     @arc4.abimethod
     def record_verified_proof(self, voter: arc4.Address) -> None:
-        """Called after a LogicSig verifier confirms the ZK proof."""
+        """Teaching hook for recording an externally verified proof."""
         assert self.phase.value == UInt64(PHASE_PROVE)
         assert Global.round <= self.prove_end_round.value
         assert voter in self.commitments
         assert voter not in self.proof_status
 
-        # SECURITY: Restrict to admin for the simplified version.
-        # A production implementation would verify that a transaction from the
-        # ZK verifier LogicSig's known address exists in the current atomic
-        # group AND that the proof's public inputs match the stored commitment.
-        # Without this check, anyone could mark any voter's proof as verified.
+        # TEACHING VERSION: Restrict to admin while the verifier integration
+        # remains illustrative. Do not deploy this trust boundary as-is.
         assert Txn.sender == Global.creator_address, "Only admin"
 
         self.proof_status[voter] = UInt64(1)
         self.verified_proofs.value += UInt64(1)
 ```
 
-> **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation would verify that a LogicSig verifier transaction exists in the current atomic group and that the proof's public inputs match the stored commitment. See the Production Hardening section below for the full verification approach.
+> **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation must verify that the expected LogicSig verifier participates in the current atomic group and that the proof's public inputs match the stored commitment and election configuration. See the production binding checklist below before treating this as a trustless voting system.
+
+Table 9-2 groups the production proof-binding checks into two categories.
+
+Table 9-2. Production proof-binding checks
+
+| Category | Binding check | Why it is required |
+|----------|---------------|--------------------|
+| Verifier participation | Expected verifier address | Proves the group includes the specific LogicSig generated from this circuit's verification key |
+| Verifier participation | Hardened verifier wrapper | Ensures the verifier LogicSig itself rejects rekeying and unsafe transaction fields |
+| Verifier participation | Exact group shape | Prevents extra or reordered transactions from satisfying one component while changing another |
+| Public-input binding | Commitment public input | Ensures the proof verified the commitment already stored for this voter |
+| Public-input binding | `num_choices` public input | Ensures the proof used this election's configured choice range |
+
+The generated AlgoPlonk verifier proves a statement about the public inputs it receives. Your application still has to bind those public inputs to on-chain state. One common pattern is to expose the public inputs in transaction fields the app can inspect (for example, app-call arguments or verifier anchor transaction notes), and use a verifier wrapper that also checks those same fields. The smart contract then checks the mirrored values against `self.commitments[voter]` and `self.num_choices.value` before writing `proof_status`.
 
 > **Warning:** The `record_verified_proof` method creates a proof status box (`p_` prefix + 32-byte address = 34-byte key, 8-byte UInt64 value). This costs `2,500 + 400 * (34 + 8) = 19,300 microAlgos` in MBR. The app account must have sufficient Algo to cover this MBR for each voter. Unlike `commit_vote`, which requires a caller-provided MBR payment, the code above does not --- either fund the app account with enough Algo before the prove phase begins, or add an `mbr_payment` parameter to `record_verified_proof` as we did for `commit_vote`.
 
-The `reveal_vote` method completes the commit-reveal cycle. The voter provides their original choice and randomness, and the contract recomputes the MiMC hash to verify it matches the stored commitment. If valid, the tally is incremented:
+The `reveal_vote` method completes the commit-reveal cycle. The voter provides their original choice and 32-byte randomness, and the contract recomputes the MiMC hash to verify it matches the stored commitment. If valid, the tally is incremented:
 
 ```python
     @arc4.abimethod
     def reveal_vote(self, choice: UInt64, randomness: Bytes) -> None:
         """Reveal a vote by providing the preimage of the commitment."""
         assert self.phase.value == UInt64(PHASE_REVEAL)
+        assert randomness.length == UInt64(32), "Randomness must be 32 bytes"
 
         sender = arc4.Address(Txn.sender)
         assert sender in self.commitments
@@ -429,46 +460,43 @@ This is where AlgoPlonk generates the verifier. The following Go code shows the 
 package main
 
 import (
-    "github.com/giuliop/algoplonk"
     "github.com/consensys/gnark-crypto/ecc"
-    "github.com/consensys/gnark/backend/plonk"
-    "github.com/consensys/gnark/frontend"
-    "github.com/consensys/gnark/frontend/cs/scs"
-    "github.com/consensys/gnark/test"
+    ap "github.com/giuliop/algoplonk"
+    "github.com/giuliop/algoplonk/setup"
+    "github.com/giuliop/algoplonk/testutils"
+    "github.com/giuliop/algoplonk/verifier"
 )
 
 func main() {
-    // 1. Compile the circuit
+    // 1. Compile the circuit and generate proving/verification keys.
     var circuit VoteCircuit
-    ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+    compiledCircuit, _ := ap.Compile(
+        &circuit,
+        ecc.BN254,
+        setup.PerpetualPowersOfTauBN254,
+    )
 
-    // 2. Setup (trusted setup --- generates proving and verification keys)
-    srs, _ := test.NewKZGSRS(ccs)  // In production, use a ceremony
-    pk, vk, _ := plonk.Setup(ccs, srs)
+    // 2. Generate PuyaPy for a LogicSig verifier, then compile it to TEAL.
+    puyaVerifier := "generated/VoteVerifier.py"
+    compiledCircuit.WritePuyaPyVerifier(puyaVerifier, verifier.LogicSig)
+    testutils.CompileWithPuyaPy(puyaVerifier, "")
 
-    // 3. Generate the Algorand LogicSig verifier from the verification key
-    verifier, _ := algoplonk.MakeVerifier(vk, algoplonk.LogicSig)
-    // verifier.Address() gives the LogicSig contract account address
-
-    // 4. Create a proof for a specific vote
-    witness := VoteCircuit{
+    // 3. Create and export a proof for a specific vote.
+    assignment := VoteCircuit{
         Commitment: computedCommitment,  // Public
         NumChoices: 3,                    // Public
         Choice:     1,                    // Private --- the actual vote
         Randomness: myRandomness,         // Private --- blinding factor
     }
-    fullWitness, _ := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-    proof, _ := plonk.Prove(ccs, pk, fullWitness)
+    verifiedProof, _ := compiledCircuit.Verify(&assignment)
+    verifiedProof.ExportProofAndPublicInputs(
+        "generated/VoteVerifier.proof",
+        "generated/VoteVerifier.public_inputs",
+    )
 
-    // 5. Generate the Algorand transactions for on-chain verification
-    // AlgoPlonk creates the transaction group with:
-    //   - The LogicSig verifier attached to padding transactions
-    //   - The proof and public inputs passed as LogicSig arguments
-    //   - ~8 transactions in the group for BN254
-    txns, _ := verifier.MakeVerifyTransactions(proof, publicWitness)
-
-    // 6. In the same atomic group, add the app call to record_verified_proof
-    // This binds the ZK verification to the governance contract state update
+    // 4. Client code submits one app call signed by the verifier LogicSig.
+    // The proof and public inputs are app-call arguments 1 and 2.
+    // Add the governance proof-recording call in the same atomic group.
 }
 ```
 
@@ -482,11 +510,13 @@ func main() {
 > go run ./cmd/main.go
 > ```
 >
-> The `go build ./...` command compiles all packages in the module. If you see import errors, run `go mod tidy` to resolve dependency versions. The AlgoPlonk `MakeVerifier` call writes the generated LogicSig TEAL files to the current directory --- you then reference these from your Python deployment code.
+> The `go build ./...` command compiles all packages in the module. If you see import errors, run `go mod tidy` to resolve dependency versions. `WritePuyaPyVerifier(..., verifier.LogicSig)` writes the PuyaPy verifier, and `testutils.CompileWithPuyaPy` compiles it to TEAL for use from your Python client.
 
 The generated LogicSig verifier:
 - Has a deterministic address (the hash of the verification program)
-- Takes the proof and public inputs as arguments (`Arg[0]`, `Arg[1]`, etc.)
+- Signs an application call transaction
+- Reads proof bytes from `Txn.application_args(1)`
+- Reads public-input bytes from `Txn.application_args(2)`
 - Executes the PLONK verification algorithm using the AVM's `ec_*` opcodes
 - Returns true if and only if the proof is valid for the given public inputs
 - Costs ~8 minimum transaction fees per verification (for BN254)
@@ -495,22 +525,43 @@ The generated LogicSig verifier:
 
 The full proof submission is a single atomic group:
 
-```
+```text
 Transaction Group:
-[0] LogicSig verifier txn 1 (budget: +20,000 opcodes)    ← ZK verification
-[1] LogicSig verifier txn 2 (budget: +20,000 opcodes)    ← ZK verification
-[2] LogicSig verifier txn 3 (budget: +20,000 opcodes)    ← ZK verification
-[3] LogicSig verifier txn 4 (budget: +20,000 opcodes)    ← ZK verification
-[4] LogicSig verifier txn 5 (budget: +20,000 opcodes)    ← ZK verification
-[5] LogicSig verifier txn 6 (budget: +20,000 opcodes)    ← ZK verification
-[6] LogicSig verifier txn 7 (budget: +20,000 opcodes)    ← ZK verification
-[7] LogicSig verifier txn 8 (budget: +20,000 opcodes)    ← ZK verification (proof valid!)
-[8] Voter -> Contract: App call to record_verified_proof  ← State update
+[0] Verifier app call, signed by LogicSig                 ← ZK verify
+[1] Budget-padding app call                               ← +20,000
+[2] Budget-padding app call                               ← +20,000
+[3] Budget-padding app call                               ← +20,000
+[4] Budget-padding app call                               ← +20,000
+[5] Budget-padding app call                               ← +20,000
+[6] Budget-padding app call                               ← +20,000
+[7] Budget-padding app call                               ← +20,000
+[8] Voter -> Governance app: record proof                 ← State update
 ```
 
-All 9 transactions succeed or fail atomically. If the proof is invalid, the LogicSig returns false, the entire group fails, and no state changes occur. If the proof is valid, the app call records the verification in the contract's box storage.
+All 9 transactions succeed or fail atomically. If the proof is invalid, the verifier LogicSig returns false, the entire group fails, and no state changes occur. If the proof is valid, the governance app call records the verification in the contract's box storage.
 
-The security binding: the smart contract's `record_verified_proof` method must verify that the LogicSig verifier is present in the group (by checking for a transaction from the verifier's known address) and that the proof's public inputs (the commitment hash and number of choices) match what's stored on-chain.
+The security binding is the part the runnable teaching contract intentionally isolates. The production proof-recording method must verify that the expected LogicSig verifier is present in the group, that the group has the exact expected shape, and that the proof's public inputs match on-chain state. The [LogicSig security guidelines](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) are directly relevant here: a LogicSig that verifies a cryptographic proof but does not validate how it is grouped with the state update is only half of the system.
+
+### Production Verifier Binding Checklist
+
+For a production implementation, store the verifier LogicSig address and verifier target app ID in global state during initialization. Then replace the admin-trusted hook with a method that verifies the exact group layout.
+
+The production method should check:
+
+- The governance app call is at the expected group index.
+- `Global.group_size` equals the exact proof-submission group size.
+- Transaction 0 is the verifier app call, signed by the expected LogicSig address.
+- The verifier LogicSig itself rejects rekeying and other unsafe fields.
+- The verifier app call also has `rekey_to == Global.zero_address`.
+- The verifier app call targets the expected verifier/dummy app ID.
+- The proof bytes are in `Txn.application_args(1)` of the verifier app call.
+- The public-input bytes are in `Txn.application_args(2)` of the verifier app call.
+- The public inputs decode to the stored commitment and `self.num_choices.value`.
+- The padding transactions have the expected type, app ID, fee, and no rekey.
+
+Do not pass independent "commitment" and "num choices" arguments to the governance call and trust them by themselves. The governance app must compare against the same public-input bytes consumed by the verifier LogicSig. AlgoPlonk's generated LogicSig verifier reads proof and public inputs from the second and third application arguments because the first application argument is reserved for the ARC-4 method selector. Decode the public-input bytes according to the encoding emitted by AlgoPlonk, including any ARC-4 array length prefixes.
+
+Do not rely on `verifier_txn.sender == verifier_address` alone. If the verifier contract account was rekeyed earlier, a later transaction from that sender would no longer prove that the verifier LogicSig executed. Wrap or modify the generated verifier so the LogicSig itself rejects `Txn.rekey_to != Global.zero_address`, and avoid accepting verifier accounts whose current authorization state has already been changed.
 
 
 ## Part 5: Advanced Box Storage Patterns for Vote Tracking
@@ -642,15 +693,17 @@ For a production system that needs to be quantum-resistant end-to-end, you would
 
 ### Testing Without the Go Toolchain
 
-If you cannot install the Go toolchain (gnark, AlgoPlonk), you can still test the voting contract's core flow: deploy, initialize, commit votes, advance phases, and reveal votes. The commit-reveal cycle verifies commitments against MiMC hashes without needing ZK proofs. Skip the prove phase by advancing directly to reveal --- you will not be able to test the ZK proof verification path, but you can exercise the commit-reveal-tally flow end to end. The tests below include comments showing where the ZK steps would go.
+If you cannot install the Go toolchain (gnark, AlgoPlonk), you can still test the voting contract's core flow: deploy, initialize, commit votes, advance phases, and reveal votes. The commit-reveal cycle verifies commitments against MiMC hashes without needing ZK proofs.
 
-### Test Scenario: 3 Voters, 3 Choices
+Use the admin-trusted hook as a test-only seam before reveal. This exercises the state machine; trustless verification starts with the verifier-group integration test.
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `generate_vote_proof`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+### Test Scenario: Python-Only State Machine
+
+> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 
 The following test outlines go in `tests/test_governance_voting.py` (not part of the contract code).
 
-The end-to-end test walks through all four phases with three voters, each casting a different vote. It verifies that commitments, proofs, and reveals all work correctly and produce the expected tally:
+The Python-only state-machine test covers commit, admin proof marking, reveal, and tally reads with three voters. It verifies commitments, proof-status gating, reveals, and tallies, but it does not verify ZK proofs:
 
 ```python
 # test_governance_voting.py
@@ -658,8 +711,8 @@ import pytest
 import algokit_utils
 
 class TestGovernanceVoting:
-    def test_full_voting_flow(self):
-        """End-to-end: setup -> commit -> prove -> reveal -> tally"""
+    def test_python_state_machine_flow(self):
+        """Python-only: commit -> admin proof mark -> reveal -> tally."""
         algorand = algokit_utils.AlgorandClient.default_localnet()
         admin = algorand.account.localnet_dispenser()
         voting_client = deploy_voting_contract(algorand, admin)
@@ -682,28 +735,25 @@ class TestGovernanceVoting:
                 algokit_utils.AppClientMethodCallParams(
                     method="commit_vote",
                     args=[commitment, fund_mbr(voter, voting_client)],
+                    sender=voter.address,
                 )
             )
 
-        # Phase 2: Generate and submit ZK proofs
+        # Phase 2: Mark proofs through the admin-trusted teaching hook.
+        # This is not the trustless ZK verifier path.
         advance_rounds(algorand, 101)
         voting_client.send.call(
             algokit_utils.AppClientMethodCallParams(
                 method="advance_to_prove_phase",
             )
         )
-        for voter, choice, rand, commitment in zip(
-            voters, choices, randomness, commitments
-        ):
-            proof = generate_vote_proof(choice, rand, commitment, num_choices=3)
-            verify_txns = algoplonk_verifier.make_verify_transactions(proof)
-            record_params = voting_client.params.call(
+        for voter in voters:
+            voting_client.send.call(
                 algokit_utils.AppClientMethodCallParams(
                     method="record_verified_proof",
                     args=[voter.address],
                 )
             )
-            submit_atomic_group(verify_txns + [record_params])
 
         # Phase 3: Reveal votes and check tallies
         advance_rounds(algorand, 101)
@@ -735,7 +785,34 @@ class TestGovernanceVoting:
         assert tally_2.abi_return == 1
 ```
 
-The failure-path tests verify that invalid operations are correctly rejected. The invalid proof test confirms that the ZK circuit rejects out-of-range choices, and the double commit test ensures one-vote-per-voter:
+### Full ZK Integration Test Outline
+
+After you complete the Go verifier and production binding method, add a separate integration test for the trustless proof path:
+
+```python
+def test_bound_verifier_group_records_proof(self):
+    """Full integration: verifier group + bound app proof record."""
+    # Setup mirrors the Python-only test through the commit phase.
+    proof = generate_vote_proof(choice, randomness, commitment, num_choices=3)
+    public_inputs = encode_public_inputs(commitment, num_choices=3)
+    verify_group = build_algoplonk_verifier_group(
+        verifier_lsig,
+        verifier_app_id,
+        proof,
+        public_inputs,
+    )
+    record_params = voting_client.params.call(
+        algokit_utils.AppClientMethodCallParams(
+            method="record_bound_proof",
+            args=[voter.address],
+        )
+    )
+    submit_atomic_group(verify_group + [record_params])
+```
+
+That integration test should also include failure cases: wrong verifier address, extra transaction in the group, mismatched commitment public input, and mismatched `num_choices` public input.
+
+The full ZK integration suite should also keep the circuit-level invalid proof test. It confirms that the ZK circuit rejects out-of-range choices before a verifier group is submitted:
 
 ```python
     def test_invalid_proof_rejected(self):
@@ -755,7 +832,11 @@ The failure-path tests verify that invalid operations are correctly rejected. Th
         # Proof generation should fail: circuit rejects choice >= num_choices
         with pytest.raises(Exception):
             generate_vote_proof(bad_choice, rand, commitment, num_choices=3)
+```
 
+The remaining failure-path tests verify that invalid state-machine operations are correctly rejected. The double commit test ensures one-vote-per-voter:
+
+```python
     def test_double_commit_rejected(self):
         """Same voter cannot commit twice."""
         admin = algorand.account.localnet_dispenser()
@@ -808,18 +889,23 @@ The reveal and timing tests verify the commit-reveal binding (revealing a differ
 
 ### Security Audit Checklist for the Voting System
 
+The runnable PuyaPy contract covers the state-machine checks. The ZK verifier checks are production requirements for replacing the admin-trusted teaching hook:
+
 - Commitments are binding (MiMC collision resistance within the field)
 - Commitments are hiding (randomness is cryptographically random, 256-bit)
-- ZK proofs cannot be forged (PLONK soundness)
-- ZK proofs reveal nothing about the vote (zero-knowledge property)
 - Double-voting is prevented (one commitment per address)
 - Vote changes after commitment are prevented (phase transitions are irreversible)
+- Box storage MBR funding requirements are identified; cleanup/refund paths are production hardening
+- Phase transitions check round numbers correctly and are admin-only
+
+Production verifier hardening before deployment:
+
+- ZK proofs cannot be forged (PLONK soundness)
+- ZK proofs reveal nothing about the vote during the prove phase (zero-knowledge property)
 - LogicSig verifier address is hardcoded/verified in the smart contract
 - Public inputs to the ZK proof are bound to on-chain state (commitment, num_choices)
-- Box storage MBR is properly funded and refundable
-- Phase transitions check round numbers correctly and are admin-only
-- Group size is validated in the proof-submission atomic group (production hardening)
-- Admin cannot see or modify votes (only advance phases)
+- Group size is validated in the proof-submission atomic group
+- Admin cannot mark proofs verified without the verifier group
 - The trusted setup ceremony is properly conducted (for PLONK, a universal setup from a ceremony)
 
 ## Summary
@@ -827,22 +913,22 @@ The reveal and timing tests verify the commit-reveal binding (revealing a differ
 In this chapter you learned to:
 
 - Explain the three properties of zero-knowledge proofs (completeness, soundness, zero-knowledge) and why each matters for private voting
-- Describe the commit-reveal pattern and how it provides ballot secrecy on a public blockchain
+- Describe the commit-reveal pattern and how it provides delayed vote disclosure on a public blockchain
 - Use the AVM's native elliptic curve opcodes (BN254) for on-chain cryptographic verification
 - Explain why MiMC is used inside ZK circuits instead of SHA-256, and the security tradeoffs involved
-- Design a ZK circuit using gnark/AlgoPlonk that proves a vote is valid without revealing which choice was selected
+- Design a ZK circuit using gnark/AlgoPlonk that proves a vote is valid without revealing which choice was selected during the prove phase
 - Build a multi-phase voting smart contract with registration, commitment, reveal, and tallying phases
 - Use LogicSig opcode pooling (20,000 opcodes per group transaction, since AVM v10) to verify ZK proofs on-chain
 - Describe Algorand's Falcon-based post-quantum security roadmap and its implications for long-term cryptographic design
 
-| Feature Built | New Concepts Introduced |
-|--------------|------------------------|
-| ZK circuit (gnark) | Groth16/PLONK proof systems, R1CS/SCS, witness generation |
-| MiMC commitments | ZK-friendly hashing, commitment schemes, nullifiers |
-| Voting smart contract | Multi-phase state machine, box-based vote tracking, tally accumulation |
-| LogicSig ZK verifier | BN254 curve operations, pairing checks, opcode budget pooling |
-| Atomic verification group | Coordinating LogicSig verification with smart contract state updates |
-| Post-quantum discussion | Falcon signatures, state proofs, hash-based commitments |
+| Component | Status | Concepts Introduced |
+|-----------|--------|---------------------|
+| ZK circuit (gnark) | Illustrative until completed in Go | Groth16/PLONK proof systems, SCS, witness generation |
+| MiMC commitments | Runnable in the PuyaPy contract | ZK-friendly hashing, commitment schemes, nullifiers |
+| Voting smart contract | Runnable PuyaPy state machine | Multi-phase state machine, box-based vote tracking, tally accumulation |
+| LogicSig ZK verifier | Illustrative AlgoPlonk integration | BN254 curve operations, pairing checks, opcode budget pooling |
+| Atomic verification group | Production sketch | Coordinating LogicSig verification with smart contract state updates |
+| Post-quantum discussion | Conceptual | Falcon signatures, state proofs, hash-based commitments |
 
 ## Exercises
 
@@ -853,6 +939,8 @@ In this chapter you learned to:
 3. **(Analyze)** Why is MiMC used for commitments inside the ZK circuit instead of SHA-256? What are the security tradeoffs of using a less battle-tested hash function?
 
 4. **(Create)** Design an extension where voters can delegate their vote to another address before the commitment phase. What changes to the commitment scheme, ZK circuit, and smart contract are needed? How do you prevent a delegate from learning what vote they are casting?
+
+5. **(Create)** Replace the admin-trusted `record_verified_proof` hook with a bound verifier-group design. Identify the trusted parties you are removing, the exact group shape, where public inputs are exposed, what the app checks, what the verifier checks, and which negative tests prove the binding fails safely.
 
 ## Appendix A: Opcode Costs for Cryptographic Operations
 
