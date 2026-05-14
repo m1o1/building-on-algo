@@ -46,9 +46,15 @@ The canonical source is the `chapters/` directory — each chapter is a separate
 
 ### Prerequisites
 
-- **mdbook** (for HTML): `brew install mdbook`
-- **pandoc + xelatex** (for PDF): `brew install pandoc` and a TeX distribution (e.g. [MacTeX](https://www.tug.org/mactex/))
-- **Python 3.12 + uv** (for validation): `uv` installs the pinned test and compile dependencies from `uv.lock`
+- **Python 3.12** (validated for the book walkthroughs and helper scripts)
+- **uv** (for validation): `uv` installs the pinned test and compile dependencies from `uv.lock`
+- **mdBook** (for HTML): follow the [mdBook installation guide](https://rust-lang.github.io/mdBook/guide/installation.html).
+  Common paths: download a precompiled binary, run `cargo install mdbook`, or on macOS use `brew install mdbook`.
+- **pandoc + XeLaTeX** (for PDF): install Pandoc from the [official installer](https://pandoc.org/installing.html) or your package manager.
+  Also install a TeX distribution that includes XeLaTeX, such as [MacTeX](https://www.tug.org/mactex/) on macOS.
+
+After installing command-line tools, make sure `python`, `mdbook`, `pandoc`, and `xelatex` are available on your `PATH` as needed for the targets you plan to build.
+On Windows, use `python` or `py -3.12` anywhere the examples show `python3`.
 
 ### Build Commands
 

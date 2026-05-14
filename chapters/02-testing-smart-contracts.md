@@ -215,7 +215,13 @@ You should see `SimpleVesting.approval.teal`, `SimpleVesting.clear.teal`, and `S
 
 ## Setting Up pytest
 
-The project template from `algokit init` includes pytest in its dependencies, but you need a `tests/` directory with proper fixtures. Create `tests/conftest.py` in your project root (next to `pyproject.toml`):
+AlgoKit Python templates and their dependency sets evolve. Before writing tests, open the generated `pyproject.toml` and check whether `pytest` is already listed.
+
+If it is missing, add it through the project's configured dependency manager from the environment created by `algokit project bootstrap all`.
+
+In the default Poetry-based Python template, run `poetry add pytest --group dev`.
+
+Use the equivalent `uv` command if your generated project uses `uv`. Avoid installing pytest into an unrelated system Python. Then create `tests/conftest.py` in your project root, next to `pyproject.toml`:
 
 ```python
 # tests/conftest.py

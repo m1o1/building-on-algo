@@ -39,7 +39,7 @@ class VestingSchedule(arc4.Struct):
     is_revoked: arc4.Bool
 ```
 
-Each `arc4.UInt64` occupies 8 bytes (big-endian), `arc4.Bool` occupies 1 byte, so the struct totals 41 bytes. We will use this struct throughout the contract --- for creating schedules, tracking claims, and reading vesting status. (See [Algorand Python ARC-4 guide](https://dev.algorand.co/algokit/languages/python/lg-arc4/) for struct encoding details.)
+Each `arc4.UInt64` occupies 8 bytes (big-endian), `arc4.Bool` occupies 1 byte, so the struct totals 41 bytes. We will use this struct throughout the contract --- for creating schedules, tracking claims, and reading vesting status. (See [Algorand Python ARC-4 guide](https://algorandfoundation.github.io/puya/lg-arc4.html) for struct encoding details.)
 
 Notice the `arc4.UInt64` fields in the struct --- these are not the same as the plain `UInt64` you will see in the contract's `__init__` method below. Algorand Python has two parallel type systems that you will encounter throughout this book. **Native types** (`UInt64`, `Bytes`) are what the AVM operates on directly --- arithmetic, comparisons, and most function parameters use these. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`, `arc4.Struct`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic: `schedule.total_amount.as_uint64()` converts `arc4.UInt64` to `UInt64`. We will see this conversion pattern in detail when we build the `claim` method later in this chapter.
 
@@ -50,7 +50,7 @@ Before we can vest tokens, we need a contract on the blockchain. Let us start wi
 
 Recall from Chapter 1 that a smart contract executes once per transaction --- it validates, decides to approve or reject, and stops. With that model in mind, let us build our first contract. The clear state program handles a special case we will discuss later --- for now, just know it exists and that we will give it a default implementation that simply returns true.
 
-ARCs (Algorand Requests for Comments) are community standards for the Algorand ecosystem, similar to Python's PEPs or internet RFCs. Modern Algorand contracts inherit from `ARC4Contract`, which implements the [ARC-4 Application Binary Interface](https://dev.algorand.co/concepts/smart-contracts/abi/). ARC-4 is the standard calling convention for Algorand smart contracts. It defines how method names are mapped to 4-byte selectors (computed as the first 4 bytes of `SHA-512/256` of the method signature string), how arguments are encoded on the wire, and how return values are communicated back to the caller via transaction logs. When you inherit from `ARC4Contract`, the PuyaPy compiler generates all of this routing logic automatically --- you never write a manual switch statement or parse raw bytes. (See the [ARC-4 specification](https://dev.algorand.co/arc-standards/arc-0004/) and the [Algorand Python ARC-4 guide](https://dev.algorand.co/algokit/languages/python/lg-arc4/).)
+ARCs (Algorand Requests for Comments) are community standards for the Algorand ecosystem, similar to Python's PEPs or internet RFCs. Modern Algorand contracts inherit from `ARC4Contract`, which implements the [ARC-4 Application Binary Interface](https://dev.algorand.co/concepts/smart-contracts/abi/). ARC-4 is the standard calling convention for Algorand smart contracts. It defines how method names are mapped to 4-byte selectors (computed as the first 4 bytes of `SHA-512/256` of the method signature string), how arguments are encoded on the wire, and how return values are communicated back to the caller via transaction logs. When you inherit from `ARC4Contract`, the PuyaPy compiler generates all of this routing logic automatically --- you never write a manual switch statement or parse raw bytes. (See the [ARC-4 specification](https://dev.algorand.co/arc-standards/arc-0004/) and the [Algorand Python ARC-4 guide](https://algorandfoundation.github.io/puya/lg-arc4.html).)
 
 Methods decorated with `@arc4.abimethod` become publicly callable endpoints. Each method gets a unique selector derived from its full signature, including parameter types. For example, `hello(string)string` and `greet(string)string` produce different selectors even though they take the same parameter types, because the method name differs.
 
@@ -197,9 +197,18 @@ MBR is Algorand's anti-spam mechanism. Every account must maintain a minimum Alg
 
 To opt the contract into the vesting token, we use an *inner transaction* --- a transaction generated and executed by the contract during its own execution. When your contract executes an inner transaction, it acts as an autonomous agent, sending from its own address. The contract can send payments, transfer assets, create new assets, and even call other contracts via inner transactions.
 
-There is one critical security rule for *inner transactions*: **always set the fee to zero**. If you do not explicitly set `fee=UInt64(0)`, the inner transaction uses the default minimum fee of 1,000 microAlgos, and this fee is deducted from the contract's own Algo balance, not from the caller's. An attacker can exploit this by calling your contract in a loop, triggering inner transactions that slowly drain the contract's Algo balance. Eventually, the balance drops below MBR and the contract can no longer operate.
+There is one critical security rule for *inner transactions*: keep the inner
+fee at zero so the caller covers the cost through fee pooling. In the book's
+validated PuyaPy baseline, inner transaction builders default `fee` to zero,
+but we still write `fee=UInt64(0)` explicitly so the intent is reviewable. If
+you use lower-level TEAL or another builder, verify its default; a non-zero
+inner fee is deducted from the contract's own Algo balance, not from the
+caller. An attacker can exploit that by repeatedly calling a method that emits
+inner transactions until the contract balance drops below MBR.
 
-> **Warning:** If you omit `fee=UInt64(0)` on an inner transaction, the default minimum fee (1,000 microAlgos) is deducted from the contract's own Algo balance. An attacker can call your contract repeatedly, draining its balance through accumulated fees until it falls below MBR and becomes inoperable.
+> **Warning:** A non-zero inner transaction fee is paid by the contract's own
+> Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
+> transaction cover the pooled fee.
 
 The solution is *fee pooling*: the Algorand protocol validates fees at the group level, not per-transaction. The sum of all fees in an atomic group must meet the sum of all minimum fees (including inner transactions). So the caller's outer transaction overpays its fee to cover everything.
 
@@ -221,14 +230,26 @@ from algopy import Asset, Global, UInt64, itxn
             xfer_asset=vesting_asset,
             asset_receiver=Global.current_application_address,
             asset_amount=UInt64(0),
-            fee=UInt64(0),  # CRITICAL: always zero. Caller covers via fee pooling.
-                            # Omitting this drains the contract's Algo balance.
+            fee=UInt64(0),  # Caller covers this via fee pooling.
         ).submit()
 ```
 
-Before calling `initialize`, the client must fund the contract with enough Algo for the MBR and set the outer transaction fee high enough to cover the inner transaction. The following script demonstrates the complete initialize flow using AlgoKit Utils.
+Before calling `initialize`, the client must fund the contract with enough Algo
+for the MBR and set the outer transaction fee high enough to cover the inner
+transaction. The following script demonstrates the complete initialize flow
+using AlgoKit Utils.
 
-The `foreign_assets` parameter (populated automatically by AlgoKit Utils) is part of Algorand's **resource reference system**. Every application call must declare which blockchain resources it will access --- accounts, assets, applications, and boxes. The AVM node pre-loads these resources into memory before execution, ensuring predictable performance. Think of it as declaring your read-set before running a database query --- the node needs to know which accounts, assets, applications, and boxes your program will touch so it can load them into memory. The limit is 8 total references per transaction. Since AVM v9, references are shared across the transaction group, effectively allowing up to 128 references for complex operations.
+Asset and box references are part of Algorand's **resource reference system**.
+Every application call must declare which blockchain resources it will access
+--- accounts, assets, applications, and boxes. The AVM pre-loads these resources
+before execution, like declaring your read-set before running a database query.
+
+ARC-4 asset arguments, explicit `asset_references`, and explicit
+`box_references` are all client-side ways to make those resources available.
+This book keeps references visible in examples whenever they are easy to miss.
+AlgoKit Utils Python can also populate missing app-call resources by simulation
+when `populate_app_call_resources=True`, but that is an opt-in client
+convenience rather than contract behavior.
 
 ## Compiling and Running What We Have So Far
 
@@ -372,9 +393,23 @@ Recall the `VestingSchedule` struct we defined at the start of the chapter. We u
 
 `Global.latest_timestamp` returns a Unix epoch timestamp from the current block header. The block proposer sets it from their system clock, constrained to be monotonically non-decreasing and at most 25 seconds ahead of the previous block. For vesting schedules measured in months, this imprecision is negligible.
 
-Now we encounter **box references** in practice --- the concept introduced in Chapter 1. Every transaction that reads or writes a box must declare which boxes it will access in a `boxes` array on the transaction. The AVM uses these declarations to allocate I/O budget: each reference grants 1,024 bytes (1KB) of read/write capacity. For `create_schedule`, the box name is 34 bytes (`"v_"` prefix + 32-byte address) and the data is 41 bytes, totaling 75 bytes --- well within a single reference.
+Now we encounter **box references** in practice --- the concept introduced in
+Chapter 1. Every transaction that reads or writes a box must declare which
+boxes it will access in a `boxes` array on the transaction. The AVM uses these
+declarations to allocate I/O budget: each reference grants 2,048 bytes (2KB)
+of read/write capacity for box data. For `create_schedule`, the stored data is
+41 bytes, well within a single reference. The 34-byte box name matters for MBR,
+but not for the I/O budget.
 
-On the client side, you declare box references like this (this is client-side code, not part of the contract):
+The full grouped call has three moving pieces: create the MBR payment, pass it
+as the typed transaction argument, and include the beneficiary's box reference
+on the app call. In this chapter the admin funds schedule MBR and receives the
+refund during cleanup, so the contract rejects MBR payments from other senders.
+If you want third-party sponsorship, model the sponsor and refund recipient
+explicitly instead of reusing this admin-owned MBR flow.
+
+On the client side, the app-call portion looks like this (this is client-side
+code, not part of the contract):
 
 ```python
 # Client must declare the box this transaction will access
@@ -388,7 +423,14 @@ app_client.send.call(
 )
 ```
 
-Forgetting this declaration produces "box read/write budget exceeded" --- the single most common error new Algorand developers encounter. If you see this error, your first check should always be: did I declare the box references? For boxes larger than 1KB, you need multiple references to the same box (e.g., a 4KB box needs four references). The Cookbook (Recipe 6.5) shows this pattern in detail.
+Forgetting this declaration produces "box read/write budget exceeded" --- the
+single most common error new Algorand developers encounter. If you see this
+error, your first check should always be: did I declare the box references?
+For boxes larger than 2KB, you need multiple references to the same box (for
+example, a 4KB box needs two references). The Cookbook (Recipe 6.5) shows this
+pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
+`algokit_utils.BoxReference` are client-side representations of this same
+resource-reference idea.
 
 > **Warning:** Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
 
@@ -413,6 +455,7 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
 
         box_mbr = UInt64(2500) + UInt64(400) * (UInt64(34) + UInt64(41))
         assert mbr_payment.receiver == Global.current_application_address
+        assert mbr_payment.sender == Txn.sender
         assert mbr_payment.amount >= box_mbr
 
         now = Global.latest_timestamp
@@ -615,12 +658,15 @@ Add these methods to the `TokenVesting` class in `smart_contracts/token_vesting/
         return vested - schedule.claimed_amount.as_uint64()
 ```
 
-The `calculate_vested` subroutine is now used in three places. Without it, the vesting math would be duplicated three times in compiled TEAL, consuming precious program bytes within the 8,192-byte limit. (See [Algorand Python structure guide](https://dev.algorand.co/algokit/languages/python/lg-structure/) for subroutine usage.)
+The `calculate_vested` subroutine is now used in three places. Without it, the vesting math would be duplicated three times in compiled TEAL, consuming precious program bytes within the 8,192-byte limit. (See [Algorand Python structure guide](https://algorandfoundation.github.io/puya/lg-structure.html) for subroutine usage.)
 
 
 ## Testing the Vesting Contract
 
-> **Note:** The project template from `algokit init` does not include `pytest` in its dependencies or create a `tests/` directory. Before running tests, install pytest (`pip install pytest` or add it to `pyproject.toml` under `[project.optional-dependencies]`) and create a `tests/` directory in your project root. This applies to all four projects in this book. (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
+> **Note:** Use the Chapter 2 pytest setup for this project: check whether `pytest` is already listed in the generated `pyproject.toml`, add it to the project environment if it is missing, and create a `tests/` directory in your project root.
+> Avoid installing pytest into an unrelated system Python.
+> Run it from the project environment created by `algokit project bootstrap all`.
+> (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 
 The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`, `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the AlgoKit Utils calls shown earlier in this chapter. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 
@@ -856,11 +902,11 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 
 ## Further Reading
 
-- [Algorand Python Language Guide](https://dev.algorand.co/algokit/languages/python/lg-structure/) --- program structure, decorators, `__init__` semantics
-- [Types](https://dev.algorand.co/algokit/languages/python/lg-types/) --- UInt64, Bytes, BigUInt, ARC-4 types
-- [Storage](https://dev.algorand.co/algokit/languages/python/lg-storage/) --- GlobalState, LocalState, Box, BoxMap
-- [Transactions](https://dev.algorand.co/algokit/languages/python/lg-transactions/) --- gtxn parameters, inner transactions
-- [ARC-4 in Python](https://dev.algorand.co/algokit/languages/python/lg-arc4/) --- abimethod, baremethod, ARC4Contract
+- [Algorand Python Program Structure](https://algorandfoundation.github.io/puya/lg-structure.html) --- program structure, decorators, `__init__` semantics
+- [Types](https://algorandfoundation.github.io/puya/lg-types.html) --- UInt64, Bytes, BigUInt, ARC-4 types
+- [Storage](https://algorandfoundation.github.io/puya/lg-storage.html) --- GlobalState, LocalState, Box, BoxMap
+- [Transactions](https://algorandfoundation.github.io/puya/lg-transactions.html) --- gtxn parameters, inner transactions
+- [ARC-4 in Python](https://algorandfoundation.github.io/puya/lg-arc4.html) --- abimethod, baremethod, ARC4Contract
 - [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/) --- MBR formula, I/O budget, lifecycle
 - [App Client](https://dev.algorand.co/algokit/utils/python/app-client/) --- deployment, method calls, simulation
 - [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) --- program size, opcode budget, stack limits
