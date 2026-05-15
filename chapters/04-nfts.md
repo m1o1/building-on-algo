@@ -432,7 +432,7 @@ reserve deposited tokens before minting the NFT.
 
 This is where the contract diverges from Chapter 3. Instead of simply writing a schedule to box storage, `create_schedule` now mints an NFT that represents ownership of the vesting position. The NFT stays with the contract until the beneficiary opts in and the admin delivers it --- a two-step pattern we will explore shortly.
 
-*Inner transactions* are the mechanism. You used them in Chapter 3 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. The `mbr_payment` parameter follows the fund-then-call pattern (Pattern 2 in Chapter 7): the caller sends a payment to cover the MBR in the same atomic group as the app call, and the contract validates the payment amount. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
+*Inner transactions* are the mechanism. You used them in Chapter 3 for ASA opt-ins and token transfers. Now we use `itxn.AssetConfig` to *create* an asset from within the contract. The `mbr_payment` parameter follows the fund-then-call pattern (Pattern 2 in Chapter 8): the caller sends a payment to cover the MBR in the same atomic group as the app call, and the contract validates the payment amount. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for ASA creation fields.)
 
 ```python
     @arc4.abimethod

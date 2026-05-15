@@ -1,6 +1,6 @@
-# Chapter 6: LP Farming
+# Chapter 7: LP Farming
 
-This is the finished Chapter 6 project from *Building on Algorand*. It gives
+This is the finished Chapter 7 project from *Building on Algorand*. It gives
 readers a runnable LP farming contract before they walk through the accumulator
 math and composition patterns line by line.
 
@@ -11,7 +11,7 @@ math and composition patterns line by line.
 - Poetry, installed by `algokit project bootstrap all` if it is not already
   present
 - Docker or Podman for LocalNet
-- The Chapter 5 AMM project built first; Chapter 6 imports its generated client
+- The Chapter 5 AMM project built first; Chapter 7 imports its generated client
 
 ## Run It First!
 
@@ -23,7 +23,7 @@ cd ../../chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 
-cd ../../chapter6/lp-farming
+cd ../../chapter7/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
@@ -73,7 +73,7 @@ cd ../../chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 
-cd ../../chapter6/lp-farming
+cd ../../chapter7/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit project run test-static

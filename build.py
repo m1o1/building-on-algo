@@ -49,7 +49,7 @@ SRC_DIR = MDBOOK_DIR / "src"
 PART_BREAKS: dict[str, str] = {
     "01-the-algorand-mental-model.md": "# Part I: Foundations",
     "05-a-constant-product-amm.md": "# Part II: Automated Market Making",
-    "08-delegated-limit-order-book.md": "# Part III: Advanced Topics",
+    "09-delegated-limit-order-book.md": "# Part III: Advanced Topics",
     "A1-cookbook.md": "# Appendices",
 }
 

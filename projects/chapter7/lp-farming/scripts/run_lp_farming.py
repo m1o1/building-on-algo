@@ -225,7 +225,7 @@ def main() -> int:
             )
         )
         print("Farmer unstaked LP and received the box MBR refund.")
-        print("Chapter 6 LP farming workflow complete.")
+        print("Chapter 7 LP farming workflow complete.")
         return 0
     finally:
         reset_localnet_time(algorand, admin)

@@ -6,20 +6,25 @@ Your AMM works. Liquidity providers deposit tokens, traders swap against the poo
 
 This is the problem *yield farming* solves. In a yield farming system, LPs lock their LP tokens in a separate staking contract for a fixed duration --- 30 days, 90 days, a year --- and earn additional reward tokens on top of the trading fees they already collect from the pool. Longer lock-ups earn proportionally higher rewards, creating a direct incentive for the sticky liquidity that healthy markets depend on.
 
-We are going to build a staking contract that composes with the AMM from the previous chapter. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the configured AMM's global state, binds itself to that AMM's reported LP token, and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
+We are going to build a staking contract that composes with the AMM from Chapter 5. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the configured AMM's global state, binds itself to that AMM's reported LP token, and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
 
 Two core concepts drive this chapter. First, the *reward accumulator pattern* --- a mathematical technique (popularized by Synthetix) that distributes rewards fairly across any number of stakers without iterating over them. Second, *smart contract composition* --- reading another contract's state to make trust decisions, a fundamental DeFi building block that connects isolated contracts into composable protocols.
 
 By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract binding to the configured AMM's reported LP token.
 
-This chapter assumes you have a working AMM from the previous chapter. The
-farming workflow and integration tests require the Chapter 5 generated client
-and an initialized AMM app; the farm initializes against that AMM application
-reference and accepts the LP token it reports.
+This chapter assumes you have a working AMM from Chapter 5. Chapter 6 showed
+how a factory can make pool identity stronger; this first farm keeps the
+composition surface simple by binding to one configured AMM app and verifying
+the LP token it reports. The farming workflow and integration tests require the
+Chapter 5 generated client and an initialized AMM app.
+
+A production farm could add the Chapter 6 factory check before it accepts a
+pool. This chapter leaves that out deliberately so the accumulator, lock-up,
+and reward-conservation ideas stay in the foreground.
 
 ## Run It First!
 
-The finished version of this chapter lives in `projects/chapter6/lp-farming/`.
+The finished version of this chapter lives in `projects/chapter7/lp-farming/`.
 It depends on the finished AMM project in `projects/chapter5/constant-product-amm/`
 because the farm binds itself to the LP token reported by the configured AMM.
 
@@ -30,7 +35,7 @@ cd projects/chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 
-cd ../../chapter6/lp-farming
+cd ../../chapter7/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
@@ -47,9 +52,9 @@ Run the workflow once:
 poetry run python -m scripts.run_lp_farming
 ```
 
-Table 6-1 lists the output checkpoints to compare against the workflow output.
+Table 7-1 lists the output checkpoints to compare against the workflow output.
 
-Table 6-1. Output checkpoints for the LP farming workflow
+Table 7-1. Output checkpoints for the LP farming workflow
 
 | Output checkpoint | What to watch for |
 |-------------------|-------------------|
@@ -59,7 +64,7 @@ Table 6-1. Output checkpoints for the LP farming workflow
 | Claimed rewards > 0 | The accumulator produced claimable rewards after time advanced |
 | Final unstake message | The unstake path returned LP tokens and refunded box MBR |
 
-Run the tests from the Chapter 6 project:
+Run the tests from the Chapter 7 project:
 
 ```bash
 algokit project run test
@@ -236,7 +241,7 @@ cd ../../chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 
-cd ../../chapter6/lp-farming
+cd ../../chapter7/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit project run test-static
@@ -248,7 +253,7 @@ claiming, and unstaking sequence.
 
 Follow this finished-project runbook first, then build the chapter in a
 separate scratch project with the `algokit init` commands below. Treat
-`projects/chapter6/lp-farming/` as the answer key: compare its contract,
+`projects/chapter7/lp-farming/` as the answer key: compare its contract,
 workflow script, and tests against your scratch project when something differs.
 
 
@@ -583,7 +588,7 @@ This exceeds `UInt64`'s maximum of $\approx 1.84 \times 10^{19}$ if computed as 
 
 If your reward parameters are more extreme than the chapter's bounds allow, switch to `BigUInt` or a carefully designed multiword arithmetic helper. Do not merely increase `MAX_REWARD_RATE`; the proof obligation is that every intermediate value is either bounded or computed with wide arithmetic.
 
-*Recall the wide arithmetic pattern from the AMM's swap calculation in the previous chapter. What was the purpose of `mulw` and `divmodw` there? The same pattern --- 128-bit intermediate product divided back to 64 bits --- reappears throughout this chapter.*
+*Recall the wide arithmetic pattern from the Chapter 5 AMM's swap calculation. What was the purpose of `mulw` and `divmodw` there? The same pattern --- 128-bit intermediate product divided back to 64 bits --- reappears throughout this chapter.*
 
 
 ## Duration Multipliers
@@ -1078,9 +1083,9 @@ def _calculate_multiplier(duration: UInt64) -> UInt64:
 ### Deployment Script
 
 The finished project uses generated typed clients in `scripts/run_lp_farming.py`
-to deploy the farming contract alongside the AMM from the previous chapter.
+to deploy the farming contract alongside the AMM from Chapter 5.
 That script resolves the Chapter 5 AMM generated client from the repository
-root and the Chapter 6 farm generated client from this project. The excerpt
+root and the Chapter 7 farm generated client from this project. The excerpt
 below is the conceptual deployment flow with the generic app-client API; use
 `scripts/run_lp_farming.py` for the runnable version.
 
@@ -1442,7 +1447,7 @@ farm_client.send.call(
 
 ## Consuming the AMM's TWAP Oracle
 
-The AMM from the previous chapter tracks cumulative price accumulators and exposes a `get_twap_price` read-only method. The farming contract does not need to maintain its own oracle --- it can consume the AMM's TWAP for position valuation.
+The Chapter 5 AMM tracks cumulative price accumulators and exposes a `get_twap_price` read-only method. The farming contract does not need to maintain its own oracle --- it can consume the AMM's TWAP for position valuation.
 
 A natural extension of the farming contract is displaying the dollar value of a staked position. A frontend would:
 
@@ -1615,7 +1620,7 @@ In this chapter you learned to:
 - Manage the full staking lifecycle: stake, claim, extend, unstake with MBR refund
 - Enforce the reward conservation invariant so payouts cannot exceed the funded distributable pool
 
-This chapter extended the AMM from the previous chapter into a two-contract system --- the first example of smart contract composition in this book. The farming contract does not modify the AMM; it reads its state and accepts its LP tokens. This *composability* --- contracts interacting through shared state and token standards without needing to trust each other --- is what makes DeFi protocols interoperable. Any contract that holds LP tokens can integrate with the farm. Any contract that needs a price feed can read the AMM's TWAP oracle. A lending protocol could accept staked LP positions as collateral by reading the farming contract's box state. Each contract is a building block, and the system's value comes from the combinations.
+This chapter extended the AMM into a two-contract system. The farming contract does not modify the AMM; it reads its state and accepts its LP tokens. This *composability* --- contracts interacting through shared state and token standards without needing to trust each other --- is what makes DeFi protocols interoperable. Any contract that holds LP tokens can integrate with the farm. Any contract that needs a price feed can read the AMM's TWAP oracle. A lending protocol could accept staked LP positions as collateral by reading the farming contract's box state. Each contract is a building block, and the system's value comes from the combinations.
 
 The accumulator pattern you learned here appears in virtually every DeFi staking system: Synthetix's StakingRewards, Curve's gauge system, Sushiswap's MasterChef, and their Algorand equivalents. The specific numbers change (precision factors, multiplier curves, reward schedules), but the core insight --- track a global per-unit accumulator and diff it against per-user snapshots --- is universal.
 

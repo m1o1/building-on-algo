@@ -161,7 +161,7 @@ The most user-friendly pattern for users who have zero Algo but hold ASA tokens.
 
 This is architecturally complex but provides the best UX for onboarding users who arrive with only bridged tokens and no native Algo.
 
-We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). The keeper bot in Chapter 8 uses Approach C (relayer).
+We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). The keeper bot in Chapter 9 uses Approach C (relayer).
 
 
 ## Pattern 2: The "Fund-Then-Call" Atomic Group
@@ -224,7 +224,7 @@ Group:
     ↳ Inner: Contract opts into asset_b
 ```
 
-Both the vesting contract (Chapter 3) and the AMM pool (Chapter 5) use this escrow pattern. The limit order system (Chapter 8) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
+Both the vesting contract (Chapter 3) and the AMM pool (Chapter 5) use this escrow pattern. The limit order system (Chapter 9) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
 
 
 ## Pattern 4: MBR Funding as Part of User Operations
@@ -297,13 +297,15 @@ def bootstrap(self, asset_a: Asset, asset_b: Asset) -> UInt64:
     # ...
 ```
 
-In the factory contract, use the ordered pair as the box key for O(1) pool lookup:
+Chapter 6 turns this into a full factory pattern. The factory uses the ordered
+pair as the box key for O(1) pool lookup:
 
 ```python
 # Factory: store pool reference keyed by canonical pair
 pair_key = op.itob(asset_a.id) + op.itob(asset_b.id)  # 16 bytes, unique
-assert pair_key not in self.pools, "Pool already exists for this pair"
-self.pools[pair_key] = op.itob(new_pool_app_id)
+existing_pool, exists = self.pools.maybe(pair_key)
+assert not exists, "Pool already exists for this pair"
+self.pools[pair_key] = new_pool_app_id
 ```
 
 **Client-side helper:** Your SDK should sort the pair before any pool interaction:
@@ -319,7 +321,8 @@ def get_pool(asset_x: int, asset_y: int) -> int:
 
 This pattern applies everywhere pairs appear: LP token names (`"LP-{min_id}-{max_id}"`), analytics keys, router lookups. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/) for ASA ID assignment.)
 
-The AMM's `bootstrap` method (Chapter 5) enforces `asset_a.id < asset_b.id` for exactly this reason.
+The AMM's `bootstrap` method (Chapter 5) and the factory's `create_pool`
+method (Chapter 6) enforce `asset_a.id < asset_b.id` for exactly this reason.
 
 
 *Before reading on: your AMM contract needs to send LP tokens to liquidity providers, but they might not have opted into the LP token yet. How would you handle this? Should the contract check and fail, or should it handle the opt-in automatically?*

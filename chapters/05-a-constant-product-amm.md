@@ -2,7 +2,7 @@
 
 \part{Building a DEX}
 
-Part II applies the foundations to DeFi. You will build a constant product AMM with multi-token accounting, price curves, and liquidity-provider (LP) token mechanics, then extend it with a yield farming contract that introduces the reward accumulator pattern and smart contract composition. The part concludes with the cross-cutting production patterns --- fee subsidization, MBR lifecycle, event emission --- that separate tutorial code from production code.
+Part II applies the foundations to DeFi. You will build a constant product AMM with multi-token accounting, price curves, and liquidity-provider (LP) token mechanics, move pool creation on-chain with a factory registry, then extend the AMM with a yield farming contract that introduces the reward accumulator pattern and smart contract composition. The part concludes with the cross-cutting production patterns --- fee subsidization, MBR lifecycle, event emission --- that separate tutorial code from production code.
 
 # A Constant Product AMM
 
@@ -349,7 +349,7 @@ class ConstantProductPool(ARC4Contract):
         self.asset_b = GlobalState(UInt64(0))
         self.lp_token_id = GlobalState(UInt64(0))
         # We track reserves explicitly rather than reading the contract's
-        # asset balance. Pattern 11 in Chapter 7 compares both approaches.
+        # asset balance. Pattern 11 in Chapter 8 compares both approaches.
         self.reserve_a = GlobalState(UInt64(0))
         self.reserve_b = GlobalState(UInt64(0))
         self.lp_total_supply = GlobalState(UInt64(0))
@@ -1052,7 +1052,7 @@ Never submit an on-chain transaction just to get a price quote. The swap output 
 
 ## The TWAP Price Oracle
 
-> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the farming contract in Chapter 6.
+> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the factory contract in Chapter 6 or the farming contract in Chapter 7.
 
 Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a natural price oracle --- but one that must be used carefully.
 
@@ -1406,7 +1406,7 @@ This chapter applied the foundational concepts from the vesting contract to a si
 | Security | Tinyman V1 case study, sender binding, invariant checks, MEV on Algorand |
 | Client integration | Off-chain quote calculation, free state reads |
 
-In the next chapter, we extend this AMM with a yield farming contract --- a staking system where LPs lock their LP tokens to earn reward tokens, introducing the reward accumulator pattern and smart contract composition.
+In the next chapter, we move AMM pool creation on-chain with a factory contract. The factory creates pool apps, registers canonical asset pairs, and gives later contracts a stronger way to verify that a pool belongs to the protocol.
 
 ## Exercises
 

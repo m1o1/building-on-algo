@@ -2,7 +2,7 @@
 
 # What's Next {-}
 
-Look at what you have accomplished. You started with no smart contract knowledge and built a token vesting system with safe integer math and box storage, extended it with NFTs for transferable financial rights, constructed a constant product AMM with LP token mechanics, designed a hybrid stateful/stateless limit order book with keeper bots, and pushed the AVM to its limits with zero-knowledge proofs for private voting. Along the way, you internalized the security patterns that prevent real exploits, the MBR lifecycle that keeps contracts solvent, and the atomic group composition that makes DeFi composable. These are not toy examples --- they are the building blocks of production protocols.
+Look at what you have accomplished. You started with no smart contract knowledge and built a token vesting system with safe integer math and box storage, extended it with NFTs for transferable financial rights, constructed a constant product AMM with LP token mechanics, moved pool creation on-chain with a factory registry, designed a hybrid stateful/stateless limit order book with keeper bots, and pushed the AVM to its limits with zero-knowledge proofs for private voting. Along the way, you internalized the security patterns that prevent real exploits, the MBR lifecycle that keeps contracts solvent, and the atomic group composition that makes DeFi composable. These are not toy examples --- they are the building blocks of production protocols.
 
 Here is where to go next.
 
@@ -10,7 +10,7 @@ Here is where to go next.
 
 **Lending and borrowing protocols.** Folks Finance and the now-sunset Algofi demonstrated that full lending/borrowing is possible on Algorand. Key concepts to study: overcollateralization, health factors, liquidation mechanics (calling AMM swaps via inner transactions to convert seized collateral), and interest rate models (utilization curves). These protocols compose heavily with AMMs for price oracles and liquidation execution.
 
-**Cross-chain bridges and State Proofs.** Chapter 9 introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
+**Cross-chain bridges and State Proofs.** Chapter 10 introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
 
 **Ecosystem integration.** This book built everything from scratch. Production applications integrate with existing protocols. Study the ABIs of Tinyman, Pact, and Folks Finance to understand how to call their contracts from yours. The ARC-56 specs for deployed contracts are your entry point --- load them with AlgoKit Utils and call methods directly.
 
