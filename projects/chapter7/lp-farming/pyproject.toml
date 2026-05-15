@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "lp-farming"
 version = "0.1.0"
-description = "Chapter 6 LP farming sample for Building on Algorand"
+description = "Chapter 7 LP farming sample for Building on Algorand"
 authors = ["Building on Algorand contributors"]
 readme = "README.md"
 package-mode = false

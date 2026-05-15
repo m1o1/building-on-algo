@@ -13,10 +13,11 @@
 3. [A Token Vesting Contract](https://m1o1.github.io/building-on-algo/03-a-token-vesting-contract.html)
 4. [NFTs — Extending the Vesting Contract with Transferability](https://m1o1.github.io/building-on-algo/04-nfts.html)
 5. [A Constant Product AMM](https://m1o1.github.io/building-on-algo/05-a-constant-product-amm.html)
-6. [Yield Farming — Extending the AMM with Staking Rewards](https://m1o1.github.io/building-on-algo/06-yield-farming.html)
-7. [Common Patterns and Idioms](https://m1o1.github.io/building-on-algo/07-common-patterns-and-idioms.html)
-8. [Delegated Limit Order Book with LogicSig Agents](https://m1o1.github.io/building-on-algo/08-delegated-limit-order-book.html)
-9. [Private Governance Voting with Zero-Knowledge Proofs](https://m1o1.github.io/building-on-algo/09-private-governance-voting.html)
+6. [AMM Factory and Pool Provenance](https://m1o1.github.io/building-on-algo/06-amm-factory-and-pool-provenance.html)
+7. [Yield Farming — Extending the AMM with Staking Rewards](https://m1o1.github.io/building-on-algo/07-yield-farming.html)
+8. [Common Patterns and Idioms](https://m1o1.github.io/building-on-algo/08-common-patterns-and-idioms.html)
+9. [Delegated Limit Order Book with LogicSig Agents](https://m1o1.github.io/building-on-algo/09-delegated-limit-order-book.html)
+10. [Private Governance Voting with Zero-Knowledge Proofs](https://m1o1.github.io/building-on-algo/10-private-governance-voting.html)
 
 ---
 
@@ -33,10 +34,11 @@ All contracts use **[Algorand Python (Puya)](https://dev.algorand.co/concepts/sm
 | 3 | **Token Vesting Contract** | State management, ASA handling, inner transactions, box storage, integer math, security patterns |
 | 4 | **NFT Extension** | Ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, simulate-then-submit |
 | 5 | **Constant Product AMM** | Uniswap V2-style AMM, multi-token accounting, price curves, LP token mechanics, TWAP oracle |
-| 6 | **Yield Farming** | Staking rewards, reward-per-token accumulators, time-weighted multipliers, cross-contract state reads |
-| 7 | **Common Patterns & Idioms** | Fee subsidization, MBR lifecycle, canonical ordering, event emission, opcode budget management |
-| 8 | **Delegated Limit Order Book** | Logic Signatures, hybrid stateful/stateless architecture, template variables, keeper bots |
-| 9 | **Private Governance Voting** | Zero-knowledge proofs, elliptic curve operations (BN254), MiMC hash, post-quantum security |
+| 6 | **AMM Factory and Pool Provenance** | On-chain pool creation, pair registries, child app bootstrap, factory-backed verification |
+| 7 | **Yield Farming** | Staking rewards, reward-per-token accumulators, time-weighted multipliers, cross-contract state reads |
+| 8 | **Common Patterns & Idioms** | Fee subsidization, MBR lifecycle, canonical ordering, event emission, opcode budget management |
+| 9 | **Delegated Limit Order Book** | Logic Signatures, hybrid stateful/stateless architecture, template variables, keeper bots |
+| 10 | **Private Governance Voting** | Zero-knowledge proofs, elliptic curve operations (BN254), MiMC hash, post-quantum security |
 
 Plus two appendices: a **Smart Contract Cookbook** with 50+ standalone recipes, and a **Gotchas Cheat Sheet** of common mistakes and how to avoid them.
 

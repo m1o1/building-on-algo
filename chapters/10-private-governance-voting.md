@@ -33,9 +33,9 @@ Your contract code goes in `smart_contracts/governance_voting/contract.py`. Dele
 >
 > The data flow is: the Go program generates a TEAL verifier LogicSig from the circuit definition. The Python client compiles this TEAL via algod, then uses it in atomic groups alongside the voting contract. You can build and test the voting contract (component 1) independently; the Go components (component 2) are needed only for end-to-end ZK proof verification.
 
-Table 9-1 summarizes the two implementation tracks in this chapter.
+Table 10-1 summarizes the two implementation tracks in this chapter.
 
-Table 9-1. Chapter implementation tracks
+Table 10-1. Chapter implementation tracks
 
 | Track | What works | What it proves |
 |-------|------------|----------------|
@@ -46,13 +46,13 @@ Table 9-1. Chapter implementation tracks
 
 ## LogicSig Recap: Why They Are the ZK Engine
 
-This project builds on the LogicSig foundation from Chapter 8. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
+This project builds on the LogicSig foundation from Chapter 9. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
 
 The critical property for this chapter is the [opcode budget](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/). Since AVM v10, every transaction in a group contributes 20,000 opcodes to the LogicSig pool, regardless of whether it is signed by a LogicSig. In a group of 8 transactions where one or more carry a LogicSig, the pooled budget is 160,000 opcodes --- enough to verify a BN254 PLONK proof that costs approximately 145,000 opcodes. Smart contracts, at 700 opcodes per app call, would need over 200 calls for the same verification, making them prohibitively expensive.
 
 The LogicSig and smart contract opcode pools are independent. This means we can use LogicSigs for the cryptographic heavy lifting (proof verification) while preserving the full smart contract budget for application logic (recording votes, managing phases, tallying results). This separation is the architectural foundation of the system we are about to build.
 
-For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it needs enough pooled LogicSig opcode budget to run the elliptic curve operations. The generated verifier checks the proof and public inputs, but it is still a LogicSig program and must be treated with the Chapter 8 safety checklist. In production, wrap or modify the generated verifier so it also rejects close-to, rekey-to, excessive fees, and unexpected group structure. The wrapper group must also bind the proof inputs to the governance state update. App-side checks help the governance app reject bad groups, but they do not protect the LogicSig account from standalone misuse if it is ever funded.
+For this project, we use LogicSigs in **contract account mode** --- the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it needs enough pooled LogicSig opcode budget to run the elliptic curve operations. The generated verifier checks the proof and public inputs, but it is still a LogicSig program and must be treated with the Chapter 9 safety checklist. In production, wrap or modify the generated verifier so it also rejects close-to, rekey-to, excessive fees, and unexpected group structure. The wrapper group must also bind the proof inputs to the governance state update. App-side checks help the governance app reject bad groups, but they do not protect the LogicSig account from standalone misuse if it is ever funded.
 
 > **Note: Python-Only Track.** Without the Go toolchain, you can still test the contract state machine by using the admin-trusted proof hook as a test seam. That path does not test trustless ZK verification.
 
@@ -359,9 +359,9 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
 
 > **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation must verify that the expected LogicSig verifier participates in the current atomic group and that the proof's public inputs match the stored commitment and election configuration. See the production binding checklist below before treating this as a trustless voting system.
 
-Table 9-2 groups the production proof-binding checks into two categories.
+Table 10-2 groups the production proof-binding checks into two categories.
 
-Table 9-2. Production proof-binding checks
+Table 10-2. Production proof-binding checks
 
 | Category | Binding check | Why it is required |
 |----------|---------------|--------------------|

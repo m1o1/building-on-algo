@@ -33,7 +33,7 @@ CHAPTER5_CLIENT = (
     / "constant_product_pool"
     / "constant_product_pool_client.py"
 )
-CHAPTER6_CLIENT = (
+CHAPTER7_CLIENT = (
     PROJECT_ROOT
     / "smart_contracts"
     / "artifacts"
@@ -72,7 +72,7 @@ def load_amm_client() -> ModuleType:
 
 
 def load_farm_client() -> ModuleType:
-    return load_generated_client(CHAPTER6_CLIENT, "chapter6_farm_client")
+    return load_generated_client(CHAPTER7_CLIENT, "chapter7_farm_client")
 
 
 def fund_account(
