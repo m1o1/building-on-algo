@@ -9,11 +9,11 @@ The gap between a contract that works on LocalNet and one that users actually wa
 
 On Algorand, every transaction requires a minimum [fee](https://dev.algorand.co/concepts/transactions/fees/) of 0.001 Algo (1,000 microAlgos). A typical AMM swap involves 2–3 transactions in a group (asset transfer + app call, possibly a second asset transfer for the output). That's 0.002–0.003 Algo per swap. Seems trivial, but for users coming from a CEX with only ASA tokens in their wallet, **having zero Algo is a hard blocker**.
 
-**Concrete scenario.** Alice has 500 USDC (as an ASA) but zero Algo. She cannot execute a single swap because she cannot pay the transaction fee. A relayer can solve this by covering her fees: the relayer sends a zero-amount self-payment with a fee of 4,000 microAlgo (covering all group transactions plus inner transactions), while Alice's asset transfer and app call each set their fee to 0. The approaches below show different ways to implement this.
+**Concrete scenario.** Alice has 500 USDC (as an ASA) but zero Algo. She cannot execute a single swap because she cannot pay the transaction fee. A relayer can solve this by covering her fees: the relayer sends a zero-amount self-payment with a fee of 4,000 microAlgos (covering all group transactions plus inner transactions), while Alice's asset transfer and app call each set their fee to 0. The following approaches show different ways to implement this.
 
 There are several approaches to solving this, each with different tradeoffs.
 
-### Approach A: Fee pooling within the group (most common)
+### Approach A: Fee Pooling Within the Group (Most Common)
 
 Algorand validates fees at the **group level**, not the individual transaction level. If a group of 3 transactions requires 3 × 1,000 = 3,000 microAlgos total, one transaction can pay 3,000 and the other two can pay 0. The protocol only checks that the sum of fees across the group meets the sum of minimums.
 
@@ -39,7 +39,8 @@ composer.add_app_call_method_call(
         algokit_utils.AppClientMethodCallParams(
             method="swap",
             args=[min_output],
-            static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),  # Covers group + inner txn
+            # Covers group + inner txn
+            static_fee=algokit_utils.AlgoAmount.from_micro_algo(3000),
         )
     )
 )
@@ -60,7 +61,7 @@ total_fee_needed = 3 × 1,000 = 3,000 microAlgos
 
 The user's app call pays 3,000; the asset transfer pays 0; the inner transaction pays 0. Everyone's happy.
 
-### Approach B: Deducting fees from swap output
+### Approach B: Deducting Fees from Swap Output
 
 The protocol deducts the equivalent of the user's transaction fee cost from whatever tokens they're receiving. The user still pays the on-chain fee in Algo, but the frontend calculates a "net output" that accounts for the cost. A more sophisticated version: the contract itself keeps a small operational fee in the output asset.
 
@@ -86,7 +87,7 @@ def swap(
 
 This pattern is used by protocols that want to build up an operational treasury to fund MBR, cover infrastructure costs, or subsidize future user fees. The key insight: the user is already making a trade and expecting some fee --- adding a tiny operational fee on top is barely noticeable but compounds into real operational runway.
 
-### Approach C: Sponsored transactions via a relayer
+### Approach C: Sponsored Transactions via a Relayer
 
 A backend service (the "relayer") co-signs and pays for transactions on behalf of users. The user signs only the application-specific transactions; the relayer adds a funding payment to cover all fees. This requires the relayer to be part of the atomic group.
 
@@ -104,7 +105,8 @@ relayer_txn = algorand.create_transaction.payment(
         sender=relayer.address,
         receiver=relayer.address,  # Self-payment (or to pool for MBR)
         amount=algokit_utils.AlgoAmount.from_micro_algo(0),
-        static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),  # Covers all 3 outer + 1 inner
+        # Covers all 3 outer + 1 inner
+        static_fee=algokit_utils.AlgoAmount.from_micro_algo(4000),
     )
 )
 ```
@@ -113,7 +115,7 @@ The user experience becomes: sign one or two transactions, pay zero Algo. The re
 
 **How Tinyman and Pact handle this in practice:** Their SDKs compose the transaction group client-side and consolidate all fees into a single overpaying transaction. The user's wallet shows one total fee for the entire operation. The SDK handles the arithmetic of "how many inner transactions does this operation trigger" and sets the fee accordingly.
 
-### Approach D: LogicSig-based fee delegation
+### Approach D: LogicSig-Based Fee Delegation
 
 A LogicSig (Logic Signature) is a program that authorizes transactions without a private key signature. A sponsor can create a delegated LogicSig that approves fee payments for specific contract interactions:
 
@@ -128,6 +130,7 @@ from algopy import (
 # - Have amount = 0 (just fee coverage, no value transfer)
 # - Are grouped with a call to pool app ID X
 # - Have fee below 10,000 microAlgos (cap exposure)
+# - Expire after a deadline round (bound the authorization)
 # - Cannot close out balance, rekey, or be used in unexpected groups
 
 @logicsig
@@ -137,6 +140,7 @@ def fee_sponsor() -> bool:
     # --- Security checks (mandatory for every LogicSig) ---
     assert Txn.close_remainder_to == Global.zero_address
     assert Txn.rekey_to == Global.zero_address
+    assert Txn.last_valid <= TemplateVar[UInt64]("EXPIRY_ROUND")
     assert Global.group_size == UInt64(2)
 
     # --- Business logic ---
@@ -149,9 +153,9 @@ def fee_sponsor() -> bool:
 
 The LogicSig account needs to be pre-funded with Algo. Anyone can submit transactions authorized by the LogicSig as long as they satisfy its conditions. This enables gasless transactions without an always-online relayer --- the funded LogicSig account acts as an autonomous fee sponsor.
 
-**Security consideration:** Carefully constrain what the LogicSig approves. An overly permissive LogicSig can be drained by crafting transactions that technically satisfy its conditions but weren't intended. Always cap the fee, restrict the group structure, and verify the target application.
+**Security consideration:** Carefully constrain what the LogicSig approves. An overly permissive LogicSig can be drained by crafting transactions that technically satisfy its conditions but weren't intended. Always cap the fee, restrict the group structure, verify the target application, and give the authorization an expiry --- the `EXPIRY_ROUND` check matters because a fee-sponsor authorization with no deadline can be grief-drained forever, one capped fee at a time. (Chapter 9's LogicSig checklist makes expiry mandatory.)
 
-### Approach E: "Algo-less" swaps via intermediary
+### Approach E: "Algo-less" Swaps via Intermediary
 
 The most user-friendly pattern for users who have zero Algo but hold ASA tokens. The protocol runs a service that:
 
@@ -161,7 +165,7 @@ The most user-friendly pattern for users who have zero Algo but hold ASA tokens.
 
 This is architecturally complex but provides the best UX for onboarding users who arrive with only bridged tokens and no native Algo.
 
-We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). The keeper bot in Chapter 9 uses Approach C (relayer).
+We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). Chapter 7's `unstake` is the fee-arithmetic case worth memorizing: one outer call plus up to 3 inner transactions (LP return, reward send, MBR refund) means the caller sets a static fee of 4,000 microAlgos. The keeper bot in Chapter 9 uses Approach C (relayer).
 
 
 ## Pattern 2: The "Fund-Then-Call" Atomic Group
@@ -190,7 +194,7 @@ The `gtxn.AssetTransferTransaction` and `gtxn.PaymentTransaction` parameter type
 
 **Why not just have the contract pull assets directly?** Because Algorand's security model requires the asset holder to sign the transfer. The contract cannot unilaterally debit a user's account (unless the user previously granted approval via a delegated LogicSig, which is rare). This "push" model --- user pushes assets, then tells the contract what to do --- is fundamental to Algorand's design.
 
-Every `deposit_tokens`, `create_schedule`, and `add_liquidity` call in Chapters 2 and 3 follows this pattern.
+Chapter 2's `initialize`, every `deposit_tokens`/`create_schedule` call in Chapters 3-4, and `add_liquidity` in Chapter 5 follow this pattern.
 
 
 ## Pattern 3: The Escrow Contract Account Pattern
@@ -234,14 +238,23 @@ Both the vesting contract (Chapter 3) and the AMM pool (Chapter 5) use this escr
 When a user's action requires the contract to allocate new storage (creating a box, opting into an asset), someone must fund the MBR increase. The clean pattern is to require the user to send the MBR payment as part of the atomic group:
 
 ```python
+# In __init__ --- declare the prefix explicitly so the MBR
+# arithmetic is visible (the default prefix is the member name):
+# self.positions = BoxMap(
+#     arc4.Address, Position, key_prefix=b"pos_"
+# )
+
 @arc4.abimethod
 def register_position(
     self,
     mbr_payment: gtxn.PaymentTransaction,
 ) -> None:
-    # Calculate the cost for the user's position box
-    # Box name: 32 bytes (sender address), Box data: 64 bytes (position struct)
-    box_cost = UInt64(2500) + UInt64(400) * (UInt64(32) + UInt64(64))
+    # Calculate the cost for the user's position box.
+    # Box name: 4-byte prefix + 32-byte sender address.
+    # Box data: 64 bytes (position struct).
+    box_cost = UInt64(2500) + UInt64(400) * (
+        UInt64(4) + UInt64(32) + UInt64(64)
+    )
 
     assert mbr_payment.receiver == Global.current_application_address
     assert mbr_payment.amount >= box_cost
@@ -250,7 +263,11 @@ def register_position(
     self.positions[arc4.Address(Txn.sender)] = Position(...)  # BoxMap write
 ```
 
+Note that the box *name* is the `BoxMap` key prefix plus the encoded key, not the key alone. Forgetting the prefix understates the MBR --- with the 4-byte prefix here, the box costs 2,500 + 400 × (4 + 32 + 64) = 42,500 microAlgos, not 40,900.
+
 This keeps the contract's MBR accounting clean: users pay for the storage they consume. The contract never needs to dip into its own reserves for user-initiated storage. (See [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) for the complete MBR schedule.)
+
+Chapter 7's `stake` method is the strictest form of this pattern: it requires an *exact* 32,100 microAlgo MBR payment in the stake group --- the precise cost of the position box.
 
 
 ## Pattern 5: MBR Refund on Cleanup
@@ -264,13 +281,16 @@ def close_position(self) -> None:
     assert sender in self.positions
 
     # Read position data before deletion
-    position = self.positions[sender]
+    position = self.positions[sender].copy()
 
     # Delete the box --- this frees MBR in the contract's balance
     del self.positions[sender]
 
     # Calculate and refund the freed MBR to the user
-    box_cost = UInt64(2500) + UInt64(400) * (UInt64(32) + UInt64(64))
+    # (4-byte prefix + 32-byte address name, 64-byte data)
+    box_cost = UInt64(2500) + UInt64(400) * (
+        UInt64(4) + UInt64(32) + UInt64(64)
+    )
     itxn.Payment(
         receiver=Txn.sender,
         amount=box_cost,
@@ -282,7 +302,7 @@ def close_position(self) -> None:
 
 This creates a complete lifecycle: user pays MBR on entry, gets it back on exit. It's the Algorand equivalent of Ethereum's gas refund for clearing storage slots, except it's explicit, deterministic, and the user gets real Algo back rather than a gas discount. Users appreciate getting their deposit back --- it signals a well-designed protocol. (See [Accounts Overview](https://dev.algorand.co/concepts/accounts/overview/) for MBR mechanics.)
 
-The vesting contract's `cleanup_schedule` method (Chapter 3) implements this pattern.
+The vesting contract's `cleanup_schedule` method (Chapter 3) implements this pattern, and Chapter 7 completes the loop: `unstake` deletes the position box and atomically refunds the same 32,100 microAlgos the staker funded on entry.
 
 
 ## Pattern 6: Canonical Asset Ordering to Prevent Duplicate Pools
@@ -293,7 +313,9 @@ Two users could create pools for the same pair but with assets swapped (Token A/
 @arc4.abimethod
 def bootstrap(self, asset_a: Asset, asset_b: Asset) -> UInt64:
     # ALWAYS enforce lower ID first --- this is deterministic and unique
-    assert asset_a.id < asset_b.id, "Assets must be in canonical order (lower ID first)"
+    assert asset_a.id < asset_b.id, (
+        "Assets must be in canonical order (lower ID first)"
+    )
     # ...
 ```
 
@@ -331,7 +353,7 @@ method (Chapter 6) enforce `asset_a.id < asset_b.id` for exactly this reason.
 
 Users must opt into the LP token before they can receive it. Two approaches:
 
-### Eager (user opts in first)
+### Eager (User Opts in First)
 
 The user opts into the LP token in a transaction preceding the add-liquidity call. The contract verifies they're already opted in before sending LP tokens. Simple and explicit.
 
@@ -344,13 +366,13 @@ Group:
     ↳ Inner: Contract sends LP tokens to user (works because [0] happened)
 ```
 
-### Lazy (let the failure be the message)
+### Lazy (Let the Failure Be the Message)
 
 Skip the explicit opt-in verification in the contract. If the user isn't opted in, the inner transaction sending LP tokens will fail, and the entire group rolls back atomically. The error message from algod will indicate the opt-in issue, and the frontend can prompt the user.
 
 The lazy approach saves a few lines of contract code but produces a worse error message. For production, **eager with the opt-in in the same group** is preferred --- the user sees one "Confirm" prompt in their wallet for the whole operation. (See [Asset Operations](https://dev.algorand.co/concepts/assets/asset-operations/) for the opt-in mechanism.)
 
-### Contract-initiated opt-in (for the contract itself)
+### Contract-Initiated Opt-In (for the Contract Itself)
 
 When the contract needs to opt into a new asset (e.g., during bootstrap), it does so via inner transaction. This is the only case where opt-in happens autonomously:
 
@@ -367,7 +389,7 @@ itxn.AssetTransfer(
 
 ## Pattern 8: Subroutine Extraction for Opcode Efficiency and Readability
 
-In Algorand Python, use `@subroutine` for shared logic that should be compiled to a single TEAL subroutine and called from multiple methods. Without this, the compiler inlines the code at every call site, bloating program size.
+In Algorand Python, extract shared logic into functions and let the compiler emit them as TEAL subroutines. The `@subroutine` decorator is *required* on module-level functions --- calling an undecorated module-level function from contract code is a compile error. Since puyapy 5.5 it is optional on methods inside a contract class; they compile as subroutines either way. The optimizer may still inline small subroutines automatically where that is cheaper, and you can steer this per function with `@subroutine(inline=...)`.
 
 ```python
 from algopy import Global, UInt64, gtxn, subroutine
@@ -397,7 +419,7 @@ Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swa
 
 If a single operation needs more than 700 opcodes (the per-call budget), you have two options:
 
-### Option A: Pad with dummy app calls in the group
+### Option A: Pad with Dummy App Calls in the Group
 
 Each additional app call in the group adds 700 to the pooled budget. The "dummy" calls can be bare NoOp calls to your own contract that do nothing:
 
@@ -408,14 +430,17 @@ def noop(self) -> None:
     pass
 ```
 
-Client-side, prepend the group with as many NoOp calls as needed:
+One caveat: a contract that declares a bare NoOp method like this must also define an explicit create method (`@arc4.baremethod(create="require")` or an `@arc4.abimethod` create) --- once a bare NoOp handler exists, puyapy cannot auto-insert the bare create and compilation fails without one.
+
+Client-side, prepend the group with as many NoOp calls as needed. Each padding call must carry a unique `note`: three byte-identical app calls would have identical transaction IDs, and a group containing duplicate TxIDs is rejected. This is exactly what standard op-up utilities do.
 
 ```python
-# Need ~2,800 opcodes? Add 3 extra NoOp calls (4 × 700 = 2,800)
+# Need ~2,800 opcodes? Add 3 extra NoOp calls (4 × 700 = 2,800).
+# Unique notes give the otherwise-identical calls distinct TxIDs.
 group = [
-    app_call(method="noop"),   # +700
-    app_call(method="noop"),   # +700
-    app_call(method="noop"),   # +700
+    app_call(method="noop", note=(0).to_bytes(8, "big")),  # +700
+    app_call(method="noop", note=(1).to_bytes(8, "big")),  # +700
+    app_call(method="noop", note=(2).to_bytes(8, "big")),  # +700
     asset_transfer(...),       # The actual input
     app_call(method="swap"),   # +700, runs the real logic
 ]
@@ -437,7 +462,7 @@ def complex_operation(self) -> None:
     # ... expensive computation that needs the extra budget ...
 ```
 
-The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = caller-funded via fee pooling, `OpUpFeeSource.AppAccount` = from contract balance). Always use `GroupCredit` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See [Algorand Python opcode budget guide](https://algorandfoundation.github.io/puya/lg-opcode-budget.html).)
+The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = caller-funded via fee pooling, `OpUpFeeSource.AppAccount` = from contract balance). Always use `GroupCredit` and have the caller overpay fees. The caller's fee must account for the extra inner transactions that `ensure_budget` generates. (See the [Algorand Python API reference](https://algorandfoundation.github.io/puya/api-algopy.html) for `ensure_budget` and `OpUpFeeSource`.)
 
 **How many opcodes does your AMM need?** A standard constant product swap with fee calculation, safety checks, and one inner transaction typically fits within 700 opcodes. Add-liquidity with the square root calculation for initial minting may need ~1,400. Budget padding is more commonly needed for operations involving multiple box reads/writes or cryptographic operations.
 
@@ -524,7 +549,7 @@ For production, use Nodely's indexer at `https://mainnet-idx.4160.nodely.dev` (f
 
 Your AMM tracks reserves in global state (`self.reserve_a`, `self.reserve_b`). An alternative design reads the contract's actual asset balances each time. Both approaches have tradeoffs:
 
-### Tracked reserves (recommended, used in this book)
+### Tracked Reserves (Recommended, Used in This Book)
 
 ```python
 # Update reserves explicitly after each operation
@@ -536,7 +561,7 @@ self.reserve_b.value = self.reserve_b.value - output_amount
 
 **Cons:** If someone sends tokens to the contract outside of the defined methods (a "donation" or accident), the reserves don't reflect the actual balance. Those tokens are effectively stuck.
 
-### Balance reading (Uniswap V2 style)
+### Balance Reading (Uniswap V2 Style)
 
 ```python
 # Read actual balance, calculate delta
@@ -602,7 +627,7 @@ Reading global state is a free API call to any algod node --- no transaction, no
 
 1. **(Apply)** Implement Patterns 4 and 5 (MBR funding and refund) for a contract that stores 256-byte user profiles in box storage. Calculate the exact MBR per box, write the `create_profile` method that validates the funding payment, and write the `delete_profile` method that refunds the MBR.
 
-2. **(Analyze)** A user has 500 USDC (as an ASA) but zero Algo. Using Pattern 7 (fee subsidization) and Pattern 2 (fund-then-call), design a transaction group that lets a relayer cover their fees so they can execute a swap on the Chapter 5 AMM. How many transactions are in the group, and what is each transaction's fee?
+2. **(Analyze)** A user has 500 USDC (as an ASA) but zero Algo. Using Pattern 1 (fee subsidization) and Pattern 2 (fund-then-call), design a transaction group that lets a relayer cover their fees so they can execute a swap on the Chapter 5 AMM. How many transactions are in the group, and what is each transaction's fee?
 
 3. **(Apply)** Modify the AMM's `swap` method from Chapter 5 to emit a `Swapped` event (Pattern 10) containing the input amount, output amount, and new spot price after the swap.
 

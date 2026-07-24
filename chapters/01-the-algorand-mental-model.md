@@ -28,7 +28,7 @@ class HelloAlgorand(ARC4Contract):
         return "Hello, " + name
 ```
 
-This is a complete smart contract. It inherits from `ARC4Contract`, which gives it the [ARC-4](https://dev.algorand.co/concepts/smart-contracts/arc4/) calling convention --- the standard way Algorand contracts expose their methods. The `@arc4.abimethod` decorator makes `hello` publicly callable via its method selector (a 4-byte hash of the method signature). Arguments and return values use ARC-4 types (`arc4.String`) for wire encoding --- we will cover the type system in detail in Chapter 3. The method concatenates `"Hello, "` with the caller's name and returns the result. That is all it takes.
+This is a complete smart contract. It inherits from `ARC4Contract`, which gives it the [ARC-4](https://dev.algorand.co/arc-standards/arc-0004) calling convention --- the standard way Algorand contracts expose their methods. The `@arc4.abimethod` decorator makes `hello` publicly callable via its method selector (the first 4 bytes of the SHA-512/256 hash of the method signature). Arguments and return values use ARC-4 types (`arc4.String`) for wire encoding --- we will cover the type system in detail in Chapter 3. The method concatenates `"Hello, "` with the caller's name and returns the result. That is all it takes.
 
 ## Execution Model: Smart Contracts Are Transaction Validators
 
@@ -40,7 +40,7 @@ This means your contract code is a set of validation rules, not a running proces
 
 ## Two Programs per Contract
 
-Every Algorand smart contract consists of two programs written in *TEAL* (Transaction Execution Approval Language), the AVM's low-level bytecode. You will never write TEAL directly --- PuyaPy compiles your Python code to TEAL automatically --- but the term appears throughout Algorand documentation, so it is worth knowing. (See [Applications](https://dev.algorand.co/concepts/smart-contracts/apps/) and the [AVM reference](https://dev.algorand.co/concepts/smart-contracts/avm/).)
+Every Algorand smart contract consists of two programs written in *TEAL* (Transaction Execution Approval Language), the AVM's low-level assembly language, which is assembled into the bytecode the AVM executes. You will never write TEAL directly --- PuyaPy compiles your Python code to TEAL automatically --- but the term appears throughout Algorand documentation, so it is worth knowing. (See [Applications](https://dev.algorand.co/concepts/smart-contracts/apps/) and the [AVM reference](https://dev.algorand.co/concepts/smart-contracts/avm/).)
 
 **The *approval program*** handles all normal operations: creation, method calls, opt-ins, close-outs, updates, and deletes. When someone calls your contract, the approval program runs. This is where all your business logic lives.
 
@@ -122,7 +122,7 @@ For smart contract development, you primarily work with payments, asset transfer
 
 Up to 16 transactions can be bundled into an [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/). All transactions in a group either succeed together or fail together --- there is no partial execution. This is the foundation of DeFi on Algorand: a user can bundle "send tokens to a pool" and "call the swap method" into one atomic group, guaranteeing they never send tokens without receiving the swap output.
 
-Atomic groups are coordinated off-chain: the client constructs all transactions, assigns them a common group ID (the hash of all transactions), and submits the bundle. The protocol validates and executes the group atomically.
+Atomic groups are coordinated off-chain: the client constructs all transactions, assigns them a common group ID (a hash computed from the IDs of the member transactions --- each computed with the group field zeroed --- calculated before the group field is set), and submits the bundle. The protocol validates and executes the group atomically.
 
 ### Fees
 
@@ -224,7 +224,7 @@ algokit init -t python --name my-first-contract
 
 The template wizard may ask a few questions even with `-t python` --- it may prompt for the language (select Python), and whether to run `algokit project bootstrap`. Accept the defaults for now. AlgoKit generates a *workspace* structure with your contract project nested inside:
 
-```
+```text
 my-first-contract/                     # Workspace root
   .algokit.toml                        # Workspace configuration
   my-first-contract.code-workspace     # VS Code workspace file
@@ -256,7 +256,7 @@ This command installs all project dependencies by running the appropriate packag
 
 > **VS Code tip:** If VS Code shows import errors (yellow or red squiggly lines under `import algokit_utils`), it does not know which Python environment to use. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux), run **Python: Select Interpreter**, and choose the `.venv` inside your `projects/my-first-contract/` directory. This points VS Code at the virtual environment where `algokit project bootstrap all` installed your dependencies, giving you autocompletion and type checking. Alternatively, open the `projects/my-first-contract/` folder directly in VS Code instead of the workspace root --- its `.vscode/settings.json` is already configured by AlgoKit to use the correct interpreter.
 
-> **Note:** This book uses Algorand Python (PuyaPy) exclusively, but Algorand smart contracts can also be written in **TEALScript**, a TypeScript-based language that compiles to the same TEAL bytecode. If your team prefers TypeScript, scaffold with `algokit init -t typescript`. The AVM concepts, security patterns, and architectural decisions taught in this book apply identically regardless of which language you choose --- only the syntax differs.
+> **Note:** This book uses Algorand Python (PuyaPy) exclusively, but Algorand smart contracts can also be written in **Algorand TypeScript**, which shares the same Puya compiler backend and produces the same TEAL. If your team prefers TypeScript, scaffold with `algokit init -t typescript`. (TEALScript, an older TypeScript option, is legacy and has been superseded by Algorand TypeScript.) The AVM concepts, security patterns, and architectural decisions taught in this book apply identically regardless of which language you choose --- only the syntax differs.
 
 Verify the compilation pipeline works by compiling the template contract:
 
@@ -279,7 +279,8 @@ algorand = algokit_utils.AlgorandClient.default_localnet()
 deployer = algorand.account.localnet_dispenser()
 
 # Deploy the contract using the compiled ARC-56 app spec
-app_spec = Path("smart_contracts/artifacts/hello_world/HelloWorld.arc56.json").read_text()
+app_spec_path = Path("smart_contracts/artifacts/hello_world/HelloWorld.arc56.json")
+app_spec = app_spec_path.read_text()
 factory = algorand.client.get_app_factory(
     app_spec=app_spec,
     default_sender=deployer.address,
@@ -306,7 +307,7 @@ poetry run python interact.py
 
 You should see output like:
 
-```
+```text
 Deployed app ID: 1001
 App address:     W3EP...
 Return value:    Hello, World
@@ -316,7 +317,7 @@ That is the complete development loop: write a contract in Python, compile it to
 
 ### Connecting to an Already-Deployed Contract
 
-The script above deploys a fresh contract every time it runs. In practice, you will often want to interact with a contract that is already deployed --- for example, calling a contract on TestNet or MainNet, or reconnecting to a LocalNet contract you deployed earlier. Use `get_app_client_by_id` with the application ID instead of the factory:
+The preceding script deploys a fresh contract every time it runs. In practice, you will often want to interact with a contract that is already deployed --- for example, calling a contract on TestNet or MainNet, or reconnecting to a LocalNet contract you deployed earlier. Use `get_app_client_by_id` with the application ID instead of the factory:
 
 ```python
 from pathlib import Path
@@ -326,8 +327,9 @@ algorand = algokit_utils.AlgorandClient.default_localnet()
 caller = algorand.account.localnet_dispenser()
 
 # Connect to an already-deployed contract by its application ID
+app_spec_path = Path("smart_contracts/artifacts/hello_world/HelloWorld.arc56.json")
 app_client = algorand.client.get_app_client_by_id(
-    app_spec=Path("smart_contracts/artifacts/hello_world/HelloWorld.arc56.json").read_text(),
+    app_spec=app_spec_path.read_text(),
     app_id=1001,  # replace with your contract's app ID
     default_sender=caller.address,
 )
@@ -348,7 +350,7 @@ You still need the ARC-56 app spec so the client knows the contract's method sig
 
 The ARC-56 app spec (`.arc56.json`) is the portable description of your contract's public API --- its method signatures, argument types, return types, and state schema. Think of it like an OpenAPI/Swagger spec for a REST API. App developers typically publish their app specs in their GitHub repository or SDK package so that others can build integrations against their contracts.
 
-The examples above use the **generic client** (`get_app_factory`, `get_app_client_by_id`), where method names are passed as strings and arguments are untyped:
+The preceding examples use the **generic client** (`get_app_factory`, `get_app_client_by_id`), where method names are passed as strings and arguments are untyped:
 
 ```python
 result = app_client.send.call(
@@ -374,7 +376,9 @@ factory = HelloWorldFactory(algorand=algorand, default_sender=deployer.address)
 app_client, deploy_result = factory.deploy()
 
 # Option B: Connect to an already-deployed contract by app ID
-app_client = HelloWorldClient(algorand=algorand, app_id=1001, default_sender=caller.address)
+app_client = HelloWorldClient(
+    algorand=algorand, app_id=1001, default_sender=caller.address
+)
 
 # Either way, call methods the same way --- with real methods and typed args
 result = app_client.send.hello(args=HelloArgs(name="World"))

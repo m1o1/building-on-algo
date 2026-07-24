@@ -459,7 +459,7 @@ class SimpleFarm(ARC4Contract):
 
 This contract works. You can deploy it, stake LP tokens, claim rewards after some time passes, and unstake after 30 days. But it has three problems that become serious at scale:
 
-**Problem 1: The reward math does not scale.** The formula `(lp / total_lp) * (elapsed / duration) * total_rewards` looks correct for one staker, but it breaks when stakers enter and exit at different times. If Alice stakes 100 LP at time 0 and Bob stakes 200 LP at time 50, Alice's share retroactively drops from 100% to 33% --- but the formula does not account for the period when Alice was the only staker and deserved 100% of those rewards. Alice gets systematically underpaid, and Bob gets overpaid for time he was not staked.
+**Problem 1: The reward math does not scale.** The formula `(lp / total_lp) * (elapsed / duration) * total_rewards` looks correct for one staker, but it breaks when stakers enter and exit at different times. If Alice stakes 100 LP at time 0 and Bob stakes 200 LP at time 50, Alice's share retroactively drops from 100% to 33% --- but the formula does not account for the period when Alice was the only staker and deserved 100% of those rewards. Alice gets systematically underpaid, and Bob gets overpaid for time he was not staked. It gets worse: after Alice claims, `reward_claimed` records what she received --- but if `total_staked` then grows, the recomputed `reward` can come out *less* than what she already claimed. The `uint64` subtraction `reward - claimed` underflows and panics, and every subsequent claim from Alice fails. The bug does not just misprice rewards; it bricks her claims entirely.
 
 **Problem 2: No incentive for longer locks.** Everyone locks for the same 30 days. A user who commits for a year gets no additional reward over someone who commits for a month. This means the contract cannot attract the long-term, stable liquidity that pools need most.
 
@@ -572,11 +572,11 @@ $$\text{reward\_per\_token} = 10{,}000{,}000{,}000 + 3{,}333{,}333{,}333 = 13{,}
 Alice: $100 \times (13{,}333{,}333{,}333 - 0) / 10^9 = 1{,}333$ tokens.
 Bob: $200 \times (13{,}333{,}333{,}333 - 10{,}000{,}000{,}000) / 10^9 = 666$ tokens.
 
-Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor. The production contract tracks only the distributable portion in `rewards_remaining`; dust stays in the contract outside that pool.
+Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor. The production contract tracks only the distributable portion in `rewards_remaining`; dust stays in the contract outside that pool. Here the dust is a single token, but its magnitude depends on how the staked total compares to `rate * delta_t * PRECISION`; the accumulator-precision warning later in this chapter derives the bound past which "dust" grows into whole stranded intervals.
 
 > **Warning:** The total rewards distributed must never exceed `reward_rate * elapsed_time`. Rounding in `op.divmodw` floors toward zero, ensuring the contract always retains dust. If you ever observe total distributions exceeding the reward pool, you have a bug. This is the single most important property to verify in your tests.
 
-**Self-check:** If Charlie stakes 300 LP at time 200 and everyone claims at time 300, how much does each person receive for the t=200 to t=300 interval? (Answer: Alice gets 166, Bob gets 333, Charlie gets 500 --- proportional to their 100:200:300 stakes out of the new total of 600.)
+**Self-check:** If Charlie stakes 300 LP at time 200 and everyone claims at time 300, how much does each person receive for the t=200 to t=300 interval? (Answer: the accumulator increment is $\lfloor 10 \times 100 \times 10^9 / 600 \rfloor = 1{,}666{,}666{,}666$. Alice gets $\lfloor 100 \times 1{,}666{,}666{,}666 / 10^9 \rfloor = 166$, Bob gets 333, and Charlie gets 499 (500 minus one unit of rounding dust) --- proportional to their 100:200:300 stakes out of the new total of 600.)
 
 ### Overflow Analysis
 
@@ -670,9 +670,9 @@ This is not a proof of code identity. The deployment process must choose the tru
 
 ### How Foreign Apps Work at the Protocol Level
 
-When you include an application in the foreign apps array, you are telling the AVM: "This transaction may need to read state from this application." The AVM loads the target app's global state into a read-only cache at the start of execution. The `get_ex_uint64` opcode then reads from this cache --- it does *not* make a live query to the blockchain during execution.
+When you include an application in the foreign apps array, you are telling the AVM: "This transaction may need to read state from this application." The array is an *availability declaration*, not a snapshot --- it tells the node which state your program is allowed to touch, so resources can be checked and priced before execution. The `get_ex_uint64` opcode then reads the ledger as it stands at the moment the opcode executes.
 
-This has two implications. First, the read is cheap --- just a few opcodes to look up a key in the cached state. There is no network round-trip or additional I/O cost beyond the initial load. Second, the state you read is the state as of the beginning of your transaction's execution. If another transaction in the same atomic group modifies the target app's state before your transaction executes, you see the *pre-modification* state. This is usually what you want for verification purposes (you are checking that a value exists and matches), but it matters if you are trying to read state that was just written by a preceding group transaction.
+This has two implications. First, the read is cheap --- a few opcodes against state the node already holds, with no network round-trip. Second, because the transactions in a group evaluate sequentially against a shared ledger view, a read reflects every write that has already happened --- including writes by earlier transactions in the same atomic group and by inner calls. If a preceding group transaction updates the target app's global state, your `get_ex_uint64` sees the new value. This is precisely how apps communicate within a group: one transaction writes, a later one reads.
 
 Since AVM v9, foreign references are shared across all transactions in an atomic group. This means the AMM app only needs to appear in *one* transaction's foreign apps array, and all transactions in the group can read its state. In practice, include it in the transaction that actually performs the read for clarity.
 
@@ -830,6 +830,7 @@ class LPFarm(ARC4Contract):
         self.lp_token_id.value = lp_token.id
         self.reward_token_id.value = reward_token.id
         self.amm_app_id.value = amm_app.id
+        self.last_update_time.value = Global.latest_timestamp
 
         # Opt into both tokens
         itxn.AssetTransfer(
@@ -1050,6 +1051,8 @@ This is the accumulator update, called at the top of every state-changing method
 
 The two-stage wide arithmetic is straightforward. First, `rate * delta_t` is computed as a plain `UInt64` product, but only after checking the same bounds enforced by `deposit_rewards`. The `mulw` then multiplies this intermediate result by `PRECISION` ($10^9$) to produce a 128-bit value, and `divmodw` divides by `total` to yield the 64-bit increment. The `q_hi == 0` and accumulator-capacity assertions make accumulator overflow fail loudly instead of corrupting reward accounting.
 
+> **Warning:** `PRECISION = 10^9` also sets a *usability bound* on the other side. Each update computes $increment = \lfloor rate \times \Delta t \times 10^9 / \text{total\_effective} \rfloor$, so whenever `total_effective` exceeds $rate \times \Delta t \times 10^9$, the increment floors to zero --- yet `last_update_time` still advances, so that interval's rewards are permanently stranded. With very large stakes relative to the reward rate, most of a schedule's rewards can strand this way. Conservation still holds --- the contract never overpays, and unstreamed rewards simply stay in `rewards_remaining` --- but stakers receive less than the advertised rate. Production systems shrink the loss to negligible by using $10^{18}$-scale precision (with `BigUInt` arithmetic) or by carrying the division remainder forward between updates.
+
 | Assumption | Checked where | Protects |
 |------------|---------------|----------|
 | Reward period is bounded | `deposit_rewards`, `_update_reward` | `rate * delta_t` fits in `UInt64` |
@@ -1077,6 +1080,7 @@ def _calculate_multiplier(duration: UInt64) -> UInt64:
     q_hi, bonus, r_hi, r_lo = op.divmodw(
         high, low, UInt64(0), lock_range
     )
+    assert q_hi == UInt64(0), "Multiplier overflow"
     return UInt64(SCALE) + bonus
 ```
 
@@ -1085,8 +1089,8 @@ def _calculate_multiplier(duration: UInt64) -> UInt64:
 The finished project uses generated typed clients in `scripts/run_lp_farming.py`
 to deploy the farming contract alongside the AMM from Chapter 5.
 That script resolves the Chapter 5 AMM generated client from the repository
-root and the Chapter 7 farm generated client from this project. The excerpt
-below is the conceptual deployment flow with the generic app-client API; use
+root and the Chapter 7 farm generated client from this project. The following
+excerpt is the conceptual deployment flow with the generic app-client API; use
 `scripts/run_lp_farming.py` for the runnable version.
 
 ```python
@@ -1280,6 +1284,8 @@ The `rewards_remaining` check is the reward conservation invariant in code. The 
 
 Imagine Alice staked for 30 days at a 1x multiplier. Two weeks in, she decides she is comfortable locking for the full year. Rather than waiting for her lock to expire, unstaking, and re-staking at a higher multiplier --- losing her position in the accumulator and paying box MBR twice --- she can extend her lock in place, upgrading her multiplier immediately.
 
+Note that the only thing `extend_lock` requires is that the new unlock time is *later* than the current one. A staker nearing the end of a long lock can therefore "extend" into a shorter-multiplier tier --- say, from the tail of a 365-day lock into a fresh 30-day lock --- and downgrade their own multiplier. That is self-harm only, so the contract permits it; be aware that it can happen.
+
 This is more complex than it appears --- the effective balance changes, which affects the global total and the accumulator. The update must be performed in a precise order to avoid over- or under-counting rewards.
 
 ```python
@@ -1328,10 +1334,19 @@ This is more complex than it appears --- the effective balance changes, which af
         q_hi, new_effective, r_hi, r_lo = op.divmodw(
             h, l, UInt64(0), UInt64(SCALE)
         )
+        assert q_hi == UInt64(0), "Effective balance overflow"
 
         # Step 4: Update global total effective
-        self.total_effective.value -= old_effective
-        self.total_effective.value += new_effective
+        reduced_total = (
+            self.total_effective.value - old_effective
+        )
+        capacity = UInt64(MAX_UINT64) - reduced_total
+        assert new_effective <= capacity, (
+            "Total effective overflow"
+        )
+        self.total_effective.value = (
+            reduced_total + new_effective
+        )
 
         # Step 5: Snapshot accumulator at current value
         pos.reward_per_token_paid = arc4.UInt64(
@@ -1353,7 +1368,7 @@ The 8-step sequence is critical. Steps 1--2 settle all rewards at the old effect
 
 **What goes wrong with the wrong order?** Suppose Alice's effective balance increases from 100 to 400, and 1,000 reward tokens accumulated since the last update with `total_effective = 100`. The correct increment is `1000 / 100 = 10` per token. But if you update `total_effective` to 400 *before* calling `_update_reward()`, the increment becomes `1000 / 400 = 2.5` per token. Every staker would be underpaid by 75% for that period.
 
-*Without looking at the code above, list the steps that `extend_lock` must perform and explain why the ordering matters. Then compare your list to the 8-step sequence. The ordering constraint is the same invariant from the accumulator section: update before mutate.*
+*Without looking at the preceding code, list the steps that `extend_lock` must perform and explain why the ordering matters. Then compare your list to the 8-step sequence. The ordering constraint is the same invariant from the accumulator section: update before mutate.*
 
 
 ## Unstaking
@@ -1438,7 +1453,7 @@ farm_client.send.call(
         method="unstake",
         args=[],
         static_fee=(
-            algokit_utils.AlgoAmount.from_micro_algo(5000)
+            algokit_utils.AlgoAmount.from_micro_algo(4000)
         ),
     )
 )
@@ -1464,7 +1479,7 @@ If a farming contract needed to make on-chain decisions based on price (e.g., dy
 
 The finished project includes executable versions of these ideas in
 `tests/test_lp_farming.py`, plus source-level safety checks in
-`tests/test_contract_shape.py`. The outline below shows the coverage goals if
+`tests/test_contract_shape.py`. The following outline shows the coverage goals if
 you are building the tests from scratch. Helpers such as `deploy_pool`,
 `deploy_farm`, `deposit_rewards`, `stake`, `claim`, and `unstake` wrap the
 AlgoKit Utils calls shown in the finished project runbook.
@@ -1601,7 +1616,7 @@ If your LocalNet does not expose the developer-mode offset endpoint, fall back t
 
 The most important property to test is the **reward conservation invariant**: the total rewards claimed by all users must never exceed the distributable reward pool. Compute `distributable = reward_rate * duration_seconds`, track the running total of claimed rewards, and assert `claimed_total + rewards_remaining == sum(distributable_i)` for all accepted deposits. Also assert that `rewards_remaining` decreases by exactly the claimed amount. If this invariant ever fails, you have a critical bug in the accumulator math.
 
-Second, verify **dust behavior**: if `amount` is not evenly divisible by `duration_seconds`, only `reward_rate * duration_seconds` enters the distributable pool. The leftover tokens stay in the contract as dust until a production sweep path handles them. Rounding should always favor the contract, never the user.
+Second, verify **dust behavior**: if `amount` is not evenly divisible by `duration_seconds`, only `reward_rate * duration_seconds` enters the distributable pool. The leftover tokens stay in the contract as dust until a production sweep path handles them. Rounding always favors the contract, never the user --- but remember from the accumulator-precision warning that the amount retained is not automatically negligible: it depends on how `total_effective` compares to `rate * delta_t * PRECISION`.
 
 Third, verify **proportional fairness**: if Alice has 2x the effective balance of Bob and both stake for the same duration, Alice should receive approximately 2x the rewards. The "approximately" accounts for integer rounding --- the difference should be at most a few tokens, not a percentage.
 

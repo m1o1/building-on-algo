@@ -185,7 +185,8 @@ the full demo.
 
 Treat `projects/chapter3/token-vesting/` as a reference implementation. When
 you are ready to build the contract yourself, return to the repository root or
-your usual workspace, then follow the setup steps below in a fresh project.
+your usual workspace, then work through the following setup steps in a fresh
+project.
 
 ## Project Setup
 
@@ -235,7 +236,7 @@ Methods decorated with `@arc4.abimethod` become publicly callable endpoints. Eac
 
 The `__init__` method has special semantics: it runs exactly once, during the application creation transaction. After that initial execution, the state it sets up persists on-chain, but `__init__` itself never runs again. Think of deploying a contract as instantiating a class --- `__init__` is the constructor, and every subsequent transaction is a method call on that instance.
 
-Add the following class to `smart_contracts/token_vesting/contract.py`, below the `VestingSchedule` struct defined in the previous section:
+Add the following class to `smart_contracts/token_vesting/contract.py`, after the `VestingSchedule` struct defined in the previous section:
 
 ```python
 from algopy import ARC4Contract, GlobalState, Txn, Bytes, UInt64, arc4, BoxMap, Account
@@ -303,8 +304,11 @@ import algokit_utils
 algorand = algokit_utils.AlgorandClient.default_localnet()
 deployer = algorand.account.localnet_dispenser()
 
+app_spec_path = Path(
+    "smart_contracts/artifacts/token_vesting/TokenVesting.arc56.json"
+)
 factory = algorand.client.get_app_factory(
-    app_spec=Path("smart_contracts/artifacts/token_vesting/TokenVesting.arc56.json").read_text(),
+    app_spec=app_spec_path.read_text(),
     default_sender=deployer.address,
 )
 app_client, deploy_result = factory.deploy()
@@ -326,7 +330,7 @@ python deploy.py
 
 You should see output like:
 
-```
+```text
 App ID: 1001
 App Address: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ
 Admin: DEPLOYER_ADDRESS_HERE
@@ -338,8 +342,9 @@ You can inspect the deployed contract's state using the Algorand REST API. With 
 
 ```bash
 # Check the application info (requires curl and jq)
+TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 curl -s http://localhost:4001/v2/applications/1001 \
-  -H "X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  -H "X-Algo-API-Token: $TOKEN" \
   | python -m json.tool
 ```
 
@@ -435,10 +440,11 @@ before execution, like declaring your read-set before running a database query.
 
 ARC-4 asset arguments, explicit `asset_references`, and explicit
 `box_references` are all client-side ways to make those resources available.
-This book keeps references visible in examples whenever they are easy to miss.
-AlgoKit Utils Python can also populate missing app-call resources by simulation
-when `populate_app_call_resources=True`, but that is an opt-in client
-convenience rather than contract behavior.
+In AlgoKit Utils Python 4.x, missing app-call resources are populated
+automatically by default (via simulation) before sending. This book still
+declares references explicitly so you understand what the client is doing
+under the hood --- and so you can work with tooling that does not
+auto-populate, such as the raw SDK.
 
 ## Compiling and Running What We Have So Far
 
@@ -476,8 +482,11 @@ token_id = result.asset_id
 print(f"Created test token: ASA ID {token_id}")
 
 # Step 2: Deploy the vesting contract
+app_spec_path = Path(
+    "smart_contracts/artifacts/token_vesting/TokenVesting.arc56.json"
+)
 factory = algorand.client.get_app_factory(
-    app_spec=Path("smart_contracts/artifacts/token_vesting/TokenVesting.arc56.json").read_text(),
+    app_spec=app_spec_path.read_text(),
     default_sender=admin.address,
 )
 app_client, deploy_result = factory.deploy()
@@ -499,7 +508,8 @@ composer.add_app_call_method_call(
         algokit_utils.AppClientMethodCallParams(
             method="initialize",
             args=[token_id],
-            static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),  # Cover inner txn fee
+            # Cover the inner transaction fee via fee pooling
+            static_fee=algokit_utils.AlgoAmount.from_micro_algo(2000),
         )
     )
 )
@@ -549,7 +559,7 @@ from algopy import gtxn
         return deposit_txn.asset_amount
 ```
 
-The essential validations for an incoming grouped transaction in a stateful contract are: **who sent it** (authorization), **what asset** (correct token), **how much** (positive amount), and **where it went** (to the contract's address). These are the checks shown above.
+The essential validations for an incoming grouped transaction in a stateful contract are: **who is asking** (authorization --- enforced on the app call's `Txn.sender`, which must be the admin, not on the transfer's sender), **what asset** (correct token), **how much** (positive amount), and **where it went** (to the contract's address). These are the checks shown above.
 
 After validation, `available_tokens` increases by the amount received. Later,
 `create_schedule` will reserve from this counter before writing a new
@@ -591,7 +601,7 @@ Recall the `VestingSchedule` struct we defined at the start of the chapter. We u
 Now we encounter **box references** in practice --- the concept introduced in
 Chapter 1. Every transaction that reads or writes a box must declare which
 boxes it will access in a `boxes` array on the transaction. The AVM uses these
-declarations to allocate I/O budget: each reference grants 1,024 bytes (1KB)
+declarations to allocate I/O budget: each reference grants 2,048 bytes (2KB)
 of read/write capacity for box data. For `create_schedule`, the stored data is
 41 bytes, well within a single reference. The 34-byte box name matters for MBR,
 but not for the I/O budget.
@@ -618,10 +628,11 @@ app_client.send.call(
 )
 ```
 
-Forgetting this declaration produces "box read/write budget exceeded" --- the
-single most common error new Algorand developers encounter. If you see this
-error, your first check should always be: did I declare the box references?
-For boxes larger than 1KB, you need multiple references to the same box (for
+Forgetting this declaration produces "box read/write budget exceeded" --- an
+error you will hit whenever auto-population is disabled or you build
+transactions with the raw SDK. If you see this error, your first check should
+always be: did I declare the box references?
+For boxes larger than 2KB, you need multiple references to the same box (for
 example, a 4KB box needs two references). The Cookbook (Recipe 6.5) shows this
 pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
 `algokit_utils.BoxReference` are client-side representations of this same
@@ -841,6 +852,8 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         ).submit()
 ```
 
+Notice that `cleanup_schedule` has no admin check --- it is deliberately permissionless. Anyone may trigger it once a schedule is fully claimed, and the MBR refund always goes to the admin (who funded it) regardless of who calls the method.
+
 If the contract were deleted while boxes still exist, the MBR would be locked forever. Always clean up boxes before deleting an app. (See [Storage Overview](https://dev.algorand.co/concepts/smart-contracts/storage/overview/) for box lifecycle details.)
 
 
@@ -880,7 +893,7 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 > Run it from the project environment created by `algokit project bootstrap all`.
 > (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 
-The tests below are outline examples showing *what* to test and *how* to assert.
+The following tests are outline examples showing *what* to test and *how* to assert.
 The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`,
 `get_claimable`, `advance_time`, etc.) are project-specific wrappers around the
 AlgoKit Utils calls shown earlier in this chapter. The patterns here ---
@@ -962,8 +975,8 @@ A second LocalNet quirk affects rapid-fire test transactions.
 > and prevents intermittent test failures.
 
 With those LocalNet behaviors in mind, the following outline belongs in
-`tests/test_vesting.py` after you implement the helper functions above (not
-part of the contract code):
+`tests/test_vesting.py` after you implement the helper functions shown
+earlier (not part of the contract code):
 
 ```python
 import pytest
@@ -991,7 +1004,8 @@ class TestTokenVesting:
         deposit_tokens(algorand, admin, vesting, token_id, 1_000_000_000)
 
         # Use short durations for LocalNet testing (seconds, not months).
-        # Production contracts would use cliff_duration=90*86400, vesting_duration=365*86400.
+        # Production contracts would use cliff_duration=90*86400,
+        # vesting_duration=365*86400.
         create_schedule(algorand, admin, vesting, beneficiary.address,
             total=1_000_000_000,
             cliff_duration=8,
@@ -1042,11 +1056,14 @@ class TestTokenVesting:
         with pytest.raises(Exception, match="Nothing to claim"):
             call_method(vesting, "claim", [], sender=beneficiary.address)
 
-# Helper: wraps the v4 send.call pattern for concise test code
-def call_method(app_client, method, args, sender=None):
+# Helper: wraps the v4 send.call pattern for concise test code.
+# Methods that emit inner transactions (claim, revoke, cleanup_schedule)
+# need static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000) so the
+# outer transaction's fee covers the inner transaction via fee pooling.
+def call_method(app_client, method, args, sender=None, static_fee=None):
     return app_client.send.call(
         algokit_utils.AppClientMethodCallParams(
-            method=method, args=args, sender=sender,
+            method=method, args=args, sender=sender, static_fee=static_fee,
         )
     )
 ```

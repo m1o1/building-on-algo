@@ -1,4 +1,4 @@
-"""Unit tests for the private voting contract (Chapter 8).
+"""Unit tests for the private voting contract (Chapter 10).
 Tests the MiMC 32-byte padding fix and authorization checks."""
 
 import pytest

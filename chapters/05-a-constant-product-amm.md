@@ -254,7 +254,7 @@ this chapter teaches.
 If pytest reports skipped LocalNet tests, you have checked compilation and static properties only. Start LocalNet later to verify the actual pool workflow.
 
 Use `scripts/run_constant_product_amm.py` as an iteration shortcut. The
-excerpts above are the teaching path.
+preceding excerpts are the teaching path.
 
 Keep this finished project nearby as you work through the chapter. Its purpose
 is not to replace the step-by-step build; it is the answer key you can compile,
@@ -298,7 +298,7 @@ The $997/1000$ factor represents a 0.3\% fee --- 0.3\% of every swap's input sta
 
 **Worked example.** Alice has 100 USDC and wants to swap for ALGO from a pool with reserves of 10,000 USDC ($x$) and 10,000 ALGO ($y$). Before the swap, $k = 10{,}000 \times 10{,}000 = 100{,}000{,}000$ and the spot price is $10{,}000 / 10{,}000 = 1.0$ ALGO per USDC. Plugging into the formula:
 
-$$\Delta y = \frac{100 \times 997 \times 10{,}000}{10{,}000 \times 1{,}000 + 100 \times 997} = \frac{9{,}970{,}000}{10{,}099{,}700} \approx 98.71\ \textrm{ALGO}$$
+$$\Delta y = \frac{100 \times 997 \times 10{,}000}{10{,}000 \times 1{,}000 + 100 \times 997} = \frac{997{,}000{,}000}{10{,}099{,}700} \approx 98.71\ \textrm{ALGO}$$
 
 Alice sends 100 USDC and receives 98.71 ALGO --- not 100, because of the 0.3% fee (0.3 USDC stays in the pool) and *price impact* (each marginal unit of USDC she adds makes ALGO slightly more expensive). After the swap, reserves are 10,100 USDC and 9,901.29 ALGO, giving a new spot price of $9{,}901.29 / 10{,}100 \approx 0.98$ ALGO per USDC. The product $k$ increased slightly (to $\approx 100{,}003{,}029$) because the fee was retained. A larger trade --- say 1,000 USDC --- would move the price much more (receiving only about 906 ALGO, a 9.3% price impact), which is why AMMs work best for trades that are small relative to the pool's reserves.
 
@@ -318,7 +318,7 @@ These formulas are the entire economic engine of the AMM. Everything else is imp
 
 > **Design decision: why constant product?** If I were designing this from scratch, I would start with the simplest invariant: what relationship between reserves should never be violated? The product $x \times y = k$ is the simplest nonlinear invariant. It is not the only option.
 >
-> *Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a plus or minus 1% range provides ~4,000x the capital efficiency of a full-range V2 position --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
+> *Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a plus or minus 1% range provides roughly 200x the capital efficiency of a full-range V2 position, and an extremely tight 0.10% range (practical only for stable pairs) approaches ~4,000x --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
 >
 > *StableSwap* (Curve, and Pact stable pools on Algorand) uses a hybrid invariant tuned for assets that should trade near 1:1 (stablecoins, wrapped assets). It provides dramatically lower slippage for pegged pairs.
 >
@@ -468,7 +468,7 @@ The AMM contract uses more imports than the vesting contract --- make sure you h
 
 Now create a deployment and bootstrap script. Save the following as `deploy_pool.py` in your project root. This client-side script creates two test ASAs, deploys the pool, funds it, and calls bootstrap.
 
-The finished project uses the generated typed client in `smart_contracts/artifacts/`. The snippets below use the generic app client so you can see the raw ABI method names and grouped transaction arguments directly; the generated client wraps the same calls.
+The finished project uses the generated typed client in `smart_contracts/artifacts/`. The following snippets use the generic app client so you can see the raw ABI method names and grouped transaction arguments directly; the generated client wraps the same calls.
 
 ```python
 from pathlib import Path
@@ -568,8 +568,8 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
     @arc4.abimethod
     def add_initial_liquidity(
         self,
-        a_txn: gtxn.AssetTransferTransaction,
-        b_txn: gtxn.AssetTransferTransaction,
+        deposit_a: gtxn.AssetTransferTransaction,
+        deposit_b: gtxn.AssetTransferTransaction,
     ) -> UInt64:
         """First deposit sets the price ratio and mints initial LP tokens."""
         assert (
@@ -580,15 +580,15 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
             self.lp_total_supply.value == UInt64(0)
         ), "Pool already has liquidity"
 
-        assert a_txn.asset_receiver == Global.current_application_address
-        assert b_txn.asset_receiver == Global.current_application_address
-        assert a_txn.sender == Txn.sender
-        assert b_txn.sender == Txn.sender
-        assert a_txn.xfer_asset == Asset(self.asset_a.value)
-        assert b_txn.xfer_asset == Asset(self.asset_b.value)
+        assert deposit_a.asset_receiver == Global.current_application_address
+        assert deposit_b.asset_receiver == Global.current_application_address
+        assert deposit_a.sender == Txn.sender
+        assert deposit_b.sender == Txn.sender
+        assert deposit_a.xfer_asset == Asset(self.asset_a.value)
+        assert deposit_b.xfer_asset == Asset(self.asset_b.value)
 
-        amount_a = a_txn.asset_amount
-        amount_b = b_txn.asset_amount
+        amount_a = deposit_a.asset_amount
+        amount_b = deposit_b.asset_amount
         assert amount_a > UInt64(0) and amount_b > UInt64(0)
 
         # LP tokens = sqrt(a * b) - MINIMUM_LIQUIDITY
@@ -623,7 +623,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
 The `BigUInt` multiplication prevents overflow in the product --- if both amounts are 10^12, the product is 10^24, far beyond uint64. The `op.bsqrt` opcode computes the integer floor square root natively on the AVM.
 
-The sender-binding checks are not redundant. The ABI router verifies that `a_txn` and `b_txn` are asset-transfer transactions, but it does not know that the LP tokens should go only to the account that sent both deposits. If Alice signs a group containing her two deposits and Bob's app call, Bob would receive the LP tokens unless the contract checks that both deposit senders equal `Txn.sender`.
+The sender-binding checks are not redundant. The ABI router verifies that `deposit_a` and `deposit_b` are asset-transfer transactions, but it does not know that the LP tokens should go only to the account that sent both deposits. If Alice signs a group containing her two deposits and Bob's app call, Bob would receive the LP tokens unless the contract checks that both deposit senders equal `Txn.sender`.
 
 > **Check your understanding:** What relationship does the typed transaction argument prove, and what relationship does it *not* prove?
 
@@ -690,7 +690,6 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         assert Global.group_size == UInt64(2), "Swap group must be size 2"
         assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
         assert self.lp_total_supply.value > UInt64(0), "No liquidity"
-        self._update_twap()
 
         assert input_txn.asset_receiver == Global.current_application_address
         assert input_txn.sender == Txn.sender
@@ -848,25 +847,23 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
     @arc4.abimethod
     def add_liquidity(
         self,
-        a_txn: gtxn.AssetTransferTransaction,
-        b_txn: gtxn.AssetTransferTransaction,
+        deposit_a: gtxn.AssetTransferTransaction,
+        deposit_b: gtxn.AssetTransferTransaction,
     ) -> UInt64:
         """Add liquidity to an existing pool. Returns LP tokens minted."""
         assert Global.group_size == UInt64(3), "Add liquidity group must be size 3"
         assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
-        self._update_twap()
-
         assert self.lp_total_supply.value > UInt64(0), "Use add_initial_liquidity"
 
-        assert a_txn.asset_receiver == Global.current_application_address
-        assert b_txn.asset_receiver == Global.current_application_address
-        assert a_txn.sender == Txn.sender
-        assert b_txn.sender == Txn.sender
-        assert a_txn.xfer_asset == Asset(self.asset_a.value)
-        assert b_txn.xfer_asset == Asset(self.asset_b.value)
+        assert deposit_a.asset_receiver == Global.current_application_address
+        assert deposit_b.asset_receiver == Global.current_application_address
+        assert deposit_a.sender == Txn.sender
+        assert deposit_b.sender == Txn.sender
+        assert deposit_a.xfer_asset == Asset(self.asset_a.value)
+        assert deposit_b.xfer_asset == Asset(self.asset_b.value)
 
-        amount_a = a_txn.asset_amount
-        amount_b = b_txn.asset_amount
+        amount_a = deposit_a.asset_amount
+        amount_b = deposit_b.asset_amount
         total_lp = self.lp_total_supply.value
         reserve_a = self.reserve_a.value
         reserve_b = self.reserve_b.value
@@ -923,7 +920,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
     @arc4.abimethod
     def remove_liquidity(
         self,
-        lp_txn: gtxn.AssetTransferTransaction,
+        lp_deposit: gtxn.AssetTransferTransaction,
         min_a: UInt64,
         min_b: UInt64,
     ) -> tuple[UInt64, UInt64]:
@@ -933,13 +930,12 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
         ), "Remove liquidity group must be size 2"
         assert self.is_bootstrapped.value == UInt64(1), "Not bootstrapped"
         assert self.lp_total_supply.value > UInt64(0), "No liquidity"
-        self._update_twap()
 
-        assert lp_txn.asset_receiver == Global.current_application_address
-        assert lp_txn.xfer_asset == Asset(self.lp_token_id.value)
-        assert lp_txn.sender == Txn.sender
+        assert lp_deposit.asset_receiver == Global.current_application_address
+        assert lp_deposit.xfer_asset == Asset(self.lp_token_id.value)
+        assert lp_deposit.sender == Txn.sender
 
-        lp_amount = lp_txn.asset_amount
+        lp_amount = lp_deposit.asset_amount
         assert lp_amount > UInt64(0)
 
         total_lp = self.lp_total_supply.value
@@ -987,7 +983,7 @@ Add this method to the `ConstantProductPool` class in `smart_contracts/constant_
 
 The floor division on both withdrawal amounts ensures the pool never pays out more than its proportional share --- rounding dust stays in the reserves.
 
-The `lp_txn.sender == Txn.sender` check applies the same sender-binding rule in reverse: the account sending LP tokens to the pool is the account receiving the underlying assets.
+The `lp_deposit.sender == Txn.sender` check applies the same sender-binding rule in reverse: the account sending LP tokens to the pool is the account receiving the underlying assets.
 
 
 ## Understanding Impermanent Loss
@@ -1033,7 +1029,7 @@ First, **explicit invariant verification after state-changing AMM operations**. 
 
 Second, **immutable contracts cannot be patched**. When Tinyman discovered the exploit, they could not update the contracts because they were immutable. They could only recommend that users withdraw their liquidity. This is actually the correct tradeoff --- immutability is what makes the contracts trustless. But it means your code must be correct before deployment. There is no hot-fix option.
 
-Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the swap method. It checks `a_txn.xfer_asset == Asset(self.asset_a.value)` in add_liquidity. It checks `lp_txn.xfer_asset == Asset(self.lp_token_id.value)` in remove_liquidity. Never assume the correct asset was sent --- always verify.
+Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the swap method. It checks `deposit_a.xfer_asset == Asset(self.asset_a.value)` in add_liquidity. It checks `lp_deposit.xfer_asset == Asset(self.lp_token_id.value)` in remove_liquidity. Never assume the correct asset was sent --- always verify.
 
 Fourth, **sender binding for transaction arguments**. Typed transaction arguments prove that the argument has the expected transaction type, but they do not prove that the transfer came from the app-call sender. When a grouped payment or asset transfer funds an operation whose benefit goes to `Txn.sender`, assert the transaction argument's `sender == Txn.sender`.
 
@@ -1052,7 +1048,7 @@ Never submit an on-chain transaction just to get a price quote. The swap output 
 
 ## The TWAP Price Oracle
 
-> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the factory contract in Chapter 6 or the farming contract in Chapter 7.
+> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity, and the contract as built so far compiles and runs without any of the code in this section. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the factory contract in Chapter 6 or the farming contract in Chapter 7.
 
 Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a natural price oracle --- but one that must be used carefully.
 
@@ -1076,7 +1072,7 @@ $$\text{TWAP} = \frac{\text{cumulative\_price}_{t_2} - \text{cumulative\_price}_
 
 > *Quick check: if the cumulative price at t=100 is 500,000 and at t=200 is 1,200,000, what is the TWAP over that interval?*
 
-In production AMMs (Uniswap V2, Tinyman V2), the cumulative price accumulators live inside the pool contract itself and update on every swap, mint, and burn. This is why we added the three TWAP state variables to `__init__` and the `_update_twap()` call at the top of every state-changing method. The price oracle is available to any external consumer --- lending protocols, liquidation engines, farming contracts --- without any of those consumers needing to maintain their own accumulator.
+In production AMMs (Uniswap V2, Tinyman V2), the cumulative price accumulators live inside the pool contract itself and update on every swap, mint, and burn. This is why we added the three TWAP state variables to `__init__` back at the start of the chapter; in this section we write the `_update_twap()` method and wire it into every state-changing method. The price oracle is available to any external consumer --- lending protocols, liquidation engines, farming contracts --- without any of those consumers needing to maintain their own accumulator.
 
 The `_update_twap` call happens *before* reserves change. This is the same design as Uniswap V2: the accumulated price is the price that *held* since the last update, not the price created by the current transaction.
 
@@ -1090,7 +1086,7 @@ $$1{,}000{,}000{,}000 \times 31{,}536{,}000 = 3.15 \times 10^{16}$$
 
 This fits in `UInt64`. But at higher prices or over longer periods --- or with a higher precision scale factor --- the cumulative value can exceed $2^{64}$. Uniswap V2 accumulates prices encoded as `UQ112.112` fixed-point values (224 bits) in `uint256` accumulators, intentionally allowing overflow --- the TWAP is computed via modular subtraction, which handles wrapping correctly.
 
-On Algorand, `BigUInt` supports up to 512 bits --- more than enough for any practical TWAP accumulation. The tradeoff is that `BigUInt` arithmetic costs roughly 10x more opcodes than `UInt64`. For a single TWAP update per transaction (two multiplications, one addition), this is approximately 30 extra opcodes --- negligible within a 700-opcode budget. Compare this with the EVM, where Solidity's `uint256` arithmetic handles intermediate products natively and Uniswap V2 uses `uint224` as a deliberate overflow boundary. On the AVM, `UInt64` would overflow within days at moderate prices, so `BigUInt` is not optional --- it is a required design choice. The AVM's constraints force you to think about overflow earlier in the design process, which is arguably a safety benefit.
+On Algorand, `BigUInt` supports up to 512 bits --- more than enough for any practical TWAP accumulation. The tradeoff is that `BigUInt` arithmetic costs roughly 10x more opcodes than `UInt64`. For a single TWAP update per transaction, the byte-math operations involved (four `b*`, two `b/`, two `b+`) cost roughly 140 budget units --- still negligible within a 700-opcode budget. Compare this with the EVM, where Solidity's `uint256` arithmetic handles intermediate products natively and Uniswap V2 uses `uint224` as a deliberate overflow boundary. On the AVM, `UInt64` would overflow within days at moderate prices, so `BigUInt` is not optional --- it is a required design choice. The AVM's constraints force you to think about overflow earlier in the design process, which is arguably a safety benefit.
 
 ### The TWAP Update Subroutine
 
@@ -1133,7 +1129,7 @@ Add this method to the `ConstantProductPool` class. It reads the pool's own rese
         self.twap_last_update.value = now
 ```
 
-The method is already called at the top of `swap`, `add_liquidity`, and `remove_liquidity`. For `add_initial_liquidity`, we initialize `twap_last_update` instead (there are no pre-existing reserves to accumulate).
+Now wire it in: add `self._update_twap()` as the first statement of `swap`, `add_liquidity`, and `remove_liquidity`, then recompile. For `add_initial_liquidity`, we initialize `twap_last_update` instead (there are no pre-existing reserves to accumulate). The completed reference project in `projects/chapter5/constant-product-amm/` already includes these calls.
 
 ### Reading the TWAP
 
@@ -1177,7 +1173,7 @@ A read-only method returns the average price over a caller-specified window. The
         return op.btoi(twap.bytes)
 ```
 
-> **Note:** The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display real-time price data. The inline accumulation at the top of `get_twap_price` ensures the cumulative value is current even if the pool has not been interacted with recently --- the same approach Uniswap V2 takes in its `currentCumulativePrices` helper. Because the method is read-only, the state writes from this accumulation do not persist.
+> **Note:** The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display real-time price data. The inline accumulation at the top of `get_twap_price` ensures the cumulative value is current even if the pool has not been interacted with recently --- the same approach Uniswap V2 takes in its `currentCumulativePrices` helper. The accumulation happens entirely in a local variable --- nothing is written to state.
 
 The method returns a `UInt64`, which means the TWAP result must fit in 64 bits. This is a deliberate design choice --- `UInt64` is easier for callers to work with than a variable-length `BigUInt` --- but it requires a bounds check.
 
@@ -1187,9 +1183,9 @@ The method returns a `UInt64`, which means the TWAP result must fit in 64 bits. 
 
 A 1-hour TWAP window requires an attacker to sustain the manipulated price for the full hour to meaningfully distort the average. Sustaining the manipulation means keeping a large amount of capital locked in the pool for that duration --- capital that is exposed to arbitrageurs who would trade against the distortion for profit. The cost of manipulation scales linearly with the TWAP window length and the pool's liquidity depth. For pools with meaningful TVL and a 1-hour+ window, TWAP manipulation is economically irrational.
 
-**Quantifying the cost.** Suppose a pool has \$1M in total value locked (500K USDC + equivalent ALGO). To move the spot price by 10\%, an attacker needs to add approximately \$52,600 in one-sided liquidity (from the constant product formula). To sustain this for 1 hour, that capital is locked and exposed to ~\$5,260 in arbitrage losses. The TWAP distortion from this 1-hour manipulation is only $10\% \times (2.85 / 3600) \approx 0.008\%$ per block of manipulation --- negligible. The attacker would need to sustain the manipulation for the entire window at a cost far exceeding any plausible profit.
+**Quantifying the cost.** Suppose a pool has \$1M in total value locked (500K USDC + equivalent ALGO). To move the spot price by 10\%, an attacker needs to swap in roughly \$25,000 of one-sided input (from the constant product formula). To sustain this for 1 hour, that capital is locked and exposed to ~\$2,500 in arbitrage losses. The TWAP distortion from this 1-hour manipulation is only $10\% \times (2.85 / 3600) \approx 0.008\%$ per block of manipulation --- negligible. The attacker would need to sustain the manipulation for the entire window at a cost far exceeding any plausible profit.
 
-### Reading Pool Prices From Other Contracts
+### Reading Pool Prices from Other Contracts
 
 External contracts consume the TWAP by reading the pool's cumulative price state via `op.AppGlobal.get_ex_bytes` (since `BigUInt` values are stored as byte slices, not uint64). This is an illustrative example showing a separate lending contract, not part of the AMM project code:
 
@@ -1216,14 +1212,14 @@ def get_price_from_amm(
     return price
 ```
 
-> **Warning:** The spot price example above is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
+> **Warning:** The preceding spot price example is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
 
 Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC via ALGO/TOKEN and TOKEN/USDC) follows the same pattern --- read reserves from each pool in the chain and multiply the ratios. (See [Opcodes Overview](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) for the cross-app state reading opcodes.)
 
 
 ## Testing the AMM
 
-The tests below are outline examples showing *what* to test and *how* to
+The following tests are outline examples showing *what* to test and *how* to
 assert. Helper functions and fixtures such as `bootstrap_pool`,
 `add_liquidity`, `swap`, `call_method`, `fund`, `usdc`, `algo`,
 `transfer_usdc`, `pool`, `reserve_a`, and `reserve_b` are project-specific
@@ -1360,7 +1356,7 @@ class TestConstantProductPool:
 
 Once your contract works on LocalNet, the next step is TestNet --- Algorand's public test network where you can interact with other contracts, test with real network conditions (block times, transaction propagation), and share your deployment with others for testing.
 
-To deploy on TestNet, you need a funded TestNet account. Get free TestNet Algo from the faucet at https://lora.algokit.io/testnet/fund or by running `algokit dispenser login` and `algokit dispenser fund`.
+To deploy on TestNet, you need a funded TestNet account. Get free TestNet Algo from the [TestNet faucet](https://lora.algokit.io/testnet/fund) or by running `algokit dispenser login` and `algokit dispenser fund`.
 
 Switch your `AlgorandClient` to TestNet. This is a client-side configuration change:
 
@@ -1373,7 +1369,7 @@ algorand = AlgorandClient.from_clients(
 )
 ```
 
-The deployment and interaction scripts are identical to LocalNet --- only the client connection changes. Deploy, bootstrap, and run through the full workflow. Verify every operation by checking the contract's global state and your account balances on a TestNet block explorer like https://testnet.explorer.perawallet.app/. (See [App Deployment](https://dev.algorand.co/algokit/utils/python/app-deploy/) for idempotent deployment strategies.)
+The deployment and interaction scripts are identical to LocalNet --- only the client connection changes. Deploy, bootstrap, and run through the full workflow. Verify every operation by checking the contract's global state and your account balances on a TestNet block explorer like [Pera Explorer](https://testnet.explorer.perawallet.app/). (See [App Deployment](https://dev.algorand.co/algokit/utils/python/app-deploy/) for idempotent deployment strategies.)
 
 Before deploying to MainNet, your TestNet testing checklist should include: bootstrap with real ASAs (not just test tokens), add liquidity from multiple accounts, execute swaps in both directions with varying sizes, remove liquidity and verify proportional withdrawal, test edge cases (very small swaps, swaps that would exceed reserves, swaps with zero min_output), and verify immutability by attempting update and delete.
 

@@ -86,7 +86,7 @@ class AMMFactory(ARC4Contract):
             assets=(asset_a, asset_b),
             fee=UInt64(0),
         ).submit()
-        lp_token_id = arc4.UInt64.from_log(bootstrap_txn.last_log).native
+        lp_token_id = arc4.UInt64.from_log(bootstrap_txn.last_log).as_uint64()
 
         self.pools[key] = pool_app.id
         self.lp_tokens[key] = lp_token_id

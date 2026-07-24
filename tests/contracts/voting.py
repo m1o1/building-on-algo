@@ -1,9 +1,9 @@
-"""Private governance voting contract - extracted from Chapter 8 of the book.
+"""Private governance voting contract - extracted from Chapter 10 of the book.
 Tests the MiMC padding fix (choice must be padded to 32 bytes)."""
 
 from algopy import (
-    ARC4Contract, BoxMap, Bytes, Global, GlobalState,
-    Txn, UInt64, arc4, gtxn, op,
+    ARC4Contract, BoxMap, Bytes, Global, GlobalState, OpUpFeeSource,
+    Txn, UInt64, arc4, ensure_budget, gtxn, op,
 )
 from algopy.op import MiMCConfigurations
 
@@ -86,6 +86,10 @@ class PrivateVoting(ARC4Contract):
     @arc4.abimethod
     def reveal_vote(self, choice: UInt64, randomness: Bytes) -> None:
         """Reveal a vote by providing the preimage of the commitment."""
+        # The 64-byte MiMC hash alone costs 1,110 budget units --- more
+        # than a single app call's 700. Raise the budget first.
+        ensure_budget(UInt64(1200), OpUpFeeSource.GroupCredit)
+
         assert self.phase.value == UInt64(PHASE_REVEAL)
 
         sender = arc4.Address(Txn.sender)

@@ -5,11 +5,11 @@ from algosdk.atomic_transaction_composer import TransactionWithSigner
 from scripts.localnet_helpers import (
     advance_time,
     create_test_asa,
-    failure_message,
     fund_account,
     opt_account_into_asset,
     random_note,
     setup_initialized_contract,
+    simulate_expecting_logic_error,
     deploy,
 )
 from smart_contracts.artifacts.simple_vesting.simple_vesting_client import (
@@ -114,8 +114,8 @@ class TestSimpleVesting:
             algorand.account.get_signer(imposter.address),
         )
 
-        result = (
-            app_client.new_group()
+        message = simulate_expecting_logic_error(
+            lambda: app_client.new_group()
             .initialize(
                 InitializeArgs(
                     asset=token_id,
@@ -133,7 +133,7 @@ class TestSimpleVesting:
             )
             .simulate()
         )
-        assert "Only admin" in failure_message(result)
+        assert "Only admin" in message
 
     def test_only_beneficiary_can_claim(self, algorand, admin) -> None:
         app_client, _, _ = setup_initialized_contract(

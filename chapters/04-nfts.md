@@ -279,7 +279,7 @@ The `properties` object is freeform --- you can put any domain-specific attribut
 
 For our contract, the admin prepares the metadata JSON and uploads it to IPFS *before* calling `create_schedule`. The `schedule_id` is known at that point, so include it in the metadata or in your app's indexed records. The resulting IPFS URL and metadata hash are passed as arguments, and the contract embeds them in the minted NFT. This keeps the contract simple --- it does not need to construct JSON or interact with IPFS.
 
-> **Note:** An alternative standard, *ARC-19*, allows mutable metadata by encoding an IPFS content identifier in the ASA's reserve address. This is useful when metadata changes over time (e.g., updating a "percent vested" field). For this chapter, ARC-3's immutable approach is sufficient --- the vesting terms are fixed at creation.
+> **Note:** An alternative standard, *ARC-19*, allows mutable metadata by encoding an IPFS content identifier in the ASA's reserve address. This is useful when metadata changes over time (e.g., updating a "percent vested" field). For this chapter, ARC-3's immutable approach is sufficient --- the vesting terms are fixed at creation. A third convention, *ARC-69*, stores the metadata JSON in the note field of the most recent asset-config transaction --- no off-chain file to host, at the cost of indexer-based retrieval.
 
 With metadata responsibilities clear, we can scaffold the project.
 
@@ -287,7 +287,7 @@ With metadata responsibilities clear, we can scaffold the project.
 
 The finished project was for observation. Now we will build the same system from a fresh
 scaffold, reusing the structure from Chapter 3. Keep the finished project open as a
-reference if you get stuck, but type the steps below into the new project.
+reference if you get stuck, but type the following steps into the new project.
 
 If you still have your `token-vesting` project, you can duplicate it. Otherwise,
 scaffold a new one:
@@ -697,7 +697,7 @@ def calculate_vested(
     return vested
 ```
 
-Place this function outside the class, between the `VestingSchedule` struct and the `NftVesting` class. Recall from Chapter 3 that `@subroutine` functions are compiled inline by PuyaPy --- they are not ABI methods and cannot be called externally. Extracting this logic into a subroutine saves program bytes because it is called in three places: `claim`, `revoke`, and `get_claimable`.
+Place this function outside the class, between the `VestingSchedule` struct and the `NftVesting` class. Recall from Chapter 3 that `@subroutine` functions compile to a single TEAL subroutine invoked via `callsub`/`retsub` --- they are not ABI methods and cannot be called externally. That single shared body is why extracting this logic into a subroutine saves program bytes: it is called in three places (`claim`, `revoke`, and `get_claimable`) but compiled only once.
 
 ## Revocation with Clawback
 
@@ -808,7 +808,7 @@ The contract needs to know who currently holds the NFT so it can clawback from t
 
 The `current_holder` must also be included in the transaction's `accounts` foreign array on the client side. This is the same resource reference pattern you saw with box references in Chapter 3.
 
-> **Warning:** Known limitation: the settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 5 asks you to design the solution.
+> **Warning:** Known limitation: the settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 7 asks you to design the solution. A related edge case: revoking while the contract itself still holds the NFT (before delivery) with `claimable > 0` would send the settlement from the contract to itself, stranding those tokens --- one more reason revocation should only happen after checking who the holder is, or before the cliff when nothing has vested.
 
 Once the holder and opt-in constraints are handled, revocation can destroy the NFT.
 
@@ -851,6 +851,8 @@ After a beneficiary has fully claimed their tokens (or after revocation has sett
             fee=UInt64(0),
         ).submit()
 ```
+
+As in Chapter 3, `cleanup_schedule` is intentionally permissionless --- anyone may call it once a schedule is settled, and the MBR refund is hard-wired to the admin, so an arbitrary caller gains nothing.
 
 > **Note:** For revoked schedules, the NFT was already destroyed during `revoke`, freeing 100,000 microAlgos of MBR. However, `cleanup_schedule` only refunds the *box* MBR (26,100 microAlgos) to the admin. The freed NFT MBR remains in the contract's general balance. In a production contract, you would add a separate `withdraw_surplus` admin method to recover these funds.
 
@@ -1130,7 +1132,7 @@ claim_result = new_holder_client.send.call(
 print(f"New holder claimed {claim_result.abi_return} tokens")
 ```
 
-Notice that the script passes an explicit `BoxReference` built from `schedule_id`. AlgoKit Utils can also populate resources automatically with `.send(params=algokit_utils.SendParams(populate_app_call_resources=True))`, and some projects enable this globally, but explicit references are clearer here. The schedule box name is known before the transaction is signed, so the same group works on LocalNet, TestNet, and MainNet without relying on a simulated inner-created asset ID staying stable.
+Notice that the script passes an explicit `BoxReference` built from `schedule_id`. AlgoKit Utils 4.x populates missing app-call resources automatically by default --- an explicit `.send(params=algokit_utils.SendParams(populate_app_call_resources=True))` merely restates that default --- but explicit references are clearer here. The schedule box name is known before the transaction is signed, so the same group works on LocalNet, TestNet, and MainNet without relying on a simulated inner-created asset ID staying stable.
 
 The `claim` calls include the schedule box and both relevant assets: the vesting ASA for
 the inner token transfer and the NFT for the holder-balance check. If you later add a

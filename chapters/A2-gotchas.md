@@ -81,8 +81,8 @@ constants.)
   top-level transaction's arrays
 - Access lists use explicit holding, local-state, and box entries instead
 - The transaction sender and current application are implicitly available
-- In AlgoKit Utils Python, automatic resource population is opt-in
-- Pass required references explicitly, or enable `populate_app_call_resources=True`
+- In AlgoKit Utils Python 4.x, automatic resource population is ON by default (opt-out, not opt-in)
+- Pass explicit references when you need deterministic transaction groups, or disable population via `AlgoKitConfig`/`SendParams`
 
 ## Logic Signatures
 
@@ -121,8 +121,7 @@ constants.)
 - Always verify the receiver of incoming transfers is the contract address
 - ClearState always succeeds --- design for users being able to exit at any time
 - Rejected UpdateApplication and DeleteApplication makes a contract immutable (recommended for DeFi)
-- Run Tealer static analysis: `tealer approval.teal --detect all`
+- Run Tealer static analysis: `tealer detect --contracts approval.teal` (all detectors run by default)
 
 [Box Storage]: https://dev.algorand.co/concepts/smart-contracts/storage/box/
 [Protocol Parameters]: https://dev.algorand.co/concepts/protocol/protocol-parameters/
-[Puya v5.5.0 release notes]: https://github.com/algorandfoundation/puya/releases/tag/v5.5.0

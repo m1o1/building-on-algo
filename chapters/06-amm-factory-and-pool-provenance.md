@@ -76,7 +76,7 @@ them from the LocalNet dispenser:
 
 ```python
 algorand = AlgorandClient.default_localnet()
-algorand.set_suggested_params_timeout(0)
+algorand.set_suggested_params_cache_timeout(0)
 
 dispenser = algorand.account.localnet_dispenser()
 admin = algorand.account.random()
@@ -697,12 +697,21 @@ bootstrap_txn = itxn.ApplicationCall(
     assets=(asset_a, asset_b),
     fee=UInt64(0),
 ).submit()
-lp_token_id = arc4.UInt64.from_log(bootstrap_txn.last_log).native
+lp_token_id = arc4.UInt64.from_log(bootstrap_txn.last_log).as_uint64()
 ```
 
-The `assets=(asset_a, asset_b)` entry matters. The child pool inspects the asset
-parameters and opts into both assets, so the inner app call needs those assets
-available in its resource array.
+> **Note.** The manual `compile_contract` + `itxn.ApplicationCall` +
+> `arc4_signature` + `from_log` pattern shows exactly what happens on the
+> wire. In production code you can let the compiler do this plumbing with the
+> typed helpers `arc4.arc4_create(...)` / `arc4.abi_call(...)` (or
+> `itxn.abi_call`, puyapy 5.7+), which handle schema, pages, selector
+> encoding, and return-value decoding for you.
+
+The `assets=(asset_a, asset_b)` entry makes the dependency visible. The child
+pool inspects the asset parameters and opts into both assets, so those assets
+must be available to the inner app call. Under AVM v9+ group resource sharing
+the outer call's `asset_references` would also make them available; the chapter
+passes them explicitly so the dependency is easy to see.
 
 Finally, the factory writes the canonical registry entries:
 
@@ -877,17 +886,20 @@ Table 6-3. Key takeaways for the AMM factory chapter
 
 ## Exercises
 
-1. Trace `verify_pool` for the happy path. For each check, write down which
-   transaction reference or state value makes the check possible.
-2. Trace `verify_pool` for the fake-pool path. Which check fails first? Which
-   later checks would also fail if execution continued?
-3. Explain why `factory_app_id` in the child pool is useful but insufficient.
-   What can a malicious clone write in its own global state?
-4. Design the change a yield farm would need to accept only factory-verified
-   LP tokens. Which app, asset, and box references would the farm call need?
-5. Sketch a router that asks the factory for the canonical pool before quoting
-   a swap. Where should the router reject an unknown pair?
-6. Add the Chapter 5 TWAP oracle back to `FactoryPool` using the hints below.
+1. **(Understand)** Trace `verify_pool` for the happy path. For each check,
+   write down which transaction reference or state value makes the check
+   possible.
+2. **(Analyze)** Trace `verify_pool` for the fake-pool path. Which check fails
+   first? Which later checks would also fail if execution continued?
+3. **(Analyze)** Explain why `factory_app_id` in the child pool is useful but
+   insufficient. What can a malicious clone write in its own global state?
+4. **(Create)** Design the change a yield farm would need to accept only
+   factory-verified LP tokens. Which app, asset, and box references would the
+   farm call need?
+5. **(Create)** Sketch a router that asks the factory for the canonical pool
+   before quoting a swap. Where should the router reject an unknown pair?
+6. **(Apply)** Add the Chapter 5 TWAP oracle back to `FactoryPool` using the
+   following hints.
 
 ### Exercise Hint: Adding TWAP Back
 
@@ -907,6 +919,20 @@ It is not conceptually hard, but there are a few details to handle carefully:
 
 If compile size becomes tight, split optional oracle functionality into a later
 extension rather than obscuring the factory pattern with size workarounds.
+
+## Before You Continue
+
+Before starting the yield farming chapter, you should be able to:
+
+- [ ] Create a child application from a factory contract using
+  `compile_contract` and an inner `ApplicationCall`
+- [ ] State the three provenance checks (registry entry, app creator, child
+  global state) and explain why each alone is insufficient
+- [ ] Explain who funds which MBR at each step: the caller seeds the factory,
+  the factory pays the child-creation and registry-box MBR, and the factory's
+  inner payment covers the child's opt-ins and LP token
+
+If any of these are unclear, revisit the relevant section before proceeding.
 
 Further reading:
 

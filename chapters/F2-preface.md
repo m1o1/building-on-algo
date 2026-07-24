@@ -4,7 +4,7 @@
 
 This book takes a senior software engineer from zero smart contract knowledge to deploying production-quality *DeFi* (decentralized finance, the ecosystem of financial applications built on blockchains instead of banks) applications on Algorand. It uses **[Algorand Python](https://dev.algorand.co/concepts/smart-contracts/languages/python/) (Puya)**, the newest and most idiomatic approach --- real Python code that compiles to TEAL bytecode via a multi-stage optimizing compiler.
 
-### Who This Book Is For
+## Who This Book Is For
 
 This book is written for experienced software engineers who know Python well but have never built a smart contract.
 
@@ -16,7 +16,7 @@ The projects assume you can read and write Python fluently --- the learning curv
 
 This book is *not* for you if you are looking for Solidity or EVM development (Algorand's execution model is fundamentally different), or if you want a theory-only treatment of blockchain concepts without building working software.
 
-### How This Book Is Organized
+## How This Book Is Organized
 
 The book is structured around ten progressively complex chapters, each built incrementally so that every concept is introduced at the moment you need it:
 
@@ -24,9 +24,9 @@ The book is structured around ten progressively complex chapters, each built inc
 
 - **Chapter 2 --- Testing Smart Contracts.** You build a simplified vesting contract, write comprehensive tests against it, and discover through failing tests exactly what the full implementation in Chapter 3 must solve. This chapter establishes the testing patterns used throughout the rest of the book.
 
-- **Chapter 3 --- Project 1: A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of Chapter 3 you can build and deploy a production-quality smart contract from scratch.
+- **Chapter 3 --- A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of Chapter 3 you can build and deploy a production-quality smart contract from scratch.
 
-- **Chapter 4 --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
+- **Chapter 4 --- NFTs --- Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
 
 - **Chapter 5 --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
 
@@ -40,9 +40,11 @@ The book is structured around ten progressively complex chapters, each built inc
 
 - **Chapter 10 --- Project 4: Private Governance Voting with Zero-Knowledge Proofs.** Pushing the AVM to its limits with a private governance voting system using zero-knowledge proofs, elliptic curve operations (BN254), and the MiMC hash. Also covers Algorand's Falcon-based post-quantum security roadmap.
 
+The chapters are also deliberately scaffolded. Chapters 2 through 7 are full worked projects: every listing is complete, and you can type along from start to finish. Chapter 8 shifts to a patterns reference that consolidates what the projects taught. Chapters 9 and 10 are guided outlines --- the core contracts are complete and compilable, but helper functions and integration layers are deliberately left for you to implement, because by that point you have built everything they require. The training wheels come off gradually, on purpose.
+
 Two appendices provide lasting reference value: the **Algorand Smart Contract Cookbook** contains 50+ standalone code examples organized by topic, and the **Consolidated Gotchas Cheat Sheet** catalogs the most common mistakes and how to avoid them.
 
-### Conventions Used in This Book
+## Conventions Used in This Book
 
 The following typographic conventions are used throughout:
 
@@ -52,7 +54,9 @@ The following typographic conventions are used throughout:
 
 Code examples are presented incrementally --- each section adds to the contract built in previous sections. When a code block shows a complete method or class, it includes enough context (imports, class declaration) to be unambiguous about where the code belongs.
 
-### Test Helpers and Client-Side Code
+Beyond the four standard admonition types (Note, Tip, Warning, and Caution), the book uses a set of recurring labeled callouts that serve a pedagogical rather than cautionary role. "Check your understanding" prompts ask you to predict or explain something before reading on; "Design decision" boxes explain why the code takes one path over another; "Try it yourself" and "Practice with the Cookbook" boxes point to hands-on follow-ups. Treat these as invitations to engage actively --- they are part of the teaching sequence, not supplementary warnings.
+
+## Test Helpers and Client-Side Code
 
 Chapter 2 introduces the foundational testing setup --- pytest fixtures, reusable helpers (`advance_time`, `create_test_asa`, `fund_account`), and the integration testing patterns used throughout the book. Each subsequent chapter includes test outlines specific to its contract. The helper functions referenced in tests are straightforward wrappers around the AlgoKit Utils and algosdk calls shown in each chapter's deployment and interaction scripts. The client-side scripts in this book use the **AlgoKit Utils v4 API** --- `AppFactory` for deployment, `app_client.send.call()` for method invocations, and `algorand.send.*` for standalone transactions. For production projects, you can also generate **typed clients** via `algokit generate client` (see Cookbook recipe 16.3) for compile-time type safety.
 
@@ -64,11 +68,11 @@ Both types appear throughout the book.
 
 Client-side code uses two styles: **AlgoKit Utils v4** (`AlgorandClient`, `AppFactory`, `app_client.send.call(...)`) for deployment and ABI interactions, and **raw algosdk** (`transaction.PaymentTxn(...)`, `calculate_group_id(...)`) for atomic groups requiring fine-grained control over transaction fields (such as LogicSig-authorized transactions). Both are shown because production Algorand development uses both.
 
-### Using Code Examples
+## Using Code Examples
 
 All contract code in this book is Algorand Python targeting AVM v12. Complete
 project listings and runnable scripts are intended to compile and run on
-LocalNet using the toolchain versions specified below. Shorter snippets have a
+LocalNet using the toolchain versions listed at the end of this section. Shorter snippets have a
 specific role in the teaching sequence:
 
 - **Complete listing** means the block is intended to be copied into the named

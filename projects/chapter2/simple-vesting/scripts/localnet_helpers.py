@@ -172,11 +172,24 @@ def setup_initialized_contract(
     return app_client, token_id, beneficiary
 
 
-def failure_message(
-    result: algokit_utils.SendAtomicTransactionComposerResults,
+def simulate_expecting_logic_error(
+    run_simulate: Callable[[], object],
 ) -> str:
-    txn_group = result.simulate_response["txn-groups"][0]  # type: ignore[index]
-    return str(txn_group["failure-message"])
+    """Run a composer ``.simulate()`` call that is expected to fail.
+
+    In algokit-utils 4.x a failing simulation raises ``LogicError`` rather
+    than returning a response with a failure message. The exception carries
+    the contract's assert message (mapped through the ARC-56 source info),
+    so tests can assert on the returned string.
+    """
+    try:
+        run_simulate()
+    except algokit_utils.LogicError as exc:
+        return str(exc)
+    raise AssertionError(
+        "Expected the simulated call to fail with LogicError, "
+        "but it succeeded"
+    )
 
 
 def localnet_client() -> tuple[algokit_utils.AlgorandClient, object]:

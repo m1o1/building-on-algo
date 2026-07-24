@@ -10,9 +10,9 @@ Your DAO needs to hold a vote, but the community demands ballot secrecy --- no o
 
 In this project we build the on-chain state machine for a privacy-preserving governance voting system and map the verifier architecture needed to prove that each ballot is valid without revealing its choice during the voting period. Along the way, we explore the AVM's native elliptic curve opcodes, zero-knowledge proof construction and on-chain verification, advanced box storage patterns, and Algorand's Falcon-based post-quantum security architecture.
 
-> **Note: Implementation Scope.** The PuyaPy voting contract in this chapter is the runnable core: deployment, proposal setup, commitment storage, phase transitions, reveal, and tallying. The Go/gnark/AlgoPlonk sections are an advanced integration path with placeholders you must complete in a real Go module. Until you add the production verifier-group binding described below, `record_verified_proof` is an admin-trusted teaching hook, not a trustless proof-verification method.
+> **Note: Implementation Scope.** The PuyaPy voting contract in this chapter is the runnable core: deployment, proposal setup, commitment storage, phase transitions, reveal, and tallying. The Go/gnark/AlgoPlonk sections are an advanced integration path with placeholders you must complete in a real Go module. Until you add the production verifier-group binding described in the following sections, `record_verified_proof` is an admin-trusted teaching hook, not a trustless proof-verification method.
 
-### Project Setup
+## Project Setup
 
 Scaffold a new project for this chapter. The template creates a `hello_world/` contract directory which we rename:
 
@@ -44,7 +44,7 @@ Table 10-1. Chapter implementation tracks
 
 > **Note:** This chapter covers advanced cryptography. You do not need to understand elliptic curve math to build the voting system --- AlgoPlonk handles the heavy lifting. We explain the concepts so you can reason about what the system *proves* and where its security guarantees come from. If the math feels dense, focus on the architecture (phases, atomic groups, state management) and treat the curve operations as black boxes.
 
-## LogicSig Recap: Why They Are the ZK Engine
+## Part 1: LogicSig Recap --- Why They Are the ZK Engine
 
 This project builds on the LogicSig foundation from Chapter 9. If you skipped that chapter, read at least Part 1 (Logic Signatures) before continuing. Here we recap only the aspects relevant to ZK verification.
 
@@ -64,7 +64,7 @@ The AVM provides native support for two pairing-friendly elliptic curve families
 
 **BN254** (also called alt_bn128 or bn256): The curve used by Ethereum's precompiles, Zcash's original ceremony, and most existing Groth16 deployments. Points in G1 are 64 bytes, G2 are 128 bytes. Verification is cheaper on BN254 than BLS12-381.
 
-**BLS12-381**: The curve used by Ethereum 2.0, Zcash Sapling, Algorand's state proofs, and most modern ZK systems. Provides higher security margins than BN254 (~128-bit vs ~100-bit post-Cheon attacks). Points in G1 are 96 bytes, G2 are 192 bytes.
+**BLS12-381**: The curve used by Ethereum 2.0, Zcash Sapling, and most modern ZK systems. Provides higher security margins than BN254 (~128-bit, versus BN254's roughly 100 bits after the 2016 Kim--Barbulescu exTNFS attack on pairing-friendly curves). Points in G1 are 96 bytes, G2 are 192 bytes.
 
 The available opcodes:
 
@@ -76,7 +76,9 @@ The available opcodes:
 | `ec_pairing_check` | 8,000 + 7,400 per 64B of B | Pairing verification: e(A,B) = 1? |
 | `ec_subgroup_check` | 20 | Verify point is in prime-order subgroup |
 | `ec_map_to` | 630 | Hash-to-curve mapping |
-| `mimc` | 10 + 550 per 32B of input | MiMC hash (ZK-friendly, known collisions outside ZK) |
+| `mimc` | 10 + 550 per 32B of input | MiMC hash (AVM v11+; ZK-friendly, known collisions outside ZK) |
+
+The `ec_*` opcodes shipped in AVM v10; `mimc` arrived a version later, in AVM v11 (go-algorand 4.0, January 2025).
 
 The `ec_pairing_check` opcode is the workhorse for SNARK verification. A Groth16 verification requires checking:
 
@@ -111,7 +113,7 @@ For our voting system, the statement is: "I cast a vote that is one of the valid
 
 ### The ZK Proof Landscape Relevant to Algorand
 
-**Groth16** --- The most compact proof system (3 group elements, ~192 bytes for BN254). Verification is fast: one pairing check. Requires a **trusted setup per circuit** (toxic waste that must be destroyed). Used by Zcash, Tornado Cash, and most deployed ZK applications. On Algorand, Groth16 verification via pairing checks costs substantially fewer opcodes than PLONK (~30,000-50,000), but requires the per-circuit trusted setup ceremony. PLONK verification costs ~145,000 opcodes on the AVM with BN254 but avoids per-circuit trusted setup.
+**Groth16** --- The most compact proof system (3 group elements; 128 bytes compressed, 256 bytes uncompressed, for BN254). Verification is fast: one pairing check. Requires a **trusted setup per circuit** (toxic waste that must be destroyed). Used by Zcash, Tornado Cash, and most deployed ZK applications. On Algorand, Groth16 verification via pairing checks costs substantially fewer opcodes than PLONK (~30,000-50,000), but requires the per-circuit trusted setup ceremony. PLONK verification costs ~145,000 opcodes on the AVM with BN254 but avoids per-circuit trusted setup.
 
 **PLONK** --- A universal SNARK (one trusted setup works for all circuits up to a size bound). Proofs are slightly larger than Groth16 but the universal setup is a major practical advantage. The **AlgoPlonk** library implements PLONK verification on Algorand using LogicSig verifiers.
 
@@ -210,7 +212,7 @@ func (c *VoteCircuit) Define(api frontend.API) error {
 
 This circuit has ~100-200 constraints (PLONK uses a Sparse Constraint System, or SCS, rather than R1CS) --- very small. The MiMC hash dominates the constraint count. Proof generation is near-instant on any modern CPU.
 
-> **Go project setup.** The Go code in this project is separate from the Python smart contract code. AlgoPlonk v0.1.10 uses Go 1.25 and gnark v0.14. Create a dedicated directory for the ZK components:
+> **Go project setup.** The Go code in this project is separate from the Python smart contract code. AlgoPlonk v0.1.10 --- the version tested for this chapter; newer releases (v0.3.x at review time) exist --- uses Go 1.25 and gnark v0.14. Create a dedicated directory for the ZK components:
 >
 > ```bash
 > mkdir -p zk-voting/{circuit,cmd}
@@ -221,7 +223,7 @@ This circuit has ~100-200 constraints (PLONK uses a Sparse Constraint System, or
 > go get github.com/giuliop/algoplonk@v0.1.10
 > ```
 >
-> Save the circuit code above as `circuit/vote_circuit.go`. The verifier generator code (shown later in this chapter) goes in `cmd/main.go`. The resulting `go.mod` will look approximately like this (exact versions may differ):
+> Save the preceding circuit code as `circuit/vote_circuit.go`. The verifier generator code (shown later in this chapter) goes in `cmd/main.go`. The resulting `go.mod` will look approximately like this (exact versions may differ):
 >
 > ```
 > module zk-voting
@@ -246,8 +248,8 @@ The contract uses four phases tracked in global state, with three `BoxMap` insta
 
 ```python
 from algopy import (
-    ARC4Contract, BoxMap, Bytes, Global,
-    GlobalState, Txn, UInt64, arc4, op, gtxn, urange,
+    ARC4Contract, BoxMap, Bytes, Global, GlobalState, OpUpFeeSource,
+    Txn, UInt64, arc4, ensure_budget, op, gtxn, urange,
 )
 from algopy.op import MiMCConfigurations
 
@@ -278,7 +280,7 @@ class GovernanceVoting(ARC4Contract):
 
 The `reject_lifecycle` bare method explicitly rejects `UpdateApplication` and `DeleteApplication` on-completion actions. Without this, the default ARC4Contract routing would reject them anyway (no handler registered), but an explicit rejection with a clear error message is a security best practice --- it makes the contract's immutability self-documenting and auditable.
 
-The `initialize` method sets up the proposal parameters and creates tally boxes for each choice. Note the fixed-maximum loop pattern --- the AVM requires compile-time constant loop bounds, so we iterate up to 16 and break early:
+The `initialize` method sets up the proposal parameters and creates tally boxes for each choice. The loop iterates up to a fixed maximum of 16 and breaks early. The cap is a design choice, not an AVM requirement (dynamic loop bounds are fine on the AVM): every tally box the method creates needs its own box reference and MBR funding from the caller, so a small fixed maximum keeps the box-reference count, the MBR bill, and the opcode budget of `initialize` predictable:
 
 ```python
     @arc4.abimethod
@@ -330,7 +332,7 @@ The `commit_vote` method accepts a voter's 32-byte MiMC commitment hash during t
         self.total_votes.value += UInt64(1)
 ```
 
-The `record_verified_proof` method records that a voter's ZK proof was validated. In the runnable teaching contract below, this is deliberately admin-trusted so you can compile and test the Python state machine without completing the Go verifier integration. The production binding requirements immediately after the snippet describe what must replace this trust boundary before deployment:
+The `record_verified_proof` method records that a voter's ZK proof was validated. In the following runnable teaching contract, this is deliberately admin-trusted so you can compile and test the Python state machine without completing the Go verifier integration. The production binding requirements immediately after the snippet describe what must replace this trust boundary before deployment:
 
 ```python
     @arc4.abimethod
@@ -357,7 +359,7 @@ The `record_verified_proof` method records that a voter's ZK proof was validated
         self.verified_proofs.value += UInt64(1)
 ```
 
-> **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation must verify that the expected LogicSig verifier participates in the current atomic group and that the proof's public inputs match the stored commitment and election configuration. See the production binding checklist below before treating this as a trustless voting system.
+> **Warning: Trust assumption.** In this simplified version, `record_verified_proof` trusts the admin to only call it after verifying the ZK proof off-chain. The admin could mark any voter's proof as verified without actual verification, defeating the purpose of ZK proofs. A production implementation must verify that the expected LogicSig verifier participates in the current atomic group and that the proof's public inputs match the stored commitment and election configuration. See the production binding checklist later in this part before treating this as a trustless voting system.
 
 Table 10-2 groups the production proof-binding checks into two categories.
 
@@ -373,7 +375,7 @@ Table 10-2. Production proof-binding checks
 
 The generated AlgoPlonk verifier proves a statement about the public inputs it receives. Your application still has to bind those public inputs to on-chain state. One common pattern is to expose the public inputs in transaction fields the app can inspect (for example, app-call arguments or verifier anchor transaction notes), and use a verifier wrapper that also checks those same fields. The smart contract then checks the mirrored values against `self.commitments[voter]` and `self.num_choices.value` before writing `proof_status`.
 
-> **Warning:** The `record_verified_proof` method creates a proof status box (`p_` prefix + 32-byte address = 34-byte key, 8-byte UInt64 value). This costs `2,500 + 400 * (34 + 8) = 19,300 microAlgos` in MBR. The app account must have sufficient Algo to cover this MBR for each voter. Unlike `commit_vote`, which requires a caller-provided MBR payment, the code above does not --- either fund the app account with enough Algo before the prove phase begins, or add an `mbr_payment` parameter to `record_verified_proof` as we did for `commit_vote`.
+> **Warning:** The `record_verified_proof` method creates a proof status box (`p_` prefix + 32-byte address = 34-byte key, 8-byte UInt64 value). This costs `2,500 + 400 * (34 + 8) = 19,300 microAlgos` in MBR. The app account must have sufficient Algo to cover this MBR for each voter. Unlike `commit_vote`, which requires a caller-provided MBR payment, the preceding code does not --- either fund the app account with enough Algo before the prove phase begins, or add an `mbr_payment` parameter to `record_verified_proof` as we did for `commit_vote`.
 
 The `reveal_vote` method completes the commit-reveal cycle. The voter provides their original choice and 32-byte randomness, and the contract recomputes the MiMC hash to verify it matches the stored commitment. If valid, the tally is incremented:
 
@@ -381,6 +383,10 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
     @arc4.abimethod
     def reveal_vote(self, choice: UInt64, randomness: Bytes) -> None:
         """Reveal a vote by providing the preimage of the commitment."""
+        # The 64-byte MiMC hash alone costs 1,110 budget units --- more
+        # than a single app call's 700. Raise the budget first.
+        ensure_budget(UInt64(1200), OpUpFeeSource.GroupCredit)
+
         assert self.phase.value == UInt64(PHASE_REVEAL)
         assert randomness.length == UInt64(32), "Randomness must be 32 bytes"
 
@@ -418,9 +424,17 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
         return self.tallies[arc4.UInt64(choice)]
 ```
 
+> **Warning: `reveal_vote` cannot fit in a single app call's opcode budget.** The `mimc` opcode costs 10 + 550 per 32-byte block, so hashing the 64-byte `choice || randomness` input costs 1,110 budget units --- well beyond the 700-unit budget of one application call. The `ensure_budget(UInt64(1200), OpUpFeeSource.GroupCredit)` call at the top of the method solves this on-chain: the contract issues no-op inner app calls that each add 700 units to the pooled budget, with their fees paid from the group's pooled fee credit (so the caller simply overpays the outer transaction fee). Without it, every reveal fails with a "dynamic cost budget exceeded" error. This is the same opcode budget management pattern as Chapter 8's Pattern 9.
+
+Even with the budget handled, the state machine as written leaves one lifecycle question open.
+
 > **Design gap --- exercise opportunity.** The contract accumulates tallies during the reveal phase but has no `advance_to_tally_phase` method to formally close voting and finalize results. In the current design, the reveal phase remains open indefinitely. As an exercise, add a `PHASE_CLOSED` state (see Exercise 2 below) with an `advance_to_closed_phase` method that transitions from `PHASE_REVEAL` after a configurable duration, prevents further reveals, and emits the final tally via an ARC-28 event.
 
+A related consequence of the phase design concerns voters who drop out midway.
+
 > **Note: Voters who do not prove forfeit their vote.** A voter who submits a commitment during the commit phase but fails to provide a ZK proof during the prove phase cannot reveal their vote --- the `reveal_vote` method requires `proof_status == 1`. Their vote is effectively lost. Additionally, the box storage MBR for their commitment box (`c_` prefix) remains locked in the app account, since no cleanup method exists to delete orphaned commitment boxes. A production system should include an admin-callable cleanup method that can reclaim MBR from unproven commitments after the voting period ends.
+
+MBR planning starts even earlier than the commit phase --- at deployment.
 
 > **Warning: Fund the app account before calling `initialize`.** The `initialize` method creates tally boxes (one per choice). Each tally box costs `2,500 + 400 * (10 + 8) = 9,700 microAlgos` in MBR. For 3 choices, the app account needs at least `3 * 9,700 = 29,100 microAlgos` plus its base MBR of `100,000 microAlgos` before `initialize` is called. Send a payment to the app's address before the `initialize` call, or you will see a "balance below minimum" error.
 
@@ -507,7 +521,7 @@ func main() {
 }
 ```
 
-> **Building and running the Go code.** The `cmd/main.go` code above is illustrative --- it shows the AlgoPlonk workflow but uses placeholder variables (`computedCommitment`, `myRandomness`, `publicWitness`). To compile and run a working version, you would fill in concrete values and import the circuit package. From the `zk-voting` directory:
+> **Building and running the Go code.** The preceding `cmd/main.go` code is illustrative --- it shows the AlgoPlonk workflow but uses placeholder variables (`computedCommitment`, `myRandomness`, `publicWitness`). To compile and run a working version, you would fill in concrete values and import the circuit package. From the `zk-voting` directory:
 >
 > ```bash
 > # Verify everything compiles (after filling in placeholder values)
@@ -574,7 +588,7 @@ Do not rely on `verifier_txn.sender == verifier_address` alone. If the verifier 
 
 ### Box Storage Iteration: the On-Chain Enumeration Problem
 
-Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python storage](https://algorandfoundation.github.io/puya/lg-storage.html) for `Box`, `BoxMap`, and raw byte access patterns, and [Algorand Python data structures](https://algorandfoundation.github.io/puya/lg-data-structures.html) for BoxRef and BoxMap patterns.)
+Boxes are key-value stores with no built-in enumeration. You can read a box if you know its key, but you cannot iterate over all boxes. This is a fundamental constraint for tallying. (See [Algorand Python storage](https://algorandfoundation.github.io/puya/lg-storage.html) for `Box`, `BoxMap`, and raw byte access patterns, and [Algorand Python data structures](https://algorandfoundation.github.io/puya/lg-data-structures.html) for raw `Box` and `BoxMap` patterns.)
 
 **Solution 1: Maintain an explicit index.** Store voter addresses in a separate "index" box as a concatenated byte array. Each address is 32 bytes. A 32KB box can hold 1,024 voter addresses, but touching the whole box requires 32KB of box I/O budget. A single app call provides only 8 box references, so a max-size index needs extra references from other transactions in the group. For a single-call-friendly design, shard the index into smaller boxes (for example, 8KB shards holding 256 voters). This is an illustrative extension that could be added to the voting contract:
 
@@ -623,6 +637,8 @@ Older examples may use `BoxRef`; this book uses `Box(Bytes, key=...)` for the sa
 
 ### Box Size Planning for the Voting Contract
 
+The voting contract uses four kinds of boxes, each with a fixed key and data layout that determines its MBR:
+
 | Box | Key format | Key size | Data | Data size | MBR per box |
 |-----|-----------|----------|------|-----------|-------------|
 | Commitment | `c_` + address | 34 bytes | MiMC hash | 32 bytes | 2,500 + 400 × 66 = 28,900 μAlgo |
@@ -647,7 +663,7 @@ The timeline is uncertain --- estimates range from 10 to 30+ years for a cryptog
 
 ### What Is Falcon?
 
-Falcon (Fast Fourier Lattice-based Compact Signatures over NTRU) is one of the NIST-selected post-quantum digital signature algorithms, published as a standard in 2024. It was developed by Pierre-Alain Fouque, Jeffrey Hoffstein, Paul Kirchner, Vadim Lyubashevsky, Thomas Pornin, Thomas Prest, Thomas Ricosset, Gregor Seiler, William Whyte, and Zhenfei Zhang.
+Falcon (Fast Fourier Lattice-based Compact Signatures over NTRU) is one of the post-quantum digital signature algorithms NIST selected for standardization in 2022; its formal standard (FN-DSA, FIPS 206) was still forthcoming as of this writing. It was developed by Pierre-Alain Fouque, Jeffrey Hoffstein, Paul Kirchner, Vadim Lyubashevsky, Thomas Pornin, Thomas Prest, Thomas Ricosset, Gregor Seiler, William Whyte, and Zhenfei Zhang.
 
 Falcon's security is based on the hardness of the **Short Integer Solution (SIS)** problem over NTRU lattices. Unlike the discrete logarithm and factoring problems that Shor's algorithm breaks, lattice problems have no known efficient quantum algorithms. The best known quantum attacks against lattices provide only modest speedups over classical attacks --- nothing like the exponential speedup Shor gives for ECC.
 
@@ -690,7 +706,7 @@ Algorand has demonstrated Falcon-signed transactions on MainNet using LogicSigs 
 3. The LogicSig's contract account address becomes the user's "quantum-safe" address
 4. Transactions from this address are authorized by the LogicSig, which verifies the Falcon signature passed as an argument
 
-The AVM opcode `falcon_verify` (shipped in AVM v12, September 2024) makes Falcon verification native at a cost of 1,700 opcodes. The first Falcon-signed transaction on Algorand MainNet was executed on November 3, 2025, using a LogicSig-based Falcon account.
+The AVM opcode `falcon_verify` (shipped in AVM v12, September 2025) makes Falcon verification native at a cost of 1,700 opcodes. The first Falcon-signed transaction on Algorand MainNet was executed on November 3, 2025, using a LogicSig-based Falcon account.
 
 The full post-quantum transition roadmap involves:
 
@@ -719,10 +735,12 @@ Use the admin-trusted hook as a test-only seam before reveal. This exercises the
 
 ### Test Scenario: Python-Only State Machine
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+This scenario exercises the full commit-prove-reveal-tally lifecycle without touching the Go toolchain.
+
+> **Note:** The following tests are structural outlines showing *what* to test and *how* to assert. The helper functions (`deploy_voting_contract`, `generate_random_scalar`, `mimc_hash`, `fund_mbr`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated in the preceding sections. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 
 The following outline belongs in `tests/test_governance_voting.py` after you
-implement the helper functions above (not part of the contract code).
+implement the preceding helper functions (not part of the contract code).
 
 The Python-only state-machine test covers commit, admin proof marking, reveal, and tally reads with three voters. It verifies commitments, proof-status gating, reveals, and tallies, but it does not verify ZK proofs:
 
@@ -945,7 +963,7 @@ In this chapter you learned to:
 | Component | Status | Concepts Introduced |
 |-----------|--------|---------------------|
 | ZK circuit (gnark) | Illustrative until completed in Go | Groth16/PLONK proof systems, SCS, witness generation |
-| MiMC commitments | Runnable in the PuyaPy contract | ZK-friendly hashing, commitment schemes, nullifiers |
+| MiMC commitments | Runnable in the PuyaPy contract | ZK-friendly hashing, commitment schemes |
 | Voting smart contract | Runnable PuyaPy state machine | Multi-phase state machine, box-based vote tracking, tally accumulation |
 | LogicSig ZK verifier | Illustrative AlgoPlonk integration | BN254 curve operations, pairing checks, opcode budget pooling |
 | Atomic verification group | Production sketch | Coordinating LogicSig verification with smart contract state updates |
@@ -976,7 +994,7 @@ Costs from the [AVM opcodes reference](https://dev.algorand.co/reference/algoran
 | ec_multi_scalar_mul | BN254 G1 | 3,600 + 90 per 32B of B |
 | ec_multi_scalar_mul | BLS12-381 G1 | 6,500 + 95 per 32B of B |
 | ec_pairing_check | BN254 | 8,000 + 7,400 per 64B of B |
-| ec_pairing_check | BLS12-381 | 13,000 + 10,000 per 128B of B |
+| ec_pairing_check | BLS12-381 | 13,000 + 10,000 per 96B of B |
 | ec_subgroup_check | BN254 G1 | 20 |
 | ec_subgroup_check | BLS12-381 G2 | 2,340 |
 | mimc | BN254 | 10 + 550 per 32B of input |

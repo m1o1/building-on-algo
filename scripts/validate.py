@@ -156,12 +156,11 @@ def localnet_smoke() -> None:
         check=False,
     )
     status_output = f"{status.stdout}\n{status.stderr}"
-    if status.returncode != 0 and (
-        "Container engine not found" in status_output
-        or "Docker" in status_output
-        or "Podman" in status_output
-    ):
-        print("Skipping LocalNet smoke: Docker or Podman is not available")
+    if status.returncode != 0:
+        # Any failed status check means LocalNet is unavailable (no container
+        # engine, engine not running, or LocalNet not started) -- skip, don't crash.
+        print("Skipping LocalNet smoke: LocalNet is not available")
+        print(status_output.strip())
         return
     if status.stdout:
         print(status.stdout, end="")

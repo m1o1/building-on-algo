@@ -31,6 +31,9 @@ All examples use **Algorand Python (Puya)** and target **AVM v12**. Each can be 
 14. [Cryptographic operations](#14-cryptographic-operations)
 15. [Opcode budget and resource management](#15-opcode-budget-and-resource-management)
 16. [Compilation and deployment](#16-compilation-and-deployment)
+17. [Additional patterns](#17-additional-patterns)
+
+The appendix closes with a [Quick Reference of AVM limits](#quick-reference-avm-limits).
 
 
 ## 1. Contract Basics {#1-contract-basics}
@@ -98,7 +101,7 @@ class ImmutableContract(ARC4Contract):
         pass
 ```
 
-AlgoKit templates are immutable by default. Always do this for production contracts.
+AlgoKit templates ship with deploy-time `UPDATABLE`/`DELETABLE` template variables that control these actions, and an `ARC4Contract` with no update/delete handlers already rejects them --- this recipe makes the rejection explicit, with a clear error message. Do this for production contracts.
 
 
 ## 2. ABI Methods and Routing {#2-abi-methods-and-routing}
@@ -436,7 +439,10 @@ class RawBoxAccess(ARC4Contract):
 
     @arc4.abimethod
     def create_data_box(self) -> None:
-        self.data.create(size=UInt64(256))  # 256 bytes, zero-filled
+        # create() returns True if the box was newly created; capture it
+        # (or assert it) to avoid the unused-result compiler warning
+        created = self.data.create(size=UInt64(256))  # 256 bytes, zero-filled
+        assert created, "Box already existed"
 
     @arc4.abimethod
     def write_at_offset(self, offset: UInt64, data: Bytes) -> None:
@@ -480,6 +486,7 @@ app_call = transaction.ApplicationCallTxn(
     sender=user,
     sp=sp,
     index=app_id,
+    on_complete=transaction.OnComplete.NoOpOC,
     app_args=["read_data"],
     boxes=[
         (app_id, b"data"),  # 2KB budget
@@ -488,7 +495,7 @@ app_call = transaction.ApplicationCallTxn(
 )
 ```
 
-Forgetting box references causes "box read/write budget exceeded" errors.
+Forgetting box references causes "box read/write budget exceeded" errors. Note that for an ARC-4 contract, the first app argument must be the 4-byte method selector (not a plain method-name string) --- or use the typed `AppClient`, as the book's projects do, and let it encode the call for you.
 
 
 ## 7. Assets (ASAs) {#7-assets-asas}
@@ -603,19 +610,19 @@ class PaymentSender(ARC4Contract):
 ### 8.2 --- Calling another smart contract
 
 ```python
-from algopy import ARC4Contract, Application, Bytes, UInt64, arc4, itxn
+from algopy import ARC4Contract, Application, UInt64, arc4, itxn
 
 class CrossContractCaller(ARC4Contract):
     @arc4.abimethod
     def call_other_app(self, app: Application) -> None:
         itxn.ApplicationCall(
             app_id=app,
-            app_args=[Bytes(b"some_method")],
+            app_args=(arc4.arc4_signature("some_method()void"),),
             fee=UInt64(0),
         ).submit()
 ```
 
-Each inner app call adds +700 to the pooled opcode budget.
+The first app argument of an ARC-4 call is the 4-byte method selector; `arc4.arc4_signature(...)` computes it at compile time from the method signature. For typed calls with encoded arguments and decoded return values, `itxn.abi_call` (PuyaPy 5.7+) is the idiomatic form. Each inner app call adds +700 to the pooled opcode budget.
 
 ### 8.3 --- Creating an app from another app (factory pattern)
 
@@ -752,7 +759,10 @@ This program's hash is its address. Fund it, and anyone can trigger payments fro
 ### 10.2 --- LogicSig with template variables
 
 ```python
-from algopy import Account, Bytes, Txn, UInt64, Global, TemplateVar, logicsig, TransactionType
+from algopy import (
+    Account, Bytes, Txn, UInt64, Global, TemplateVar, logicsig,
+    TransactionType,
+)
 
 @logicsig
 def parameterized_escrow() -> bool:
@@ -773,6 +783,8 @@ def parameterized_escrow() -> bool:
 ```
 
 Compile: `puyapy contract.py --template-var RECEIVER=0xABCD... --template-var MAX_AMOUNT=5000000 --template-var EXPIRY=40000000`
+
+Recipes 10.1 and 10.2 are minimal teaching examples: production LogicSigs also need an expiry check and a `Global.genesis_hash` network check (see Chapter 9's security checklist and the Gotchas cheat sheet).
 
 ### 10.3 --- LogicSig reading group transaction fields
 
@@ -1130,7 +1142,7 @@ class BudgetExample(ARC4Contract):
 from algopy import ARC4Contract, arc4
 
 class BudgetPadded(ARC4Contract):
-    @arc4.baremethod(allow_actions=["NoOp"])
+    @arc4.baremethod(allow_actions=["NoOp"], create="allow")
     def noop(self) -> None:
         """Each call to this adds +700 to the pooled opcode budget."""
         pass
@@ -1140,6 +1152,8 @@ class BudgetPadded(ARC4Contract):
         # Client adds 3 NoOp calls before this → 4 × 700 = 2,800 budget
         pass
 ```
+
+Defining a bare NoOp method suppresses the create path the compiler would otherwise auto-insert, so `create="allow"` is required for the contract to remain deployable. Give each padding call in the group a distinct `note` field so the transactions have different TxIDs --- identical transactions in one group are rejected.
 
 ### 15.3 --- Reading the contract's own address and balance
 
@@ -1172,15 +1186,17 @@ from algopy import ARC4Contract, Global, Txn, UInt64, arc4
 class TxnFields(ARC4Contract):
     @arc4.abimethod
     def tx_info(self) -> UInt64:
-        _ = Txn.sender            # Who sent this transaction
-        _ = Txn.fee               # Fee paid
-        _ = Txn.first_valid       # First valid round
-        _ = Txn.last_valid        # Last valid round
-        _ = Txn.group_index       # Position in group (0-indexed)
-        _ = Global.group_size     # Total transactions in group
-        _ = Global.round          # Current round number
-        _ = Global.latest_timestamp  # Block timestamp (±25 seconds)
-        return Global.round
+        sender = Txn.sender              # Who sent this transaction
+        fee = Txn.fee                    # Fee paid
+        first_valid = Txn.first_valid    # First valid round
+        last_valid = Txn.last_valid      # Last valid round
+        group_index = Txn.group_index    # Position in group (0-indexed)
+        group_size = Global.group_size   # Total transactions in group
+        timestamp = Global.latest_timestamp  # Block time (±25 seconds)
+        assert sender != Global.zero_address
+        assert fee < UInt64(1_000_000) and first_valid <= last_valid
+        assert group_index < group_size and timestamp > UInt64(0)
+        return Global.round              # Current round number
 ```
 
 
@@ -1197,7 +1213,8 @@ algokit compile py contract.py
 # Or directly via PuyaPy
 puyapy contract.py
 
-# Output: contract.approval.teal, contract.clear.teal, contract.arc56.json
+# Output is named after the contract CLASS, not the source file:
+# MyContract.approval.teal, MyContract.clear.teal, MyContract.arc56.json
 
 # Compile with template variables
 algokit compile py contract.py --template-var MY_VAR=42
@@ -1279,8 +1296,14 @@ transaction's resource set stays visible during review.
 from algosdk import transaction
 
 # Create individual transactions
-pay_txn = transaction.PaymentTxn(sender=alice, sp=sp, receiver=pool, amt=100_000)
-app_txn = transaction.ApplicationCallTxn(sender=alice, sp=sp, index=app_id, app_args=[b"swap"])
+pay_txn = transaction.PaymentTxn(
+    sender=alice, sp=sp, receiver=pool, amt=100_000
+)
+app_txn = transaction.ApplicationCallTxn(
+    sender=alice, sp=sp, index=app_id,
+    on_complete=transaction.OnComplete.NoOpOC,
+    app_args=[b"swap"],
+)
 
 # Assign group ID (makes them atomic)
 gid = transaction.calculate_group_id([pay_txn, app_txn])
@@ -1300,24 +1323,26 @@ algorand.client.algod.send_transactions([signed_pay, signed_app])
 
 ### 17.1 --- ASA close-out (recover MBR)
 
-When you no longer need to hold an ASA, close out to recover the 100,000 μAlgo MBR. The `asset_close_to` field sends the entire balance to a recipient and removes the ASA from the account.
+When you no longer need to hold an ASA, close out to recover the 100,000 μAlgo MBR. The `asset_close_to` field sends the entire remaining balance to a recipient and removes the ASA holding from the account. The ledger requires the holding to be zero *after* the close, so closing to yourself is valid only when the balance is already zero --- a nonzero balance closed to self is rejected. To exit while still holding tokens, close to the asset creator (always opted in) or to another opted-in account:
 
 ```python
-# Client-side: close out of an ASA to recover MBR
+# Client-side: close out of an ASA to recover MBR.
+# Zero balance: close to self. Nonzero balance: close to an
+# opted-in account, e.g. the asset creator.
 algorand.send.asset_transfer(
     algokit_utils.AssetTransferParams(
         sender=user.address,
-        receiver=user.address,     # Send remaining balance to self
+        receiver=user.address,        # Ordinary transfer portion (none)
         asset_id=token_id,
-        amount=0,                   # Amount is ignored when closing
-        close_asset_to=user.address, # This triggers the close-out
+        amount=0,                     # Remaining balance goes via close
+        close_asset_to=creator.address,  # This triggers the close-out
     )
 )
 # After this, the account no longer holds the ASA
 # and recovers 100,000 μAlgo of MBR.
 ```
 
-> **Warning:** The `close_asset_to` field sends the *entire* balance of that ASA, not just the `amount` field. Double-check the recipient address. If you send it to the wrong address, all tokens are lost.
+> **Warning:** The `close_asset_to` field sends the *entire* remaining balance of that ASA, regardless of the `amount` field. Tokens are not destroyed: they go to the close-to address if it is opted in, and the transaction fails if it is not. Still, double-check the recipient --- a balance closed to the wrong opted-in address is gone from your control.
 
 ### 17.2 --- Account rekeying
 

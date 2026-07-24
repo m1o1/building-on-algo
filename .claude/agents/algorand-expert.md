@@ -353,7 +353,7 @@ These vulnerability classes are Algorand-specific expert knowledge NOT fully cov
 6. Missing sender/receiver verification -- sends going to wrong address
 7. Missing group size validation -- attacker appends extra transactions
 8. Integer overflow in `uint64` math -- use `mulw`/`divmodw` or `BigUInt`
-9. Box budget exceeded -- each box reference grants only 1KB I/O
+9. Box budget exceeded -- each box reference grants 2KB of I/O (2,048 bytes since consensus v41; was 1,024 before)
 10. First-depositor attack in AMMs -- mitigated by minimum liquidity lock
 
 **Medium:**
@@ -478,7 +478,61 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 ### Self-Update Protocol
 
-After discovering a new API fact via compile-testing that is NOT already documented in the linked reference sources, add it to the Non-Documentable Expert Knowledge section with the verification date and PuyaPy version.
+After discovering a new API fact via compile-testing that is NOT already documented in the linked reference sources, add it to the Verified API Ground Truth section (for API facts) or the Non-Documentable Expert Knowledge section (for operational/historical facts), with the verification date and PuyaPy version.
+
+---
+
+## Verified API Ground Truth
+
+Facts verified against the toolchain and official changelogs. Each entry lists the wrong (stale) form and the correct form. When reviewing book content, do NOT flag the correct forms below as errors, and do NOT recommend the stale forms.
+
+**Toolchain context (verified 2026-07-23):** The book pins puyapy 5.8.1 / algorand-python 3.5.0 (PyPI latest: 5.9.0 / 3.5.1), algorand-python-testing 1.1.0, algokit-utils 4.2.3, algokit CLI 2.10.2. All book contracts compile clean with `--target-avm-version 12`. Current MainNet: consensus v41, AVM v12, go-algorand 4.7.x.
+
+### PuyaPy 4.x → 5.x changes (verified against puya CHANGELOG, 2026-07-23)
+
+| Stale form (do not use/recommend) | Correct form (puyapy 5.x) | Since |
+|---|---|---|
+| `Asset.asset_id`, `Application.application_id` | `Asset.id`, `Application.id` | 4.0 (2024-11) |
+| `BoxRef`, `Box.ref` | `Box[Bytes]` with `.extract()`, `.replace()`, `.resize()`, `.splice()` | 5.0 (2025-10) deprecates BoxRef |
+| `.native` on `arc4.UIntN`/`arc4.BigUIntN` | `.as_uint64()` / `.as_biguint()` | 5.0 |
+| `algopy.Array` with reference semantics | `algopy.Array` now has VALUE semantics (needs `.copy()` when aliasing); use `algopy.ReferenceArray` for reference semantics | 5.0 |
+| ARC-32 (`application.json`) as default app spec | ARC-56 (`*.arc56.json`) is the default; ARC-32 requires `--output-arc32` | 5.0 |
+| Resource params (Asset/Account/Application) encoded as foreign-array index (reference) by default | Encoded as ARC-4 VALUE types (`uint64`/`address`) by default; `resource_encoding="index"` restores old behavior. This changes ABI signatures/selectors | 5.0 |
+| `@subroutine` required on private contract methods | Optional inside contracts (still required for module-level functions) | 5.5 (2025-11) |
+| — | `@algopy.public` is an alias of `@arc4.abimethod` | 5.5 |
+| — | `algopy.Struct` (native), `FixedArray`, `FixedBytes`, `zero_bytes()`, boxes >4KB | 5.0-5.8 |
+| — | `itxn.abi_call` (5.7), `.stage()` + `itxn.submit_staged()` for dynamic itxn groups (5.6), `GlobalMap`/`LocalMap` (5.8), `arc4.encode()`/`arc4.decode()` (5.8) | 5.6-5.8 |
+| Default target AVM 10 | Default target AVM 11 (AVM 12/13 ops available with `--target-avm-version`) | 5.0 |
+
+### Protocol facts (verified against config/consensus.go and release notes, 2026-07-23)
+
+- Consensus v41 / AVM v12 is current on MainNet. AVM v11 (mimc, online_stake, block incentive fields) shipped in go-algorand 4.0 (Jan 2025); AVM v12 (`falcon_verify`, `RejectVersion` app versioning) shipped in go-algorand 4.3.0 (Sep 2025).
+- v41 resource access: `MaxAppTxnAccounts` raised 4 → 8; new unified `txn.Access` list with up to 16 entries (accounts/assets/apps/boxes/holdings/locals); `BytesPerBoxReference` raised 1,024 → 2,048 bytes. The classic foreign arrays still work; do not flag either model as wrong, but know both exist.
+- Average block time ~2.8s (dynamic filter timeouts, consensus v39, 2024). Staking rewards live since Jan 2025 (block bonus ~10 ALGO decaying 1%/1M rounds, 50% of fees to proposer, 30K-70M ALGO eligibility window, 2 ALGO go-online fee, heartbeat txn type `hb`).
+- `/v2/teal/dryrun` is deprecated and already deleted from go-algorand master (gone in 4.8+); simulate (`/v2/transactions/simulate`, with `extra-opcode-budget` up to 320,000, `allow-more-logging`, `allow-unnamed-resources`, exec traces) is the only path to teach.
+- algokit-utils-py current major is 4.x (`AlgorandClient`, `AppFactory`/`AppClient`, typed clients, automatic resource population since 4.0). The pre-3.0 stateless API (`get_algod_client`, `ApplicationClient`, `transfer_algos`) is dead. A 5.0 beta (algosdk-decoupled, built on algokit-core) exists — do not teach against it yet.
+- Algorand TypeScript (puya-ts) is GA at 1.2.x and shares the Puya backend with PuyaPy; TEALScript is legacy/superseded.
+
+### algokit-utils-py 4.x behavior (verified empirically against 4.2.3, 2026-07-24)
+
+- **Automatic resource population is ON by default** (`populate_app_call_resources` defaults to `True` via AlgoKitConfig; opt-out, not opt-in). Do not describe it as an opt-in convenience.
+- **`factory.deploy()` is idempotent**: it looks up an existing app by creator+name and returns it when code is unchanged. Correct for deployment scripts; WRONG for test isolation. Fresh-per-test apps need `factory.send.bare.create()` (untyped) or `factory.send.create.bare(...)` (typed client).
+- **`.simulate()` raises on failure** in the 4.x composer: a simulated group with a failure-message surfaces as `algokit_utils.LogicError` (assert message mapped through ARC-56 source info) — `result.simulate_response[...]["failure-message"]` is never reachable. Test failure paths with `pytest.raises(LogicError)`.
+- `AlgorandClient` has `set_suggested_params_cache_timeout(...)` — there is NO `set_suggested_params_timeout`.
+- Raw SDK: `transaction.ApplicationCallTxn(...)` requires the `on_complete` parameter (e.g. `OnComplete.NoOpOC`); for ARC-4 apps the first app arg is the 4-byte selector, not a method-name string.
+
+### Compile/protocol facts learned via verification (puyapy 5.8.1, 2026-07-24)
+
+- Reading an `arc4.Struct` value out of a Box/BoxMap into a variable requires `.copy()` (compile error otherwise).
+- A contract with a `NoOp` bare method gets no auto-inserted create path — it needs `create="allow"` on the bare method or an explicit create method.
+- `_` is not a valid variable name in puyapy — use named locals.
+- `itxn` `app_args` takes a tuple, not a list.
+- A transaction group containing byte-identical transactions is rejected (duplicate TxIDs) — op-up padding calls need distinct `note` values.
+- `BoxMap` box names are `key_prefix + encoded key` (default prefix = member name) — MBR math must include the prefix length.
+- Closing an ASA to yourself is only valid when the balance is already zero (the ledger requires a zero holding after close); to exit with a balance, close to the creator or another opted-in account.
+- `mimc` costs 10 + 550 per 32-byte block — a single 64-byte hash (1,110) exceeds one app call's 700 budget; use `ensure_budget(...)` with pooled fees.
+- Cross-contract reads (`app_global_get_ex`) see the ledger as of opcode execution, INCLUDING writes from earlier transactions in the same group and inner calls — there is no per-group snapshot/cache.
+- A delegated LogicSig that binds an app call only by app ID authorizes ANY method of that app; bind method selector + key arguments (via TemplateVar) whenever per-order/per-position contract state must remain authoritative.
 
 ---
 
@@ -639,7 +693,7 @@ Source: [dev.algorand.co/concepts/protocol/state-proofs/](https://dev.algorand.c
 | Phase | Status | Mechanism |
 |-------|--------|-----------|
 | History protection | Done | State Proofs signed with Falcon-1024 (live since 2022) |
-| Transaction protection | Done | `falcon_verify` opcode shipped in AVM v12 (go-algorand v4.3.0, Sep 2024). First mainnet PQ transaction Nov 3, 2025 via LogicSig-based Falcon accounts |
+| Transaction protection | Done | `falcon_verify` opcode shipped in AVM v12 (go-algorand v4.3.0, Sep 2025; consensus v41 activated on MainNet ~Q4 2025). First mainnet PQ transaction Nov 3, 2025 via LogicSig-based Falcon accounts |
 | Consensus protection | Research | Post-quantum VRF (ZKBoo/ZKB++, XMSS, or lattice-based). No timeline committed |
 
 Chris Peikert (CSO, Algorand Foundation; formerly Head of Cryptography, Algorand Technologies) co-authored the GPV framework that Falcon is built on. Algorand's implementation uses deterministic signing (Lazar & Peikert).

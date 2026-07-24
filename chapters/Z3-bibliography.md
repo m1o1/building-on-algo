@@ -12,13 +12,9 @@ Algorand Foundation. "AlgoKit CLI Overview." https://dev.algorand.co/algokit/cli
 
 Algorand Foundation. "Algorand Python Documentation." https://algorandfoundation.github.io/puya/
 
-Algorand Foundation. "Algorand Python API Reference." https://algorandfoundation.github.io/puya/api.html
+Algorand Foundation. "Algorand Python API Reference." https://algorandfoundation.github.io/puya/api-algopy.html
 
 Algorand Foundation. "Algorand Developer Portal." https://dev.algorand.co/
-
-AlgoPlonk. "PLONK verifier for the Algorand Virtual Machine." Giulio Petrocchi, 2024. https://github.com/giuliop/AlgoPlonk
-
-Barton, J. et al. "Panda: Security Analysis of Algorand Smart Contracts." *Proceedings of the 32nd USENIX Security Symposium*, 2023.
 
 Bowe, S., Gabizon, A., and Green, M. "A multi-party protocol for constructing the public parameters of the Pinocchio zk-SNARK." *Financial Cryptography and Data Security*, 2018.
 
@@ -30,4 +26,8 @@ Gentry, C., Peikert, C., and Vaikuntanathan, V. "Trapdoors for Hard Lattices and
 
 Gilad, Y. et al. "Algorand: Scaling Byzantine Agreements for Cryptocurrencies." *Proceedings of the 26th Symposium on Operating Systems Principles (SOSP)*, 2017.
 
-Tinyman. "Tinyman V1.0 Vulnerability Report." January 2022. https://tinymanorg.medium.com/tinyman-v1-0-vulnerability-report-2f89e84a3e53
+Petrocchi, G. "AlgoPlonk: PLONK Verifier for the Algorand Virtual Machine." 2024. https://github.com/giuliop/AlgoPlonk
+
+Sun, Z., Luo, X., and Zhang, Y. "Panda: Security Analysis of Algorand Smart Contracts." *Proceedings of the 32nd USENIX Security Symposium*, 2023.
+
+Tinyman. "Tinyman V1.0 Vulnerability Report." 2022. https://tinymanorg.medium.com/tinyman-v1-0-vulnerability-report-2f89e84a3e53

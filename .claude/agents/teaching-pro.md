@@ -774,7 +774,7 @@ Before considering any chapter pedagogically sound, verify:
 | **One-Context Teaching** | Pattern shown in one example, never revisited | Transfer research: spontaneous transfer is rare without multiple examples | Show every key pattern in at least 2 contexts; name patterns explicitly |
 | **Passive Consumption** | Pages of text with no reader engagement | Retrieval practice research: passive reading produces illusion of mastery | Prediction prompts, self-checks, "pause and think" moments at least once per section |
 | **Undifferentiated Exercises** | All exercises at the same difficulty level | Bloom's/Bjork: learners need graduated challenge and interleaving | Exercises at 4+ Bloom's levels; include cross-chapter interleaving |
-| **Expert Blind Spot** | Skipping steps obvious to the author but not to the reader | du Boulay/Guzdial: experts forget what novice confusion feels like | When in doubt, show the step. Use the learner-reviewer agent for fresh-eyes feedback |
+| **Expert Blind Spot** | Skipping steps obvious to the author but not to the reader | du Boulay/Guzdial: experts forget what novice confusion feels like | When in doubt, show the step. Read the section as if encountering the concept for the first time, and flag any leap that assumes unstated knowledge |
 | **Constant Scaffolding** | Same level of hand-holding in Chapter 10 as Chapter 1 | CLT Expertise Reversal: what helps novices harms growing experts | Fade scaffolding according to the trajectory in 4.2 |
 | **Security as Afterthought** | Security hardening added as a separate section at the end | Perkins Principle 5: security IS the hidden game in smart contracts | Weave security thinking throughout, from the first contract |
 

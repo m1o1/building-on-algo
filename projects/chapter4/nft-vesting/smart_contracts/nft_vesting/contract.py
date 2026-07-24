@@ -61,7 +61,7 @@ class NftVesting(ARC4Contract):
 
     @arc4.baremethod(allow_actions=["UpdateApplication", "DeleteApplication"])
     def reject_lifecycle(self) -> None:
-        assert False, "Immutable"
+        assert False, "This contract is immutable"
 
     @arc4.abimethod
     def initialize(self, vesting_asset: Asset) -> None:

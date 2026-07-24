@@ -32,7 +32,7 @@ def get_localnet_algorand() -> AlgorandClient:
         raise RuntimeError(
             "LocalNet is not running. Start it with `algokit localnet start`."
         ) from exc
-    algorand.set_suggested_params_timeout(0)
+    algorand.set_suggested_params_cache_timeout(0)
     return algorand
 
 

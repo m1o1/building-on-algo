@@ -366,27 +366,22 @@ Introduce these strategically to deepen learning:
 
 ### Narrative Arc
 
-Structure the book as a journey with increasing capability:
+Structure the book as a journey with increasing capability. The book's actual part structure (defined in `build.py`) is:
 
-**Part 1 (Foundations):** "I understand how Algorand works and can build a simple contract"
-- Junior version of the whole game
+**Part I: Foundations (Chapters 1-4):** "I understand how Algorand works and can build, test, and extend a real contract"
+- Junior version of the whole game (mental model, testing discipline)
 - Core mental models established
-- First complete project
+- First complete projects: vesting and its NFT extension
 
-**Part 2 (DeFi):** "I can build production-grade financial applications"
-- Complexity increases significantly
-- Pattern recognition from Part 1 pays off
+**Part II: Automated Market Making (Chapters 5-8):** "I can build production-grade financial applications"
+- Complexity increases significantly: AMM, factory, yield farming
+- Pattern recognition from Part I pays off; Chapter 8 consolidates patterns and idioms
 - Security thinking becomes central
 
-**Part 3 (Logic Signatures):** "I understand Algorand's unique stateless computation model"
-- A fundamentally different paradigm
-- Callbacks to earlier patterns, applied differently
-- Bridge to advanced topics
-
-**Part 4 (Cryptography):** "I can build with cutting-edge cryptographic primitives"
-- Highest complexity
-- Synthesizes everything previous
-- Opens doors to future directions
+**Part III: Advanced Topics (Chapters 9-10):** "I can use logic signatures and cutting-edge cryptographic primitives"
+- Chapter 9: the stateless computation model (delegated limit orders)
+- Chapter 10: zero-knowledge proofs, elliptic curves, post-quantum context
+- Highest complexity; synthesizes everything previous
 
 **Appendices:** "I have a reference I can return to for any pattern"
 - The Cookbook serves as a comprehensive reference

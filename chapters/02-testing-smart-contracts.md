@@ -23,6 +23,13 @@ The completed integration-test project for this chapter is in
 contract from the chapter, including the limitations that the "Tests That Fail"
 section turns into Chapter 3's production requirements.
 
+> **Note:** The shipped reference project refactors the chapter's inline code
+> onto the generated typed client (`SimpleVestingClient`), with the helper
+> functions moved into `scripts/localnet_helpers.py`. The behavior is
+> identical --- the refactor just makes the project more maintainable --- so if
+> you diff the project against the listings in this chapter, expect different
+> plumbing, not different logic.
+
 Before running it, make three predictions: why the pre-cliff claim returns `0`,
 why the contract account must opt into the ASA before the deposit, and which
 limitations the test suite documents.
@@ -106,8 +113,8 @@ revoke method. The fourth gap, rounding across multiple claims, is discussed
 later in the step-by-step "Tests That Fail" section.
 
 The pre-cliff and final claims use the same method call; the difference is that
-the workflow sleeps and submits a tiny transaction so LocalNet produces a later
-block timestamp:
+between them the workflow calls its `advance_time` helper, which expands to a
+sleep plus a tiny transaction so LocalNet produces a later block timestamp:
 
 ```python
 before_cliff = app_client.send.claim(
@@ -133,7 +140,8 @@ final_claim = app_client.send.claim(
 ```
 
 Keep `scripts/run_simple_vesting.py` around for repeated development runs. The
-excerpts above are the parts to understand before reading the full test suite.
+preceding excerpts are the parts to understand before reading the full test
+suite.
 
 Without Docker or LocalNet, you can still build the contract and run the static
 known-gap checks:
@@ -458,7 +466,7 @@ There are several important things to understand about this setup.
 
 > **Note:** The `advance_time` helper is the single most confusing aspect of LocalNet testing for newcomers. On a live network, block timestamps advance with wall-clock time because blocks are produced continuously. On LocalNet, blocks are only produced when you submit a transaction. If you `time.sleep(10)` but do not submit a transaction, the block timestamp stays where it was. You need both the sleep (to advance wall-clock time) and the dummy transaction (to produce a block reflecting that time).
 
-**Session-scoped fixtures.** The `algorand` and `admin` fixtures use `scope="session"` so they are created once and reused across all tests. Each test deploys its own fresh contract instance, so tests do not interfere with each other despite sharing the same LocalNet connection.
+**Session-scoped fixtures.** The `algorand` and `admin` fixtures use `scope="session"` so they are created once and reused across all tests. Each test deploys its own fresh contract instance --- the `deploy` helper in the next section uses `factory.send.bare.create()`, which always creates a brand-new application --- so tests do not interfere with each other despite sharing the same LocalNet connection.
 
 > **Note:** For testing, use short durations --- seconds instead of months. Set a cliff of 5 seconds and total vesting of 20 seconds instead of 90 days and 365 days. This keeps your test suite fast while still exercising the time-dependent logic faithfully.
 
@@ -490,12 +498,12 @@ APP_SPEC = Path(
 
 
 def deploy(algorand, admin):
-    """Deploy a fresh SimpleVesting contract."""
+    """Create a fresh SimpleVesting app instance."""
     factory = algorand.client.get_app_factory(
         app_spec=APP_SPEC,
         default_sender=admin.address,
     )
-    app_client, _ = factory.deploy()
+    app_client, _ = factory.send.bare.create()
     return app_client
 
 
@@ -602,9 +610,11 @@ def setup_initialized_contract(
     return app_client, token_id, beneficiary
 ```
 
+> **Note:** The `deploy` helper calls `factory.send.bare.create()`, not `factory.deploy()`, and the difference is worth internalizing. `deploy()` is *idempotent*: it looks up an existing application by creator and name and reuses it if one is found. That is exactly what you want in a deployment script --- run it twice, get the same app --- and exactly what you do *not* want in a test suite, where a reused app would leak state from one test into the next. `send.bare.create()` unconditionally creates a new application, so every test starts from a clean instance.
+
 The `setup_initialized_contract` helper follows a 7-step sequence. Each step has a specific purpose:
 
-1. **Deploy** creates a fresh contract instance (so tests do not interfere).
+1. **Deploy** creates a brand-new contract instance via `send.bare.create()` (so tests do not interfere).
 2. **Create ASA** makes a test token with sufficient supply.
 3. **Fund beneficiary** gives the new account enough Algo for MBR and fees.
 4. **Beneficiary opts into ASA** --- required before they can receive tokens via `claim`.
@@ -886,7 +896,7 @@ The first five tests verified correct behavior --- the contract does what it sho
 Run the tests:
 
 ```bash
-pytest tests/test_simple_vesting.py -v
+poetry run pytest tests/test_simple_vesting.py -v
 ```
 
 You should see all seven pass. The total runtime will be 30--50 seconds, dominated by the `advance_time` calls. If any test fails, check these common issues: LocalNet not running (`algokit localnet start`), contract not compiled (`algokit project run build`), or the ARC-56 spec path not matching your directory layout.
@@ -898,7 +908,7 @@ You should see all seven pass. The total runtime will be 30--50 seconds, dominat
 
 The preceding tests use `pytest.raises(Exception)` to verify that unauthorized calls fail. This works, but it is a blunt instrument --- you know the call failed, but not *why*. Maybe it failed for the wrong reason (insufficient funds, a missing ASA opt-in, a different assertion). You want to verify that the *specific security check* caught the attack.
 
-Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. The response includes the failure reason if the transaction would have been rejected. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
+Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. When the simulated transaction would have been rejected, algokit-utils raises a `LogicError` carrying the contract's own assert message. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
 
 ```python
     def test_simulate_unauthorized_claim(
@@ -920,38 +930,33 @@ Algorand's *simulate* endpoint solves this. Simulate executes the full transacti
         )
 
         # Build the attack, simulate instead of sending
-        result = (
-            algorand.new_group()
-            .add_app_call_method_call(
-                app_client.params.call(
-                    algokit_utils
-                    .AppClientMethodCallParams(
-                        method="claim",
-                        sender=attacker.address,
-                        static_fee=(
-                            algokit_utils.AlgoAmount
-                            .from_micro_algo(2000)
-                        ),
-                        note=os.urandom(8),
+        with pytest.raises(
+            algokit_utils.LogicError
+        ) as exc:
+            (
+                algorand.new_group()
+                .add_app_call_method_call(
+                    app_client.params.call(
+                        algokit_utils
+                        .AppClientMethodCallParams(
+                            method="claim",
+                            sender=attacker.address,
+                            static_fee=(
+                                algokit_utils.AlgoAmount
+                                .from_micro_algo(2000)
+                            ),
+                            note=os.urandom(8),
+                        )
                     )
                 )
+                .simulate()
             )
-            .simulate()
-        )
 
-        # The simulate response tells us WHY it failed
-        txn_result = (
-            result.simulate_response[
-                "txn-groups"
-            ][0]
-        )
-        assert "failure-message" in txn_result
-        assert "Only beneficiary" in (
-            txn_result["failure-message"]
-        )
+        # The LogicError tells us WHY it failed
+        assert "Only beneficiary" in str(exc.value)
 ```
 
-The key difference is `.simulate()` instead of `.send()`. The transaction is constructed identically --- same method, same arguments, same sender --- but simulate executes it in a sandbox. The `simulate_response` dictionary contains detailed information about what happened, including the exact failure message from the contract's `assert` statement.
+The key difference is `.simulate()` instead of `.send()`. The transaction is constructed identically --- same method, same arguments, same sender --- but simulate executes it in a sandbox: no fee is paid and nothing is committed to the ledger. When the simulated execution fails, algokit-utils raises a `LogicError` that maps the failing program counter back to your source using the ARC-56 source map, so the exception message contains the exact message from the contract's `assert` statement. Your test asserts on the exception --- here, that the rejection came from the `"Only beneficiary"` check.
 
 This is far more precise than `pytest.raises(Exception)`. You are not just testing that the call fails --- you are testing that it fails *because of the authorization check*, not because of insufficient funds, a missing box reference, or some other unrelated error.
 
@@ -1014,44 +1019,40 @@ Here is the same pattern applied to the admin-only `initialize` check:
             algorand.account.get_signer(admin.address),
         )
 
-        result = (
-            algorand.new_group()
-            .add_app_call_method_call(
-                app_client.params.call(
-                    algokit_utils
-                    .AppClientMethodCallParams(
-                        method="initialize",
-                        args=[
-                            token_id,
-                            imposter.address,
-                            1_000_000, 5, 20,
-                            deposit_arg,
-                        ],
-                        sender=imposter.address,
-                        static_fee=(
-                            algokit_utils.AlgoAmount
-                            .from_micro_algo(2000)
-                        ),
-                        note=os.urandom(8),
+        with pytest.raises(
+            algokit_utils.LogicError
+        ) as exc:
+            (
+                algorand.new_group()
+                .add_app_call_method_call(
+                    app_client.params.call(
+                        algokit_utils
+                        .AppClientMethodCallParams(
+                            method="initialize",
+                            args=[
+                                token_id,
+                                imposter.address,
+                                1_000_000, 5, 20,
+                                deposit_arg,
+                            ],
+                            sender=imposter.address,
+                            static_fee=(
+                                algokit_utils.AlgoAmount
+                                .from_micro_algo(2000)
+                            ),
+                            note=os.urandom(8),
+                        )
                     )
                 )
+                .simulate()
             )
-            .simulate()
-        )
 
-        txn_result = (
-            result.simulate_response[
-                "txn-groups"
-            ][0]
-        )
-        assert "Only admin" in (
-            txn_result["failure-message"]
-        )
+        assert "Only admin" in str(exc.value)
 ```
 
 The simulate approach is especially valuable during development. When a test fails unexpectedly, simulating the same transaction gives you the exact failure reason and program counter, which you can map back to your source code using the ARC-56 source map.
 
-> **Try it yourself:** Write a simulate-based test that verifies the `Already initialized` assertion fires when `initialize` is called twice on the same contract instance. Construct the second `initialize` call identically to the first, simulate it, and check that the failure message contains `"Already initialized"`.
+> **Try it yourself:** Write a simulate-based test that verifies the `Already initialized` assertion fires when `initialize` is called twice on the same contract instance. Construct the second `initialize` call identically to the first, simulate it inside `pytest.raises(algokit_utils.LogicError)`, and check that the exception message contains `"Already initialized"`.
 
 
 ## Tests That Fail --- Revealing the Gaps
@@ -1198,33 +1199,29 @@ The "Already initialized" assertion fires because `self.asset_id.value` is no lo
         # and get_admin. Once tokens are deposited,
         # only the beneficiary can claim them.
         # Admin tries to claim (fails: admin != beneficiary)
-        result = (
-            algorand.new_group()
-            .add_app_call_method_call(
-                app_client.params.call(
-                    algokit_utils
-                    .AppClientMethodCallParams(
-                        method="claim",
-                        static_fee=(
-                            algokit_utils.AlgoAmount
-                            .from_micro_algo(2000)
-                        ),
-                        note=os.urandom(8),
+        with pytest.raises(
+            algokit_utils.LogicError
+        ) as exc:
+            (
+                algorand.new_group()
+                .add_app_call_method_call(
+                    app_client.params.call(
+                        algokit_utils
+                        .AppClientMethodCallParams(
+                            method="claim",
+                            static_fee=(
+                                algokit_utils.AlgoAmount
+                                .from_micro_algo(2000)
+                            ),
+                            note=os.urandom(8),
+                        )
                     )
                 )
+                .simulate()
             )
-            .simulate()
-        )
         # Admin can call claim, but the contract
         # rejects because admin != beneficiary
-        txn_result = (
-            result.simulate_response[
-                "txn-groups"
-            ][0]
-        )
-        assert "Only beneficiary" in (
-            txn_result["failure-message"]
-        )
+        assert "Only beneficiary" in str(exc.value)
 ```
 
 Even the admin cannot retrieve unvested tokens. Once deposited, tokens are fully committed to the beneficiary's vesting schedule, regardless of whether they leave the team on day two.
@@ -1296,11 +1293,7 @@ Every test so far is an *integration test*: it deploys a real contract to LocalN
 
 The `algorand-python-testing` library provides a complementary approach: *unit testing* that executes your PuyaPy contract as a regular Python object, without compilation or deployment. You instantiate the contract class, set state directly, and call methods --- all in milliseconds.
 
-Install the testing library if it is not already in your dependencies:
-
-```bash
-pip install algorand-python-testing
-```
+The AlgoKit Python project template already includes `algorand-python-testing` in its dev dependencies, so there is nothing to install. (If you are starting from scratch without the template, add it with `poetry add algorand-python-testing --group dev` or the equivalent for your dependency manager.)
 
 Then place a copy of your contract in `tests/contracts/simple_vesting.py` (create `tests/contracts/__init__.py` as well so Python treats the directory as a package) and import from there:
 
@@ -1527,7 +1520,7 @@ In this chapter you learned to:
 | `advance_time` | Sleep + dummy transaction to advance LocalNet block timestamp. Neither alone is sufficient. |
 | Transaction dedup | `note=os.urandom(8)` on every test transaction prevents "already in ledger" errors. |
 | `localnet_dispenser()` | Pre-funded account for admin/deployer. `account.random()` starts with zero balance. |
-| Simulate | Execute transactions without committing. Returns failure reasons for precise negative tests. |
+| Simulate | Execute transactions without committing. Failures raise `LogicError` with the contract's assert message, enabling precise negative tests. |
 | Negative tests | For every `assert` in the contract, write a test that triggers the failure path. |
 | Failing tests as specs | Tests exposing simplified contract limitations define what the production version must solve. |
 

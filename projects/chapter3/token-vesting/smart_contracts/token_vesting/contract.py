@@ -60,7 +60,7 @@ class TokenVesting(ARC4Contract):
 
     @arc4.baremethod(allow_actions=["UpdateApplication", "DeleteApplication"])
     def reject_lifecycle(self) -> None:
-        assert False, "Immutable"
+        assert False, "Contract is immutable"
 
     @arc4.abimethod(readonly=True)
     def get_admin(self) -> arc4.Address:

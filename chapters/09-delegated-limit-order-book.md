@@ -6,15 +6,15 @@ Part III introduces Algorand's second execution model --- Logic Signatures --- a
 
 # Delegated Limit Order Book with LogicSig Agents
 
-**Building an on-chain limit order system where users encode trading rules as Logic Signatures and market-making bots ("keepers") execute them against AMM pools --- bridging the stateful smart contract world from Project 2 into Algorand's stateless smart signature layer.**
+**Building an on-chain limit order system where users encode trading rules as Logic Signatures and market-making bots ("keepers") execute them against AMM pools --- bridging the stateful smart contract world from Chapter 5 into Algorand's stateless smart signature layer.**
 
-> **Important:** This chapter is primarily for informational purposes. The Algorand developer community strongly recommends modern stateful smart contracts for almost all use cases. Logic Signatures are extremely prone to security vulnerabilities --- every missing check (close-to, rekey-to, fee caps, expiration, group validation) is directly exploitable, and the attack surface is large. If you are building a new application, you almost certainly want a stateful contract, not a LogicSig. This chapter exists so you understand how LogicSigs work and can recognize them in production codebases, but you should default to stateful contracts unless you have a specific, well-justified reason to use LogicSigs.
+> **Warning:** This chapter is primarily for informational purposes. The Algorand developer community strongly recommends modern stateful smart contracts for almost all use cases. Logic Signatures are extremely prone to security vulnerabilities --- every missing check (close-to, rekey-to, fee caps, expiration, group validation) is directly exploitable, and the attack surface is large. If you are building a new application, you almost certainly want a stateful contract, not a LogicSig. This chapter exists so you understand how LogicSigs work and can recognize them in production codebases, but you should default to stateful contracts unless you have a specific, well-justified reason to use LogicSigs.
 
 This project introduces the other half of Algorand's programmable layer: **Logic Signatures (LogicSigs)**. Where the AMM chapter used stateful smart contracts exclusively, this project demonstrates the hybrid pattern that some production Algorand DeFi protocols use --- a stateful order book contract coordinates state, while stateless LogicSig programs encode per-user trading rules that keepers can execute permissionlessly.
 
 The end result is a system where Alice says "sell up to 500 USDC for ALGO at a price of 0.25 ALGO per USDC, expiring in 24 hours" by signing a LogicSig program encoding those rules, and any keeper bot can fill that order by submitting the right atomic group --- with the LogicSig validating that the trade meets Alice's conditions.
 
-### Project Setup
+## Project Setup
 
 Scaffold a new project for this chapter. The template creates a `hello_world/` contract directory which we rename. This project has two separate compilable components --- the order book contract and the LogicSig --- so create a second directory after renaming:
 
@@ -146,6 +146,7 @@ def limit_order_lsig() -> bool:
     PRICE_D = TemplateVar[UInt64]("PRICE_D")   # Denominator of price
     MAX_SELL = TemplateVar[UInt64]("MAX_SELL")  # Max sell amount
     EXPIRY_ROUND = TemplateVar[UInt64]("EXPIRY_ROUND")
+    ORDER_ID = TemplateVar[UInt64]("ORDER_ID")  # The one order this fills
 
     assert Global.genesis_hash == GENESIS_HASH
     # ... validation logic using these variables ...
@@ -165,7 +166,8 @@ puyapy limit_order.py \
   --template-var PRICE_N=25 \
   --template-var PRICE_D=100 \
   --template-var MAX_SELL=500000000 \
-  --template-var EXPIRY_ROUND=35000000
+  --template-var EXPIRY_ROUND=35000000 \
+  --template-var ORDER_ID=1
 ```
 
 Or from within another PuyaPy contract at compile time (this function runs during PuyaPy compilation, not at runtime on the client side; the actual client-side workflow is described in the next section):
@@ -187,6 +189,7 @@ compiled = compile_logicsig(
         "PRICE_D": 100,
         "MAX_SELL": 500_000_000,
         "EXPIRY_ROUND": 35_000_000,
+        "ORDER_ID": 1,
     },
 )
 ```
@@ -226,6 +229,7 @@ The naming chain looks like this:
 | `PRICE_N`, `PRICE_D` | `TMPL_PRICE_N`, `TMPL_PRICE_D` | Rational price numerator and denominator |
 | `MAX_SELL` | `TMPL_MAX_SELL` | Maximum sell amount Alice delegates |
 | `EXPIRY_ROUND` | `TMPL_EXPIRY_ROUND` | Last valid round for the order |
+| `ORDER_ID` | `TMPL_ORDER_ID` | The order ID this delegation may fill (read `next_order_id` from the order book before placing) |
 
 Here is the concrete client-side code for the two-step approach (steps 2--4 above):
 
@@ -242,10 +246,16 @@ genesis_hash_bytes = base64.b64decode(
 )
 genesis_hash_literal = "0x" + genesis_hash_bytes.hex()
 
+# The LogicSig binds to one specific order. Order IDs are assigned
+# sequentially, so read next_order_id from the order book's global
+# state to learn the ID this order will receive when placed.
+order_id = read_next_order_id(algorand, app_id)
+
 # Substitute template variables with actual values
 teal_source = (
     teal_template
     .replace("TMPL_ORDER_BOOK_APP_ID", str(app_id))
+    .replace("TMPL_ORDER_ID", str(order_id))
     .replace("TMPL_GENESIS_HASH", genesis_hash_literal)
     .replace("TMPL_SELL_ASSET", str(usdc_id))
     .replace("TMPL_BUY_ASSET", str(0))
@@ -287,17 +297,17 @@ LogicSigs have a distinct security surface. Every LogicSig you write must enforc
 
 **6. Genesis hash check.** A signed LogicSig works on ALL Algorand networks. Check `Global.genesis_hash` to restrict to a specific network, preventing cross-network replay.
 
-**7. Group validation.** If your LogicSig is meant to be used in an atomic group with a smart contract call, verify `Global.group_size`, the group index of transactions, and the application ID of the grouped app call. Without this, someone can use your LogicSig in a different context than intended.
+**7. Group validation.** If your LogicSig is meant to be used in an atomic group with a smart contract call, verify `Global.group_size`, the group index of transactions, and the application ID of the grouped app call --- *and* the method selector and key arguments of that call. Binding only the app ID authorizes any method of that app; pinning the exact method and arguments is what makes the contract's state checks unavoidable. Without this, someone can use your LogicSig in a different context than intended.
 
 **8. Arguments are public.** LogicSig arguments (`Arg[0]`, etc.) are visible on-chain. Never put secrets in them. They're also not signed --- anyone can change them when submitting.
 
-> **Check your understanding:** Why do LogicSigs use template variables instead of arguments for order parameters like price and maximum amount? What is the fundamental security difference? (Hint: consider what happens to the program hash.)
+*Check your understanding: why do LogicSigs use template variables instead of arguments for order parameters like price and maximum amount? What is the fundamental security difference? (Hint: consider what happens to the program hash.)*
 
 ### Opcode Budget and Pooling
 
-Every transaction in the group contributes **20,000 opcodes** to a shared LogicSig pool, regardless of whether that particular transaction uses a LogicSig. In a 16-transaction group, that's 320,000 pooled opcodes. In our 3-transaction limit order group, the LogicSig has 60,000 opcodes available. This budget is **separate** from the smart contract opcode budget (700 per app call). The two pools don't interfere with each other.
+Every transaction in the group contributes **20,000 units of opcode cost budget** to a shared LogicSig pool, regardless of whether that particular transaction uses a LogicSig. This is a *cost* budget, not an instruction count: cheap operations like `assert` and arithmetic cost 1 unit each, while cryptographic operations cost hundreds to thousands of units. In a 16-transaction group, that's 320,000 pooled budget units. In our 3-transaction limit order group, the LogicSig has 60,000 units available. This budget is **separate** from the smart contract opcode budget (700 per app call). The two pools don't interfere with each other.
 
-For our limit order system, a simple order validation LogicSig uses well under 1,000 opcodes. The generous budget becomes relevant in Project 4 when we use LogicSigs for ZK proof verification.
+For our limit order system, a simple order validation LogicSig uses well under 1,000 budget units. The generous pooled budget becomes relevant in Chapter 10 when we use LogicSigs for ZK proof verification --- exactly the kind of crypto-heavy workload those expensive operations imply.
 
 
 ## Part 2: Architecture --- the Hybrid Stateful + Stateless Pattern
@@ -345,10 +355,12 @@ The architecture:
 │                                                  │
 │  Template Variables:                             │
 │    ORDER_BOOK_APP_ID, GENESIS_HASH, SELL_ASSET,  │
-│    BUY_ASSET, PRICE_N, PRICE_D, MAX_SELL, EXPIRY │
+│    BUY_ASSET, PRICE_N, PRICE_D, MAX_SELL,        │
+│    EXPIRY, ORDER_ID                              │
 │                                                  │
 │  Validates:                                      │
-│    - Grouped with correct order book app call    │
+│    - Grouped with fill_order(ORDER_ID) call on   │
+│      the order book app                          │
 │    - Asset transfer matches price constraints    │
 │    - Amount ≤ MAX_SELL                            │
 │    - Not expired                                 │
@@ -360,7 +372,7 @@ The architecture:
 ### The Flow: Placing an Order
 
 1. **Alice decides** to sell 500 USDC for ALGO at 0.25 ALGO per USDC, expiring in ~24 hours (~20,000 rounds)
-2. **Client compiles** the limit order LogicSig with Alice's parameters as template variables
+2. **Client compiles** the limit order LogicSig with Alice's parameters as template variables, including the order ID the order book will assign (read from the contract's `next_order_id` global state; verify it matches the ID `place_order` returns)
 3. **Alice signs** the compiled LogicSig with her private key (delegation)
 4. **Client submits** an atomic group:
    - App call to `place_order(sell_asset, buy_asset, price_n, price_d, max_amount, expiry, lsig_address)`
@@ -375,25 +387,25 @@ The architecture:
    - [1] `Alice → Keeper: Asset transfer of USDC` --- authorized by Alice's signed LogicSig
    - [2] `Keeper → OrderBook: App call to fill_order(order_id)` --- signed by keeper
 3. **AVM executes** the group atomically:
-   - Alice's LogicSig validates that the USDC transfer is grouped with the correct order book call, the price is correct, and safety checks pass
+   - Alice's LogicSig validates that the USDC transfer is grouped with a `fill_order` call for her specific order on the order book, the price is correct, and safety checks pass
    - The keeper's payment sends ALGO to Alice
    - The order book contract verifies the fill, updates the filled amount, and emits events
 4. If **any** transaction fails, the **entire** group is rejected. Alice's USDC never leaves without her receiving the correct ALGO amount.
 
 ### The Flow: Cancellation
 
-Alice can cancel anytime by calling `cancel_order` directly. The order book marks the order as cancelled. Any subsequent attempt to use Alice's LogicSig in a fill will fail because `fill_order` checks that the order is still active.
+Alice can cancel anytime by calling `cancel_order` directly. The order book marks the order as cancelled. Any subsequent attempt to use Alice's LogicSig in a fill will fail because `fill_order` checks that the order is still active. This guarantee only holds because the LogicSig is bound to the `fill_order` method and to Alice's specific order ID: every group that moves her tokens must include that exact call, so the contract's active/cancelled check cannot be sidestepped by pairing the LogicSig with some other method of the same app.
 
 
 ## Part 3: Building the Limit Order LogicSig
 
 ### The Complete LogicSig Program
 
-The LogicSig is structured in five sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, and buy-side price verification. (See [Algorand Python compilation](https://algorandfoundation.github.io/puya/lg-compile.html) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
+The LogicSig is structured in six sections: template variable declarations, mandatory safety checks, transaction type validation, group structure validation, buy-side price verification, and order book call binding. (See [Algorand Python compilation](https://algorandfoundation.github.io/puya/lg-compile.html) for template variable usage.) Add the following to `smart_contracts/limit_order_lsig/contract.py`:
 
 ```python
 from algopy import (
-    Asset, Application, Bytes, Global, Txn, UInt64, gtxn, logicsig,
+    Asset, Application, Bytes, Global, Txn, UInt64, arc4, gtxn, logicsig,
     TemplateVar, TransactionType,
 )
 
@@ -409,6 +421,7 @@ def limit_order() -> bool:
     PRICE_D = TemplateVar[UInt64]("PRICE_D")   # Denominator of price
     MAX_SELL = TemplateVar[UInt64]("MAX_SELL")
     EXPIRY_ROUND = TemplateVar[UInt64]("EXPIRY_ROUND")
+    ORDER_ID = TemplateVar[UInt64]("ORDER_ID")
 
     # ── Safety checks (MANDATORY --- never remove) ──────────
     assert Txn.close_remainder_to == Global.zero_address
@@ -441,14 +454,21 @@ def limit_order() -> bool:
         assert gtxn.Transaction(0).asset_receiver == Txn.sender
         assert gtxn.Transaction(0).asset_amount * PRICE_D >= Txn.asset_amount * PRICE_N
 
-    # ── Verify the order book app call ───────────────────────
-    assert gtxn.Transaction(2).type == TransactionType.ApplicationCall
-    assert gtxn.Transaction(2).app_id == Application(ORDER_BOOK_APP_ID)
+    # ── Bind to the exact order book call ────────────────────
+    # gtxn.ApplicationCallTransaction asserts the type is appl
+    app_call = gtxn.ApplicationCallTransaction(2)
+    assert app_call.app_id == Application(ORDER_BOOK_APP_ID)
+    assert app_call.app_args(0) == arc4.arc4_signature(
+        "fill_order(uint64,uint64,axfer)void"
+    )
+    assert app_call.app_args(1) == arc4.UInt64(ORDER_ID).bytes
 
     return True
 ```
 
 The `GENESIS_HASH` template variable pins the signed LogicSig to the intended network. The order book app ID is still required, but app IDs are only meaningful within a network; they are not a substitute for explicit network binding. For a delegated LogicSig, treat `Global.genesis_hash == GENESIS_HASH` as part of the mandatory safety checklist alongside close-to, rekey-to, fee cap, and expiry.
+
+The final section deserves close attention, because each of its three asserts closes a distinct hole. Checking `app_id` alone would be dangerously incomplete: a delegated LogicSig that binds only the app ID authorizes *any* method of that app --- an attacker could pair Alice's asset transfer with a call to `cancel_order` or `cleanup_expired_order` instead of `fill_order`, and none of the fill-side accounting would run. The second assert therefore pins the ARC-4 method selector (`app_args(0)`) to `fill_order`, forcing every group that spends Alice's tokens through the contract's status, expiry, and price checks. The third assert pins the first ABI argument (`app_args(1)`) to Alice's specific `ORDER_ID`, so the fill is accounted against *her* order's `filled_amount`/`max_amount` record rather than some other order the attacker controls. Together these make the contract's per-order state authoritative: cumulative fills across every use of the signed LogicSig cannot exceed `MAX_SELL`'s order-level counterpart `max_amount`, and cancellation genuinely revokes the delegation.
 
 ### What the LogicSig Validates vs What It Delegates
 
@@ -494,7 +514,8 @@ class LimitOrderBook(ARC4Contract):
     def __init__(self) -> None:
         self.admin = GlobalState(Bytes())
         self.next_order_id = GlobalState(UInt64(1))
-        self.fee_bps = GlobalState(UInt64(10))  # 0.1% keeper fee (reserved for future use)
+        # 0.1% keeper fee (reserved for future use)
+        self.fee_bps = GlobalState(UInt64(10))
         self.paused = GlobalState(UInt64(0))
 
         # Order storage: order_id -> packed order data
@@ -649,7 +670,10 @@ The `fill_order` method is the most complex in this project --- it validates the
 ```python
         # Update filled amount and status
         new_filled = filled_amount + fill_amount
-        new_status = UInt64(ORDER_FILLED) if new_filled == max_amount else UInt64(ORDER_PARTIAL)
+        new_status = (
+            UInt64(ORDER_FILLED) if new_filled == max_amount
+            else UInt64(ORDER_PARTIAL)
+        )
         updated = op.replace(data, UInt64(72), op.itob(new_filled))
         updated = op.replace(updated, UInt64(80), op.itob(new_status))
         self.orders[order_key] = updated
@@ -870,9 +894,11 @@ Finally, the group is assembled, signed, and submitted atomically. The `run` met
             time.sleep(3)  # Check every block
 ```
 
-> **Exercise:** The helper functions `unpack_order`, `calculate_buy_amount`, and `get_market_price` are left as exercises. `unpack_order` reverses the `op.concat` packing shown in the contract's `place_order` method --- extract each field at its byte offset using Python's slice notation. `calculate_buy_amount` applies the N/D price ratio: `fill_amount * price_n // price_d`. `get_market_price` queries a DEX (e.g., the Chapter 5 AMM's reserves via global state) or an external price API.
+> **Note: Exercise --- complete the keeper helpers.** The helper functions `unpack_order`, `calculate_buy_amount`, and `get_market_price` are left as exercises. `unpack_order` reverses the `op.concat` packing shown in the contract's `place_order` method --- extract each field at its byte offset using Python's slice notation. `calculate_buy_amount` applies the N/D price ratio: `fill_amount * price_n // price_d`. `get_market_price` queries a DEX (e.g., the Chapter 5 AMM's reserves via global state) or an external price API.
 
-> **Design decision: separate enforcement from coordination.** The key architectural insight in this system is the separation of concerns. LogicSigs enforce rules --- they cannot be cheated. Smart contracts coordinate --- they track shared state. When I see a system that needs both trustless rules AND shared mutable state, this hybrid pattern is my first instinct. The LogicSig guarantees Alice's price is honored; the smart contract guarantees the order book is consistent.
+Beyond the mechanics of building the fill group, the keeper illustrates the architectural principle this whole chapter is built on.
+
+> **Note: Design decision --- separate enforcement from coordination.** The key architectural insight in this system is the separation of concerns. LogicSigs enforce rules --- they cannot be cheated. Smart contracts coordinate --- they track shared state. When I see a system that needs both trustless rules AND shared mutable state, this hybrid pattern is my first instinct. The LogicSig guarantees Alice's price is honored; the smart contract guarantees the order book is consistent --- and the LogicSig's binding to `fill_order(ORDER_ID)` is what forces every use of the delegation through that consistent state.
 
 ### Where Do Keepers Get the Signed LogicSigs?
 
@@ -916,8 +942,11 @@ algorand = algokit_utils.AlgorandClient.default_localnet()
 admin = algorand.account.localnet_dispenser()
 
 # Deploy the order book
+spec_path = Path(
+    "smart_contracts/artifacts/limit_order_book/LimitOrderBook.arc56.json"
+)
 factory = algorand.client.get_app_factory(
-    app_spec=Path("smart_contracts/artifacts/limit_order_book/LimitOrderBook.arc56.json").read_text(),
+    app_spec=spec_path.read_text(),
     default_sender=admin.address,
 )
 book_client, deploy_result = factory.deploy()
@@ -938,7 +967,10 @@ algorand.send.payment(
 # Create a test USDC token and fund Alice
 usdc_id = create_test_asa(algorand, admin, "USDC", "USDC", decimals=6)
 alice = algorand.account.random()
-fund_account(algorand, admin, alice, algo=10_000_000, asa_id=usdc_id, asa_amount=500_000_000)
+fund_account(
+    algorand, admin, alice,
+    algo=10_000_000, asa_id=usdc_id, asa_amount=500_000_000,
+)
 ```
 
 The app account needs seed funding to cover its minimum balance requirement (which increases as orders create box storage) and to pay for inner transactions such as MBR refunds in `cleanup_expired_order`. Without this funding, the first `place_order` call will fail with "balance below minimum."
@@ -958,6 +990,7 @@ lsig_teal = compile_limit_order(
     price_n=250_000, price_d=1_000_000,
     max_sell=500_000_000,
     expiry_round=expiry_round,
+    order_id=1,  # First order on a fresh deployment (next_order_id)
 )
 compiled = algorand.client.algod.compile(lsig_teal)
 program = base64.b64decode(compiled["result"])
@@ -1058,21 +1091,21 @@ If you see `"Logic eval error"`, check that the LogicSig's template variables ma
 
 > **Warning: `last_valid` must respect EXPIRY_ROUND.** The LogicSig asserts `Txn.last_valid <= EXPIRY_ROUND`. If `suggested_params()` returns a `last_valid` round beyond the LogicSig's expiry, the fill transaction will be rejected by the LogicSig. Always set `sp.last = min(sp.last, expiry_round)` on the sell-side transaction before submitting.
 
+A second encoding pitfall lurks on the place-order side of the flow.
+
 > **Warning: ARC-4 encoding for `byte[]` parameters.** The `place_order` method's `lsig_hash` parameter has type `Bytes`, which requires proper ARC-4 encoding when called via `app_args`. Do not pass raw 32-byte values directly in `app_args` --- use `AtomicTransactionComposer` or `algosdk.abi` for correct length-prefixed encoding. The typed client generated by `algokit generate client` handles this automatically.
 
 This end-to-end flow --- place order, compile LogicSig, delegate, fill via atomic group --- is the pattern every Algorand limit order system follows.
 
-> **Note:** The helper functions (`create_test_asa`, `fund_account`, `compile_limit_order`, `fund_mbr`) are wrappers around the AlgoKit Utils and algosdk calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above.
+> **Note:** The helper functions (`create_test_asa`, `fund_account`, `compile_limit_order`, `fund_mbr`) are wrappers around the AlgoKit Utils and algosdk calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated in the preceding sections.
 
 ## Part 6: Security Deep Dive
 
-### Attack: LogicSig replay across orders
+### Attack: LogicSig replay across orders and methods
 
-**Risk:** If Alice creates two orders with the same parameters, the same signed LogicSig could be replayed against both orders' fills. (See the [LogicSig security checklist](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) for replay prevention.)
+**Risk:** A signed delegated LogicSig is a bearer authorization --- anyone holding it can submit it as many times, and in as many contexts, as the program itself allows. A LogicSig that checked only the app ID of the grouped call would authorize *any* method of the order book, and could be replayed until expiry with each use bounded only by `MAX_SELL` --- the contract's `filled_amount`/`max_amount` accounting would never constrain it, because nothing would force the group through `fill_order`. If Alice created two orders with identical parameters, an identically-parameterized LogicSig could also be replayed against both. (See the [LogicSig security checklist](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) for replay prevention.)
 
-**Mitigation:** Each order has a unique ID in the order book. The `fill_order` method verifies the order exists and has remaining capacity. Even if the same LogicSig is used twice, the fills are tracked separately in box storage. The `max_amount` and `filled_amount` fields prevent over-filling.
-
-For additional safety, the LogicSig can include a unique nonce as a template variable, making each LogicSig program unique even for identical order parameters.
+**Mitigation:** The LogicSig binds the grouped app call to the `fill_order` method selector and to one specific `ORDER_ID`. Every group that spends Alice's tokens must therefore include `fill_order(ORDER_ID, ...)`, and the contract's per-order accounting becomes authoritative: `fill_order` verifies the order exists, is active, and has remaining capacity, so cumulative fills across every use of the LogicSig cannot exceed `max_amount`. The `ORDER_ID` template variable also acts as a nonce --- it makes each LogicSig program (and hence Alice's signature) unique even for identical order parameters, so a delegation for one order cannot be replayed against another.
 
 ### Attack: keeper front-running
 
@@ -1082,15 +1115,15 @@ For additional safety, the LogicSig can include a unique nonce as a template var
 
 ### Attack: stale LogicSig after cancellation
 
-**Risk:** Alice cancels her order via the smart contract, but a keeper still has her signed LogicSig and tries to fill.
+**Risk:** Alice cancels her order via the smart contract, but a keeper still has her signed LogicSig and tries to fill. Worse, a LogicSig bound only to the app ID would not be revoked by cancellation at all: the holder could pair it with *any other* method of the order book --- `cleanup_expired_order`, for instance --- and move Alice's tokens without ever touching the cancelled order's status.
 
-**Mitigation:** The `fill_order` method checks `status == ORDER_ACTIVE || status == ORDER_PARTIAL`. After cancellation, the status is `ORDER_CANCELLED`, and any fill attempt fails. The LogicSig's group validation ensures it can only be used in a group with a `fill_order` call, which will reject the fill.
+**Mitigation:** The `fill_order` method checks `status == ORDER_ACTIVE || status == ORDER_PARTIAL`. After cancellation, the status is `ORDER_CANCELLED`, and any fill attempt fails. This is only a real revocation because the LogicSig binds the grouped app call to the `fill_order` selector and Alice's `ORDER_ID` --- the status check sits on the one code path the delegation can take. The general lesson: on-chain state can revoke a delegated LogicSig only if the LogicSig forces every use through the method that reads that state.
 
 ### Attack: price manipulation via group restructuring
 
 **Risk:** An attacker constructs a group that satisfies the LogicSig but with a different intent than expected.
 
-**Mitigation:** The LogicSig explicitly validates the group size (3), its own position in the group (index 1), the buy-side transaction's receiver (must be the seller), and the app call's application ID (must be the order book). An attacker cannot insert additional transactions or rearrange the group without violating these checks.
+**Mitigation:** The LogicSig explicitly validates the group size (3), its own position in the group (index 1), the buy-side transaction's receiver (must be the seller), and the app call's application ID, method selector, and order ID (must be `fill_order` on the order book for Alice's order). An attacker cannot insert additional transactions, rearrange the group, or substitute a different method or order without violating these checks.
 
 ### Attack: LogicSig args manipulation
 
@@ -1107,10 +1140,10 @@ For additional safety, the LogicSig can include a unique nonce as a template var
 
 ## Part 7: Testing the Complete System
 
-> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `fund_account`, `deploy_order_book`, `compile_and_sign_limit_order`, `current_genesis_hash`, `execute_fill`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated above. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
+> **Note:** The tests below are structural outlines showing *what* to test and *how* to assert. The helper functions (`create_test_asa`, `fund_account`, `deploy_order_book`, `compile_and_sign_limit_order`, `current_genesis_hash`, `execute_fill`, `advance_rounds`, etc.) are project-specific wrappers around the [AlgoKit Utils](https://dev.algorand.co/algokit/utils/python/testing/) calls shown earlier in this chapter --- implement them using the deployment and interaction patterns demonstrated in the preceding sections. The patterns here --- lifecycle tests, failure-path tests, invariant tests --- are the ones you should implement for any production contract.
 
 The following outline belongs in `tests/test_limit_order.py` after you
-implement the helper functions above (not part of the contract code):
+implement the preceding helper functions (not part of the contract code):
 
 ```python
 class TestLimitOrderBook:
@@ -1135,6 +1168,7 @@ class TestLimitOrderBook:
             max_amount=500_000_000, expiry_round=current_round + 20_000,
             order_book_app_id=book.app_id,
             genesis_hash=current_genesis_hash(algorand),
+            order_id=1,  # First order on a fresh deployment
         )
         order_id = call_method(book, "place_order", [...])
 
@@ -1208,6 +1242,7 @@ class TestLimitOrderBook:
             max_amount=500_000_000, expiry_round=current_round + 20_000,
             order_book_app_id=book.app_id,
             genesis_hash=wrong_genesis_hash,
+            order_id=order_id,
         )
         with pytest.raises(Exception):
             execute_fill(keeper, book, order_id, 500_000_000, lsig)
@@ -1218,11 +1253,11 @@ class TestLimitOrderBook:
 ```
 
 
-## Part 8: Composing with the AMM From Project 2
+## Part 8: Composing with the AMM from Chapter 5
 
 ### The Real Power: Keepers Routing Through Your AMM
 
-The limit order system becomes dramatically more useful when keepers can atomically fill limit orders using the AMM from Project 2 as a liquidity source. The keeper doesn't need to hold inventory --- they borrow from the AMM in the same [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/).
+The limit order system becomes dramatically more useful when keepers can atomically fill limit orders using the AMM from Chapter 5 as a liquidity source. The keeper doesn't need to hold inventory --- they borrow from the AMM in the same [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/).
 
 ```
 Atomic Group (5 transactions):
@@ -1261,8 +1296,12 @@ Here is how the order book contract could verify an AMM price directly, rather t
     ) -> UInt64:
         """Read the current price from an AMM pool's global state."""
         # Read the AMM's reserves via cross-app state read
-        reserve_a, reserve_a_exists = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_a"))
-        reserve_b, reserve_b_exists = op.AppGlobal.get_ex_uint64(amm_app, Bytes(b"reserve_b"))
+        reserve_a, reserve_a_exists = op.AppGlobal.get_ex_uint64(
+            amm_app, Bytes(b"reserve_a")
+        )
+        reserve_b, reserve_b_exists = op.AppGlobal.get_ex_uint64(
+            amm_app, Bytes(b"reserve_b")
+        )
         assert reserve_a_exists and reserve_b_exists, "AMM state not found"
 
         # Price = reserve_b / reserve_a (as a ratio in base units)
@@ -1301,7 +1340,7 @@ In this chapter you learned to:
 - Represent prices as N/D rational numbers and validate them via cross-multiplication
 - Build a keeper bot that monitors on-chain state and submits fill transactions
 - Compose limit order fills with AMM swaps in a single atomic group for zero-inventory-risk arbitrage
-- Apply the LogicSig security checklist: verify close-to, rekey-to, fee, expiry, network binding, asset amounts, and receiver fields
+- Apply the LogicSig security checklist: verify close-to, rekey-to, fee, expiry, network binding, asset amounts, receiver fields, and the exact grouped app call (method selector and order ID, not just app ID)
 
 | Feature Built | New Concepts Introduced |
 |--------------|------------------------|
@@ -1340,7 +1379,7 @@ See [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-si
 | N/D rational prices | Cross-multiplication price checks | Integer-only price representation |
 | Atomic arbitrage | Keeper fills order + swaps on AMM | Zero-inventory-risk market making |
 | `gtxn.Transaction(n)` field access | LogicSig inspecting grouped transactions | Cross-transaction validation in stateless programs |
-| LogicSig opcode pooling | Background (20,000 per txn) | Sets up the ZK verification pattern in Project 4 |
+| LogicSig opcode pooling | Background (20,000 cost-budget units per txn) | Sets up the ZK verification pattern in Chapter 10 |
 
 ## Appendix B: LogicSig vs Smart Contract Decision Matrix
 
@@ -1351,7 +1390,7 @@ See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/
 | DEX pool / AMM | Smart contract | Needs state (reserves, LP supply) |
 | Limit order rules | LogicSig (delegated) | Stateless, per-user, parameterized |
 | Order book tracking | Smart contract | Needs shared mutable state |
-| ZK proof verification | LogicSig (contract account) | Needs 20,000 opcode budget |
+| ZK proof verification | LogicSig (contract account) | Needs the 20,000-unit pooled cost budget |
 | Recurring payments | LogicSig (delegated) | Simple, no state needed |
 | Escrow / treasury | Smart contract | Inner transactions preferred |
 | Fee sponsorship | LogicSig (contract account) | Simple conditional payment |
@@ -1376,9 +1415,9 @@ Before starting the next chapter, you should be able to:
 
 - [ ] Write a LogicSig in Algorand Python using the `@logicsig` decorator
 - [ ] Explain the difference between contract account and delegated signature modes
-- [ ] Apply the LogicSig security checklist (close-to, rekey-to, fee, receiver, amount, expiry, network binding)
+- [ ] Apply the LogicSig security checklist (close-to, rekey-to, fee, receiver, amount, expiry, network binding, method-and-order binding)
 - [ ] Use template variables to parameterize LogicSig programs
 - [ ] Build hybrid architectures combining stateful contracts with stateless LogicSigs
-- [ ] Explain LogicSig opcode pooling and the 20,000-opcode budget
+- [ ] Explain LogicSig opcode pooling and the 20,000-unit opcode cost budget
 
 If any of these are unclear, revisit the Limit Order Book chapter before proceeding.

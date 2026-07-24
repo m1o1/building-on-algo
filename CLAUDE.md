@@ -58,7 +58,8 @@ When making changes to chapter files in `chapters/`, follow this process:
 Before proceeding with reviews, if the change involves contract code or test code, run the unit tests to catch compilation errors and regressions early:
 
 ```bash
-cd /Users/andrew/coding/building-on-algo && python3 -m pytest tests/ -v 2>&1 | head -80
+# From the repository root:
+uv run --group test python -m pytest tests -q 2>&1 | head -80
 ```
 
 If tests fail, fix the code before moving to the review step. Do not proceed with agent reviews on code that does not pass tests.
