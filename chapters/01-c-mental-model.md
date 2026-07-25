@@ -28,7 +28,7 @@ class HelloAlgorand(ARC4Contract):
         return "Hello, " + name
 ```
 
-This is a complete smart contract. It inherits from `ARC4Contract`, which gives it the [ARC-4](https://dev.algorand.co/arc-standards/arc-0004) calling convention --- the standard way Algorand contracts expose their methods. The `@arc4.abimethod` decorator makes `hello` publicly callable via its method selector (the first 4 bytes of the SHA-512/256 hash of the method signature). Arguments and return values use ARC-4 types (`arc4.String`) for wire encoding --- we will cover the type system in detail in Chapter 3. The method concatenates `"Hello, "` with the caller's name and returns the result. That is all it takes.
+This is a complete smart contract. It inherits from `ARC4Contract`, which gives it the [ARC-4](https://dev.algorand.co/arc-standards/arc-0004) calling convention --- the standard way Algorand contracts expose their methods. The `@arc4.abimethod` decorator makes `hello` publicly callable via its method selector (the first 4 bytes of the SHA-512/256 hash of the method signature). Arguments and return values use ARC-4 types (`arc4.String`) for wire encoding --- we will cover the type system in detail in {{ch:token-vesting}}. The method concatenates `"Hello, "` with the caller's name and returns the result. That is all it takes.
 
 ## Execution Model: Smart Contracts Are Transaction Validators
 
@@ -44,7 +44,7 @@ Every Algorand smart contract consists of two programs written in *TEAL* (Transa
 
 **The *approval program*** handles all normal operations: creation, method calls, opt-ins, close-outs, updates, and deletes. When someone calls your contract, the approval program runs. This is where all your business logic lives.
 
-**The *clear state program*** runs when a user wants to forcibly remove their local state from your application. The critical property: **the user's local state is always cleared regardless of whether the clear state program approves or rejects**. This is a deliberate protocol-level guarantee that users can always exit an application. The security implications of this design are significant --- we will explore them in Chapter 3 when choosing between local state and box storage for financial data.
+**The *clear state program*** runs when a user wants to forcibly remove their local state from your application. The critical property: **the user's local state is always cleared regardless of whether the clear state program approves or rejects**. This is a deliberate protocol-level guarantee that users can always exit an application. The security implications of this design are significant --- we will explore them in {{ch:token-vesting}} when choosing between local state and box storage for financial data.
 
 ## The Account Model
 
@@ -88,9 +88,13 @@ access in a `boxes` array on the transaction. Each declared reference grants
 need multiple references to the same box. The box name still matters for MBR,
 but not for the I/O budget. Forgetting to declare box references produces a
 "box read/write budget exceeded" error. We will see this in practice when we
-build the vesting contract in Chapter 3.
+build the vesting contract in {{ch:token-vesting}}.
 
 *Before looking at the table: if you needed to store per-user financial data (like vesting schedules) for potentially thousands of users, which storage type would you choose and why? Consider who controls deletion, capacity limits, and cost.*
+
+{{tbl:storage-options}} sets the three options side by side.
+
+Table: On-chain storage options compared {#tbl:storage-options}
 
 | Storage Type | Capacity | Who Controls Deletion | Best For |
 |-------------|----------|----------------------|----------|
@@ -132,14 +136,14 @@ The minimum [transaction fee](https://dev.algorand.co/concepts/transactions/fees
 
 So far we have described transactions submitted by users (off-chain). Smart contracts can also issue [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) --- transactions sent from within contract code during execution. When your contract needs to send Algos, transfer an ASA, or call another contract, it does so by emitting an inner transaction. Inner transactions execute atomically within the outer transaction: if the outer transaction fails, all inner transactions are rolled back too.
 
-The distinction from atomic groups is important: atomic groups are assembled *off-chain* by a client and submitted as a bundle, while inner transactions are created *on-chain* by contract logic during execution. A contract can issue up to 256 inner transactions per group. We will use inner transactions extensively starting in Chapter 3.
+The distinction from atomic groups is important: atomic groups are assembled *off-chain* by a client and submitted as a bundle, while inner transactions are created *on-chain* by contract logic during execution. A contract can issue up to 256 inner transactions per group. We will use inner transactions extensively starting in {{ch:token-vesting}}.
 
 ## What You Cannot Do
 
 Understanding limits is as important as understanding capabilities:
 
 - **No floating point.** The AVM has only `uint64` and `bytes` types. All math is integer-only. Prices must be represented as rational numbers (numerator/denominator). (See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).)
-- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction consumes a certain number of units from the opcode budget (most cost 1 unit; cryptographic operations like `ed25519verify` cost more), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in Chapter 8). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group, since AVM v10.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
+- **No unbounded loops.** The *opcode budget* limits how much computation a single call can perform. Each AVM instruction consumes a certain number of units from the opcode budget (most cost 1 unit; cryptographic operations like `ed25519verify` cost more), and your contract gets a budget of 700 per application call. Since AVM v5, the budget is pooled across all application calls in a group --- a group with 4 app calls gets a total of 2,800. Contracts that need more computation can pad the group with no-op app calls to increase the shared budget (covered in {{ch:patterns}}). The pooled budget is roughly enough for several hundred arithmetic operations and dozens of state reads per call, but not enough for expensive cryptographic operations like signature verification without pooling. If your logic exceeds the budget, the transaction fails. (LogicSig programs get a separate pool of 20,000 per transaction in the group, since AVM v10.) You cannot iterate over an arbitrarily large data set in one call. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/).)
 - **No callbacks or fallback functions.** When your contract sends tokens via an inner transaction, no code executes on the receiving side. This eliminates classical reentrancy attacks. (See [Ethereum to Algorand](https://dev.algorand.co/getting-started/ethereum-to-algorand/) for a comparison of security models.)
 - **Constrained app-to-app interaction.** Contracts can submit inner application-call transactions, but that is transaction coordination, not a call stack with an arbitrary synchronous return value. State, logs, and group ordering are the coordination mechanisms. Your contract can *read* another contract's global state via `app_global_get_ex`, but cannot write to it directly. State changes committed by earlier transactions in the same atomic group *are* visible to later transactions --- the group shares a single copy-on-write state object, and the aggregate changes are committed to the ledger only after every transaction succeeds. (See [AVM specification](https://dev.algorand.co/concepts/smart-contracts/avm/) and [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/).)
 - **No private on-chain data.** All state (global, local, boxes) is publicly readable off-chain via algod and indexer APIs. Boxes are private *on-chain* (only the owning app can read them in TEAL), but anyone can read them via the REST API.
@@ -254,9 +258,13 @@ After bootstrapping, verify the project environment before you run scripts or te
 
 This command installs all project dependencies by running the appropriate package manager (Poetry, in the default Python template). It installs `algorand-python` (the type stubs that provide IDE autocompletion and type checking), `puyapy` (the compiler that transforms your Python code into TEAL bytecode), `algokit-utils` (the client library for interacting with Algorand), and testing dependencies. If you already ran bootstrap during `algokit init`, you can skip this step.
 
-> **VS Code tip:** If VS Code shows import errors (yellow or red squiggly lines under `import algokit_utils`), it does not know which Python environment to use. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux), run **Python: Select Interpreter**, and choose the `.venv` inside your `projects/my-first-contract/` directory. This points VS Code at the virtual environment where `algokit project bootstrap all` installed your dependencies, giving you autocompletion and type checking. Alternatively, open the `projects/my-first-contract/` folder directly in VS Code instead of the workspace root --- its `.vscode/settings.json` is already configured by AlgoKit to use the correct interpreter.
+::: {.tip}
+**VS Code tip.** If VS Code shows import errors (yellow or red squiggly lines under `import algokit_utils`), it does not know which Python environment to use. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux), run **Python: Select Interpreter**, and choose the `.venv` inside your `projects/my-first-contract/` directory. This points VS Code at the virtual environment where `algokit project bootstrap all` installed your dependencies, giving you autocompletion and type checking. Alternatively, open the `projects/my-first-contract/` folder directly in VS Code instead of the workspace root --- its `.vscode/settings.json` is already configured by AlgoKit to use the correct interpreter.
+:::
 
-> **Note:** This book uses Algorand Python (PuyaPy) exclusively, but Algorand smart contracts can also be written in **Algorand TypeScript**, which shares the same Puya compiler backend and produces the same TEAL. If your team prefers TypeScript, scaffold with `algokit init -t typescript`. (TEALScript, an older TypeScript option, is legacy and has been superseded by Algorand TypeScript.) The AVM concepts, security patterns, and architectural decisions taught in this book apply identically regardless of which language you choose --- only the syntax differs.
+::: {.note}
+This book uses Algorand Python (PuyaPy) exclusively, but Algorand smart contracts can also be written in **Algorand TypeScript**, which shares the same Puya compiler backend and produces the same TEAL. If your team prefers TypeScript, scaffold with `algokit init -t typescript`. (TEALScript, an older TypeScript option, is legacy and has been superseded by Algorand TypeScript.) The AVM concepts, security patterns, and architectural decisions taught in this book apply identically regardless of which language you choose --- only the syntax differs.
+:::
 
 Verify the compilation pipeline works by compiling the template contract:
 
@@ -266,7 +274,9 @@ algokit project run build
 
 This should produce files in `smart_contracts/artifacts/hello_world/`: a `.approval.teal` file, a `.clear.teal` file, an `.arc56.json` application specification, and a generated typed client (`_client.py`). The artifacts are placed in a subdirectory matching the contract directory name. If compilation succeeds without errors, your environment is ready.
 
-> **Note:** `algokit project run build` runs the full build pipeline defined in `.algokit.toml`, including compilation and typed client generation. You can also compile standalone files with `algokit compile py`, but `algokit project run build` is preferred when using the template project structure because it places artifacts in the correct location and generates typed clients automatically.
+::: {.note}
+`algokit project run build` runs the full build pipeline defined in `.algokit.toml`, including compilation and typed client generation. You can also compile standalone files with `algokit compile py`, but `algokit project run build` is preferred when using the template project structure because it places artifacts in the correct location and generates typed clients automatically.
+:::
 
 Now deploy the compiled contract to LocalNet and call its method. Create a file called `interact.py` in the project root (next to `pyproject.toml`):
 
@@ -400,6 +410,10 @@ In this chapter you learned to:
 - Identify key AVM constraints: no floating point, no unbounded loops, no arbitrary callbacks or EVM-style reentrancy, no private on-chain data, and no arbitrary synchronous app-to-app calls
 - Set up a complete Algorand development environment with AlgoKit, LocalNet, and PuyaPy
 - Deploy a contract to LocalNet and call its methods using AlgoKit Utils
+
+{{tbl:mental-model-summary}} collects the concepts this chapter introduced.
+
+Table: Chapter concepts and key takeaways {#tbl:mental-model-summary}
 
 | Concept | Key Takeaway |
 |---------|-------------|

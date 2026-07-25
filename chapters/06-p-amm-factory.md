@@ -2,7 +2,7 @@
 
 # AMM Factory and Pool Provenance
 
-Chapter 5 built one AMM pool. That is enough to understand liquidity,
+{{ch:amm}} built one AMM pool. That is enough to understand liquidity,
 constant-product pricing, LP tokens, and swap safety. It is not enough to run a
 DEX.
 
@@ -13,7 +13,7 @@ A DEX needs a way to answer questions like:
 - Did this pool come from our protocol, or did someone deploy a lookalike?
 - Can another contract, such as a farm or router, safely trust this pool?
 
-In Chapter 5, the client deployed a pool directly. That is the *client-side
+In {{ch:amm}}, the client deployed a pool directly. That is the *client-side
 factory* pattern: the SDK creates an app, bootstraps it, and remembers the app
 ID. In this chapter, we move that authority on-chain. The factory application
 creates pool applications using inner transactions, stores the canonical pool
@@ -44,9 +44,9 @@ Then run the tests:
 algokit project run test
 ```
 
-Table 6-1 lists the output checkpoints to compare against the workflow output.
+{{tbl:factory-run-it-first}} lists the output checkpoints to compare against the workflow output.
 
-Table 6-1. Output checkpoints for the AMM factory workflow
+Table: Output checkpoints for the AMM factory workflow {#tbl:factory-run-it-first}
 
 | Output checkpoint | What to watch for |
 |-------------------|-------------------|
@@ -106,7 +106,7 @@ factory, create_result = factory_factory.send.create.bare()
 ```
 
 The demo creates two ASAs and sorts them. This is the same canonical-ordering
-rule used by the Chapter 5 pool:
+rule used by the {{ch:amm}} pool:
 
 ```python
 created_a = algorand.send.asset_create(
@@ -207,7 +207,7 @@ The `app_references` entry lets the factory inspect the candidate pool's app
 parameters and global state. The `box_references` entries let it read the
 factory-owned registry boxes.
 
-The rest of the workflow uses the factory-created pool like the Chapter 5 pool:
+The rest of the workflow uses the factory-created pool like the {{ch:amm}} pool:
 users opt into the LP token, add initial liquidity, swap, add later liquidity,
 and remove liquidity. The opt-in loop is just ordinary asset opt-in calls:
 
@@ -457,7 +457,7 @@ The factory's own registry has to be part of the answer.
 
 ## From One Pool to a Protocol
 
-The Chapter 5 pool is an excellent standalone contract. It holds exactly two
+The {{ch:amm}} pool is an excellent standalone contract. It holds exactly two
 assets, mints one LP token, and enforces constant-product swap math. But if
 every user can deploy a pool directly, the protocol has no single source of
 truth.
@@ -504,7 +504,7 @@ That is the difference between weak provenance and useful provenance.
 
 ## The Pool Contract
 
-The child pool is a close cousin of the Chapter 5 AMM. It keeps:
+The child pool is a close cousin of the {{ch:amm}} AMM. It keeps:
 
 - the ordered asset IDs
 - the LP token ID
@@ -700,12 +700,14 @@ bootstrap_txn = itxn.ApplicationCall(
 lp_token_id = arc4.UInt64.from_log(bootstrap_txn.last_log).as_uint64()
 ```
 
-> **Note.** The manual `compile_contract` + `itxn.ApplicationCall` +
-> `arc4_signature` + `from_log` pattern shows exactly what happens on the
-> wire. In production code you can let the compiler do this plumbing with the
-> typed helpers `arc4.arc4_create(...)` / `arc4.abi_call(...)` (or
-> `itxn.abi_call`, puyapy 5.7+), which handle schema, pages, selector
-> encoding, and return-value decoding for you.
+::: {.note}
+**Note.** The manual `compile_contract` + `itxn.ApplicationCall` +
+`arc4_signature` + `from_log` pattern shows exactly what happens on the
+wire. In production code you can let the compiler do this plumbing with the
+typed helpers `arc4.arc4_create(...)` / `arc4.abi_call(...)` (or
+`itxn.abi_call`, puyapy 5.7+), which handle schema, pages, selector
+encoding, and return-value decoding for you.
+:::
 
 The `assets=(asset_a, asset_b)` entry makes the dependency visible. The child
 pool inspects the asset parameters and opts into both assets, so those assets
@@ -812,10 +814,10 @@ The factory registry is harder to fake because only the factory application can
 write its own boxes. A malicious pool can claim anything in its own state; it
 cannot make the real factory map `(asset_a, asset_b)` to the malicious app ID.
 
-That is why the verification method combines both sides. Table 6-2 summarizes
+That is why the verification method combines both sides. {{tbl:factory-provenance-checks}} summarizes
 the checks used by `verify_pool`.
 
-Table 6-2. Provenance checks used by `verify_pool`
+Table: Provenance checks used by `verify_pool` {#tbl:factory-provenance-checks}
 
 | Check | What it proves |
 |-------|----------------|
@@ -871,9 +873,9 @@ In this chapter you learned to:
 - Verify a pool using the factory registry, app creator, and child global state
 - Test duplicate-pair and fake-pool rejection paths
 
-Table 6-3 summarizes the chapter's key takeaways.
+{{tbl:factory-summary}} summarizes the chapter's key takeaways.
 
-Table 6-3. Key takeaways for the AMM factory chapter
+Table: Key takeaways for the AMM factory chapter {#tbl:factory-summary}
 
 | Concept | Key Takeaway |
 |---------|--------------|
@@ -898,7 +900,7 @@ Table 6-3. Key takeaways for the AMM factory chapter
    farm call need?
 5. **(Create)** Sketch a router that asks the factory for the canonical pool
    before quoting a swap. Where should the router reject an unknown pair?
-6. **(Apply)** Add the Chapter 5 TWAP oracle back to `FactoryPool` using the
+6. **(Apply)** Add the {{ch:amm}} TWAP oracle back to `FactoryPool` using the
    following hints.
 
 ### Exercise Hint: Adding TWAP Back
@@ -907,7 +909,7 @@ The factory-created pool omits TWAP so the chapter can focus on contract
 creation and provenance. Adding TWAP back is deliberately left as an exercise.
 It is not conceptually hard, but there are a few details to handle carefully:
 
-1. Copy the Chapter 5 cumulative price fields into `FactoryPool`.
+1. Copy the {{ch:amm}} cumulative price fields into `FactoryPool`.
 2. Initialize `twap_last_update` when initial liquidity is added, not during
    factory bootstrap. Before liquidity exists, there is no meaningful price.
 3. Call `_update_twap()` before reserve mutations in `swap`, `add_liquidity`,

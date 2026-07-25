@@ -4,14 +4,14 @@
 
 A startup has raised funds and needs to distribute tokens to its team. The tokens should not arrive all at once --- team members receive their allocation gradually over 12 months, with nothing released during the first 3 months (the "cliff"). If someone leaves early, the company can revoke their unvested tokens. This is a **token vesting contract**, and building one will teach you every foundational concept in Algorand smart contract development.
 
-In Chapter 2, you built a simplified version of this contract and discovered its limitations through testing --- overflow on large amounts, no multi-beneficiary support, no revocation. Now we build the production version that solves every gap those tests revealed.
+In {{ch:testing}}, you built a simplified version of this contract and discovered its limitations through testing --- overflow on large amounts, no multi-beneficiary support, no revocation. Now we build the production version that solves every gap those tests revealed.
 
 We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
 
 ## Run It First!
 
 If you want to see the destination before studying each piece, the finished
-Chapter 3 project is in `projects/chapter3/token-vesting/`. You do not need to
+{{ch:token-vesting}} project is in `projects/chapter3/token-vesting/`. You do not need to
 understand every step yet. The demo shows the whole loop: deploy and fund the
 app, create vesting schedules, then exercise claim, revoke, and cleanup
 workflows with a test Algorand Standard Asset (ASA).
@@ -190,7 +190,7 @@ project.
 
 ## Project Setup
 
-If you scaffolded `my-first-contract` in Chapter 1, use that project. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
+If you scaffolded `my-first-contract` in {{ch:mental-model}}, use that project. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
 
 ```bash
 algokit init -t python --name token-vesting
@@ -228,7 +228,7 @@ Notice the `arc4.UInt64` fields in the struct --- these are not the same as the 
 
 Before we can vest tokens, we need a contract on the blockchain. Let us start with the absolute minimum: a contract that can be created and that knows who created it.
 
-Recall from Chapter 1 that a smart contract executes once per transaction --- it validates, decides to approve or reject, and stops. With that model in mind, let us build our first contract. The clear state program handles a special case we will discuss later --- for now, just know it exists and that we will give it a default implementation that simply returns true.
+Recall from {{ch:mental-model}} that a smart contract executes once per transaction --- it validates, decides to approve or reject, and stops. With that model in mind, let us build our first contract. The clear state program handles a special case we will discuss later --- for now, just know it exists and that we will give it a default implementation that simply returns true.
 
 ARCs (Algorand Requests for Comments) are community standards for the Algorand ecosystem, similar to Python's PEPs or internet RFCs. Modern Algorand contracts inherit from `ARC4Contract`, which implements the [ARC-4 Application Binary Interface](https://dev.algorand.co/concepts/smart-contracts/abi/). ARC-4 is the standard calling convention for Algorand smart contracts. It defines how method names are mapped to 4-byte selectors (computed as the first 4 bytes of `SHA-512/256` of the method signature string), how arguments are encoded on the wire, and how return values are communicated back to the caller via transaction logs. When you inherit from `ARC4Contract`, the PuyaPy compiler generates all of this routing logic automatically --- you never write a manual switch statement or parse raw bytes. (See the [ARC-4 specification](https://dev.algorand.co/arc-standards/arc-0004/) and the [Algorand Python ARC-4 guide](https://algorandfoundation.github.io/puya/lg-arc4.html).)
 
@@ -271,7 +271,7 @@ We declare `beneficiary_count`, `available_tokens`, and `schedules` in
 `asset_id`, the global state schema is fixed at deployment, so all fields must
 be declared upfront. The `available_tokens` counter tracks deposited tokens that
 have not yet been reserved for a vesting schedule. The `BoxMap` declaration uses
-box storage (introduced in Chapter 1) --- it does not create any boxes on-chain.
+box storage (introduced in {{ch:mental-model}}) --- it does not create any boxes on-chain.
 It tells the compiler the type signature for the mapping: keys are `Account`
 addresses, values are `VestingSchedule` structs, and each box name is prefixed
 with `b"v_"`. Boxes are created individually on demand when `create_schedule`
@@ -287,7 +287,7 @@ The `readonly=True` flag on `get_admin` signals to client libraries that this me
 
 We also declared `asset_id` and `is_initialized` in `__init__` even though we do not use them yet. This is deliberate: the **global state schema** --- how many `UInt64` slots and how many `Bytes` slots the contract uses --- is fixed at deployment and can never be changed afterward. If you need 5 uint slots later but only declared 3, you must deploy an entirely new contract. The marginal cost of extra slots is small (28,500 microAlgos per uint slot, 50,000 per byte-slice slot), so it is good practice to allocate a few spares. The maximum is 64 key-value pairs, with each key plus value limited to 128 bytes combined.
 
-To deploy this contract, you compile it with PuyaPy and use AlgoKit. If you set up the environment as described in Chapter 1 and renamed the contract directory as shown in the Project Setup section above, your contract code should be in `smart_contracts/token_vesting/contract.py`. Compile:
+To deploy this contract, you compile it with PuyaPy and use AlgoKit. If you set up the environment as described in {{ch:mental-model}} and renamed the contract directory as shown in the Project Setup section above, your contract code should be in `smart_contracts/token_vesting/contract.py`. Compile:
 
 ```bash
 algokit project run build
@@ -402,9 +402,11 @@ inner fee is deducted from the contract's own Algo balance, not from the
 caller. An attacker can exploit that by repeatedly calling a method that emits
 inner transactions until the contract balance drops below MBR.
 
-> **Warning:** A non-zero inner transaction fee is paid by the contract's own
-> Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
-> transaction cover the pooled fee.
+::: {.warning}
+A non-zero inner transaction fee is paid by the contract's own
+Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
+transaction cover the pooled fee.
+:::
 
 The solution is *fee pooling*: the Algorand protocol validates fees at the group level, not per-transaction. The sum of all fees in an atomic group must meet the sum of all minimum fees (including inner transactions). So the caller's outer transaction overpays its fee to cover everything.
 
@@ -568,7 +570,7 @@ After validation, `available_tokens` increases by the amount received. Later,
 beneficiary schedule, which prevents the admin from promising more tokens than
 the contract actually holds.
 
-You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in Chapter 9), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
+You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in {{ch:limit-order-book}}), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
 
 - **`close_remainder_to`** / **`asset_close_to`** --- drain the *sender's* balance to another address. The sender is the user, not the contract. The contract receives the specified `amount` regardless.
 - **`rekey_to`** --- reassigns the *sender's* signing authority. Again, the user's account, not the contract's.
@@ -578,7 +580,7 @@ A stateful contract's own account can only be affected by transactions it signs 
 
 ## Creating Vesting Schedules
 
-Now we need to record each team member's vesting schedule. This is per-user data, and the choice of where to store it is the most important architectural decision in this contract. Recall from Chapter 1 that Algorand offers three storage types --- global state, local state, and box storage --- each with different ownership and deletion semantics.
+Now we need to record each team member's vesting schedule. This is per-user data, and the choice of where to store it is the most important architectural decision in this contract. Recall from {{ch:mental-model}} that Algorand offers three storage types --- global state, local state, and box storage --- each with different ownership and deletion semantics.
 
 *Before reading on: which of the three storage types would you choose for per-user vesting data? Consider what happens if a user can delete their own data. Think about this for a moment before we discuss the solution.*
 
@@ -586,22 +588,28 @@ Your first instinct might be **local state**. The MBR is charged to the opting-i
 
 But recall local state's fatal flaw: **users can clear their local state at any time by sending a ClearState transaction, and this always succeeds regardless of what your clear state program does**. For a vesting contract, the implication is devastating. If Bob has claimed 500 of his 1,000 vesting tokens and clears his local state, the contract loses track of his claims. Bob could potentially re-register and claim another 1,000 tokens.
 
-> **Warning:** Users can delete their local state at any time via ClearState, and the protocol guarantees this always succeeds. Never use local state as the sole record of financial obligations, debts, or token claims.
+::: {.warning}
+Users can delete their local state at any time via ClearState, and the protocol guarantees this always succeeds. Never use local state as the sole record of financial obligations, debts, or token claims.
+:::
 
-Refer to the storage comparison in Chapter 1 for a full breakdown of each type's ownership semantics, limits, and tradeoffs. The critical distinction here is: local state is user-deletable, box storage is application-controlled.
+Refer to the storage comparison in {{ch:mental-model}} for a full breakdown of each type's ownership semantics, limits, and tradeoffs. The critical distinction here is: local state is user-deletable, box storage is application-controlled.
 
-> **Check your understanding:** Without looking back at Chapter 1, name the three Algorand storage types and state one key constraint of each. Which one can users delete unilaterally? Which one has an immutable schema? Which one does the application fully control?
+::: {.check}
+Without looking back at {{ch:mental-model}}, name the three Algorand storage types and state one key constraint of each. Which one can users delete unilaterally? Which one has an immutable schema? Which one does the application fully control?
+:::
 
 The correct solution is **box storage** --- application-controlled key-value storage where the application decides when boxes are created and deleted. Users cannot unilaterally remove them. (See [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
 
-> **Design decision: why box storage over local state.** When I encounter per-user data, I ask three questions: (1) Can the user delete it unilaterally? If yes, local state is dangerous. (2) Is the data small enough for local state's 128-byte limit? (3) Does the application need to control the data's lifecycle? For vesting schedules, the answers are yes, maybe, and definitely yes --- making box storage the clear choice.
+::: {.note}
+**Design decision: why box storage over local state.** When I encounter per-user data, I ask three questions: (1) Can the user delete it unilaterally? If yes, local state is dangerous. (2) Is the data small enough for local state's 128-byte limit? (3) Does the application need to control the data's lifecycle? For vesting schedules, the answers are yes, maybe, and definitely yes --- making box storage the clear choice.
+:::
 
 Recall the `VestingSchedule` struct we defined at the start of the chapter. We use `arc4.Struct` for typed, ABI-encoded data structures and `BoxMap` for a typed mapping where each entry is its own box. The box name (with prefix `"v_"` plus 32-byte address) is 34 bytes. The MBR per beneficiary: `2,500 + 400 * (34 + 41) = 32,500 microAlgos`, about 0.033 Algo.
 
 `Global.latest_timestamp` returns a Unix epoch timestamp from the current block header. The block proposer sets it from their system clock, constrained to be monotonically non-decreasing and at most 25 seconds ahead of the previous block. For vesting schedules measured in months, this imprecision is negligible.
 
 Now we encounter **box references** in practice --- the concept introduced in
-Chapter 1. Every transaction that reads or writes a box must declare which
+{{ch:mental-model}}. Every transaction that reads or writes a box must declare which
 boxes it will access in a `boxes` array on the transaction. The AVM uses these
 declarations to allocate I/O budget: each reference grants 2,048 bytes (2KB)
 of read/write capacity for box data. For `create_schedule`, the stored data is
@@ -640,7 +648,9 @@ pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
 `algokit_utils.BoxReference` are client-side representations of this same
 resource-reference idea.
 
-> **Warning:** Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
+::: {.warning}
+Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
+:::
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -705,7 +715,7 @@ Integer division rounds down (floor). This means beneficiaries get slightly less
 
 We extract the vesting calculation into a **subroutine** because it appears in three places (claim, revoke, get_claimable). The `@subroutine` decorator makes the compiler emit a single TEAL subroutine called via `callsub`/`retsub`, saving program bytes.
 
-Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Module-level subroutines can be shared across multiple contracts in the same file. Class methods decorated with `@subroutine` are also valid and are scoped to that contract --- we will use class-method subroutines in Chapters 5 and 6. We use a module-level subroutine here because `calculate_vested` is pure logic that could be reused by other contracts (see the [PuyaPy structure guide](https://algorandfoundation.github.io/puya/lg-structure.html)):
+Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Module-level subroutines can be shared across multiple contracts in the same file. Class methods decorated with `@subroutine` are also valid and are scoped to that contract --- we will use class-method subroutines in Chapters {{chn:amm}} and {{chn:amm-factory}}. We use a module-level subroutine here because `calculate_vested` is pure logic that could be reused by other contracts (see the [PuyaPy structure guide](https://algorandfoundation.github.io/puya/lg-structure.html)):
 
 ```python
 from algopy import op, subroutine
@@ -729,7 +739,9 @@ def calculate_vested(
 
 Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. The conversion method `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`, and it is the recommended approach. An older alternative, `.native`, is deprecated on numeric ARC-4 types (`UIntN`, `BigUIntN`) in favor of the explicit `.as_uint64()` and `.as_biguint()` methods (see the `@deprecated` annotations in the [PuyaPy `arc4` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/arc4.pyi)). For non-numeric types (`String`, `Bool`, `Address`, `DynamicBytes`), `.native` remains the standard conversion. This book uses `.as_uint64()` for numeric fields and `.native` for booleans and other non-numeric types where it remains the natural conversion.
 
-> **Quick reference: ARC-4 ↔ native conversions.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. This conversion is required every time you cross the boundary between box storage (ARC-4 encoded) and computation (native types).
+::: {.spec}
+**Quick reference: ARC-4 ↔ native conversions.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. This conversion is required every time you cross the boundary between box storage (ARC-4 encoded) and computation (native types).
+:::
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -773,11 +785,15 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         return claimable
 ```
 
-> **Beneficiary prerequisites:** Before calling `claim`, the beneficiary must (1) have a funded account (at least 0.2 Algo for the base MBR plus ASA opt-in MBR), and (2) have opted into the vesting ASA (a zero-amount self-transfer of the asset). Without the opt-in, the inner `AssetTransfer` will fail with "receiver not opted in." In a production system, you might add an `opt_in_beneficiary` method that handles this in one atomic group, but for this contract the beneficiary manages it themselves.
+::: {.setup}
+**Beneficiary prerequisites.** Before calling `claim`, the beneficiary must (1) have a funded account (at least 0.2 Algo for the base MBR plus ASA opt-in MBR), and (2) have opted into the vesting ASA (a zero-amount self-transfer of the asset). Without the opt-in, the inner `AssetTransfer` will fail with "receiver not opted in." In a production system, you might add an `opt_in_beneficiary` method that handles this in one atomic group, but for this contract the beneficiary manages it themselves.
+:::
 
 Notice that we send the tokens *before* updating the schedule's `claimed_amount`. On Ethereum, this would be a critical reentrancy vulnerability --- the recipient could call back into `claim()` before `claimed_amount` is updated, draining the contract. On Algorand, this is perfectly safe.
 
-> **No reentrancy on Algorand.** When your contract sends tokens via an inner transaction, no user code executes on the receiving side. There are no fallback functions, no callbacks, no hooks triggered by token receipt. The contract maintains uninterrupted control flow throughout its entire execution. If any part of the execution fails --- including the inner transaction --- *all* state changes roll back atomically. This means the ordering of state updates and inner transactions has no security implications. Write your code in whatever order tells the clearest story. This eliminates the entire class of reentrancy exploits that has caused hundreds of millions of dollars in losses on Ethereum.
+::: {.spec}
+**No reentrancy on Algorand.** When your contract sends tokens via an inner transaction, no user code executes on the receiving side. There are no fallback functions, no callbacks, no hooks triggered by token receipt. The contract maintains uninterrupted control flow throughout its entire execution. If any part of the execution fails --- including the inner transaction --- *all* state changes roll back atomically. This means the ordering of state updates and inner transactions has no security implications. Write your code in whatever order tells the clearest story. This eliminates the entire class of reentrancy exploits that has caused hundreds of millions of dollars in losses on Ethereum.
+:::
 
 
 ## Revoking Unvested Tokens
@@ -891,10 +907,12 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 
 ## Testing the Vesting Contract
 
-> **Note:** Use the Chapter 2 pytest setup for this project: check whether `pytest` is already listed in the generated `pyproject.toml`, add it to the project environment if it is missing, and create a `tests/` directory in your project root.
-> Avoid installing pytest into an unrelated system Python.
-> Run it from the project environment created by `algokit project bootstrap all`.
-> (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
+::: {.note}
+Use the {{ch:testing}} pytest setup for this project: check whether `pytest` is already listed in the generated `pyproject.toml`, add it to the project environment if it is missing, and create a `tests/` directory in your project root.
+Avoid installing pytest into an unrelated system Python.
+Run it from the project environment created by `algokit project bootstrap all`.
+(See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
+:::
 
 The following tests are outline examples showing *what* to test and *how* to assert.
 The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`,
@@ -903,7 +921,7 @@ AlgoKit Utils calls shown earlier in this chapter. The patterns here ---
 lifecycle tests, failure-path tests, invariant tests --- are the ones you
 should implement for any production contract.
 
-To show how Chapter 2's `setup_initialized_contract` pattern translates to a new contract, here is the complete `deploy_vesting` helper. The remaining helpers follow the same approach --- adapt the interaction patterns from the deployment section above:
+To show how {{ch:testing}}'s `setup_initialized_contract` pattern translates to a new contract, here is the complete `deploy_vesting` helper. The remaining helpers follow the same approach --- adapt the interaction patterns from the deployment section above:
 
 ```python
 from pathlib import Path
@@ -937,45 +955,51 @@ def deploy_vesting(algorand, admin):
     return app_client
 ```
 
-> **Exercise:** Implement the `deposit_tokens` and `create_schedule` helpers yourself, using the deployment script patterns from earlier in this chapter and the `setup_initialized_contract` function from Chapter 2 as a template.
+::: {.tryit}
+**Exercise.** Implement the `deposit_tokens` and `create_schedule` helpers yourself, using the deployment script patterns from earlier in this chapter and the `setup_initialized_contract` function from {{ch:testing}} as a template.
+:::
 
 Before diving into the test code, there are two LocalNet behaviors that will affect how you write your test helpers.
 
-> **Caution:** On LocalNet, block timestamps only advance when new blocks are
-> produced, and blocks are produced on demand when transactions are submitted.
-> Calling `time.sleep(N)` alone does NOT advance the block timestamp. You must
-> also submit a transaction, even a zero-amount self-payment, to produce a block
-> with the updated timestamp. A typical `advance_time` helper sleeps for the
-> desired duration, then sends a dummy transaction to trigger a new block:
->
-> ```python
-> import time
-> def advance_time(algorand, seconds):
->     """Sleep, then send a dummy txn to produce a block with updated timestamp."""
->     time.sleep(seconds)
->     dispenser = algorand.account.localnet_dispenser()
->     algorand.send.payment(
->         algokit_utils.PaymentParams(
->             sender=dispenser.address,
->             receiver=dispenser.address,
->             amount=algokit_utils.AlgoAmount.from_micro_algo(0),
->         )
->     )
-> ```
->
-> For testing, use short durations for cliff and vesting periods. For example,
-> set a cliff of 8 seconds and total vesting of 30 seconds instead of 90 days
-> and 365 days.
+::: {.warning}
+On LocalNet, block timestamps only advance when new blocks are
+produced, and blocks are produced on demand when transactions are submitted.
+Calling `time.sleep(N)` alone does NOT advance the block timestamp. You must
+also submit a transaction, even a zero-amount self-payment, to produce a block
+with the updated timestamp. A typical `advance_time` helper sleeps for the
+desired duration, then sends a dummy transaction to trigger a new block:
+
+```python
+import time
+def advance_time(algorand, seconds):
+"""Sleep, then send a dummy txn to produce a block with updated timestamp."""
+time.sleep(seconds)
+dispenser = algorand.account.localnet_dispenser()
+algorand.send.payment(
+algokit_utils.PaymentParams(
+sender=dispenser.address,
+receiver=dispenser.address,
+amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+)
+)
+```
+
+For testing, use short durations for cliff and vesting periods. For example,
+set a cliff of 8 seconds and total vesting of 30 seconds instead of 90 days
+and 365 days.
+:::
 
 A second LocalNet quirk affects rapid-fire test transactions.
 
-> **Caution:** Sending identical app calls in rapid succession on LocalNet can
-> produce identical transaction IDs, causing `"transaction already in ledger"`
-> errors. Add a unique `note` field to each transaction, such as
-> `note=os.urandom(8)` or `note=f"test-{i}".encode()`. In practice, add
-> `note=os.urandom(8)` to every `AppClientMethodCallParams` and
-> `PaymentParams`/`AssetTransferParams` in your test helpers; it costs nothing
-> and prevents intermittent test failures.
+::: {.warning}
+Sending identical app calls in rapid succession on LocalNet can
+produce identical transaction IDs, causing `"transaction already in ledger"`
+errors. Add a unique `note` field to each transaction, such as
+`note=os.urandom(8)` or `note=f"test-{i}".encode()`. In practice, add
+`note=os.urandom(8)` to every `AppClientMethodCallParams` and
+`PaymentParams`/`AssetTransferParams` in your test helpers; it costs nothing
+and prevents intermittent test failures.
+:::
 
 With those LocalNet behaviors in mind, the following outline belongs in
 `tests/test_vesting.py` after you implement the helper functions shown
@@ -1071,7 +1095,9 @@ def call_method(app_client, method, args, sender=None, static_fee=None):
     )
 ```
 
-> **Tip:** Use the `simulate` endpoint for debugging and security testing, not just read-only queries. Simulate executes the full transaction logic without committing state changes or charging fees --- ideal for diagnosing failures and verifying security checks.
+::: {.tip}
+Use the `simulate` endpoint for debugging and security testing, not just read-only queries. Simulate executes the full transaction logic without committing state changes or charging fees --- ideal for diagnosing failures and verifying security checks.
+:::
 
 This is a client-side script illustrating the simulate pattern (not part of the contract code):
 
@@ -1122,6 +1148,10 @@ In this chapter you learned to:
 - Understand why reentrancy is impossible on Algorand (no callbacks from inner transactions)
 - Explain why local state is unsafe for financial data (the ClearState trapdoor)
 
+{{tbl:vesting-build-sequence}} summarizes the build sequence and the concepts each step introduced.
+
+Table: Build sequence and concepts introduced {#tbl:vesting-build-sequence}
+
 | Step | Feature | Concepts Introduced |
 |------|---------|---------------------|
 | 1 | Deploy and admin | Contract structure, ARC4Contract, __init__, GlobalState, ABI methods, ARC-56, contract addresses, schema immutability |
@@ -1134,9 +1164,11 @@ In this chapter you learned to:
 | 8 | Cleanup | Box lifecycle, MBR refunds |
 | 9 | Read-only queries | Subroutine reuse, program size budgeting |
 
-> **A note on typed clients.** Throughout this book, deployment and test scripts use the `AppFactory` and `app_client.send.call()` pattern with string method names. For larger production projects, use the **typed client** that `algokit project run build` generates automatically (e.g., `token_vesting_client.py` in the artifacts directory). The typed client provides method-specific functions with type-checked arguments (`app_client.send.initialize(args=InitializeArgs(vesting_asset=token_id))`), eliminating string method names and catching parameter errors at development time. See Cookbook recipe 16.3 for a complete example.
+::: {.note}
+**A note on typed clients.** Throughout this book, deployment and test scripts use the `AppFactory` and `app_client.send.call()` pattern with string method names. For larger production projects, use the **typed client** that `algokit project run build` generates automatically (e.g., `token_vesting_client.py` in the artifacts directory). The typed client provides method-specific functions with type-checked arguments (`app_client.send.initialize(args=InitializeArgs(vesting_asset=token_id))`), eliminating string method names and catching parameter errors at development time. See Cookbook recipe 16.3 for a complete example.
+:::
 
-In the next chapter, we extend the vesting contract with NFTs for transferability. Then in Chapter 5, these same concepts reappear in a higher-stakes context as we build a constant product AMM with multi-token accounting, price curves, and LP token mechanics.
+In the next chapter, we extend the vesting contract with NFTs for transferability. Then in {{ch:amm}}, these same concepts reappear in a higher-stakes context as we build a constant product AMM with multi-token accounting, price curves, and LP token mechanics.
 
 ## Exercises
 
@@ -1150,7 +1182,9 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 
 5. **(Create)** The vesting contract uses a single admin address. Design a modification where admin operations (initialize, create_schedule, revoke) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
 
-> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 1.2 (contract with `__init__`), 3.3 (wide arithmetic), 6.2 (BoxMap), 8.1 (Algo payment), and 11.1 (creator-only method).
+::: {.tryit}
+**Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 1.2 (contract with `__init__`), 3.3 (wide arithmetic), 6.2 (BoxMap), 8.1 (Algo payment), and 11.1 (creator-only method).
+:::
 
 ## Further Reading
 

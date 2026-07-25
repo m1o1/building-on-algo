@@ -6,19 +6,19 @@ Your AMM works. Liquidity providers deposit tokens, traders swap against the poo
 
 This is the problem *yield farming* solves. In a yield farming system, LPs lock their LP tokens in a separate staking contract for a fixed duration --- 30 days, 90 days, a year --- and earn additional reward tokens on top of the trading fees they already collect from the pool. Longer lock-ups earn proportionally higher rewards, creating a direct incentive for the sticky liquidity that healthy markets depend on.
 
-We are going to build a staking contract that composes with the AMM from Chapter 5. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the configured AMM's global state, binds itself to that AMM's reported LP token, and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
+We are going to build a staking contract that composes with the AMM from {{ch:amm}}. Users deposit LP tokens from that pool, lock them for a chosen duration, and earn a reward token distributed continuously over time. The contract reads the configured AMM's global state, binds itself to that AMM's reported LP token, and demonstrates the reward-per-token accumulator pattern used by virtually every DeFi staking system.
 
 Two core concepts drive this chapter. First, the *reward accumulator pattern* --- a mathematical technique (popularized by Synthetix) that distributes rewards fairly across any number of stakers without iterating over them. Second, *smart contract composition* --- reading another contract's state to make trust decisions, a fundamental DeFi building block that connects isolated contracts into composable protocols.
 
 By the end of this chapter you will have a working staking contract, deployed on LocalNet alongside your AMM, with lock-up multipliers, continuous reward distribution, and cross-contract binding to the configured AMM's reported LP token.
 
-This chapter assumes you have a working AMM from Chapter 5. Chapter 6 showed
+This chapter assumes you have a working AMM from {{ch:amm}}. {{ch:amm-factory}} showed
 how a factory can make pool identity stronger; this first farm keeps the
 composition surface simple by binding to one configured AMM app and verifying
 the LP token it reports. The farming workflow and integration tests require the
-Chapter 5 generated client and an initialized AMM app.
+{{ch:amm}} generated client and an initialized AMM app.
 
-A production farm could add the Chapter 6 factory check before it accepts a
+A production farm could add the {{ch:amm-factory}} factory check before it accepts a
 pool. This chapter leaves that out deliberately so the accumulator, lock-up,
 and reward-conservation ideas stay in the foreground.
 
@@ -52,9 +52,9 @@ Run the workflow once:
 poetry run python -m scripts.run_lp_farming
 ```
 
-Table 7-1 lists the output checkpoints to compare against the workflow output.
+{{tbl:farming-run-it-first}} lists the output checkpoints to compare against the workflow output.
 
-Table 7-1. Output checkpoints for the LP farming workflow
+Table: Output checkpoints for the LP farming workflow {#tbl:farming-run-it-first}
 
 | Output checkpoint | What to watch for |
 |-------------------|-------------------|
@@ -64,7 +64,7 @@ Table 7-1. Output checkpoints for the LP farming workflow
 | Claimed rewards > 0 | The accumulator produced claimable rewards after time advanced |
 | Final unstake message | The unstake path returned LP tokens and refunded box MBR |
 
-Run the tests from the Chapter 7 project:
+Run the tests from the {{ch:yield-farming}} project:
 
 ```bash
 algokit project run test
@@ -502,7 +502,9 @@ Where:
 
 The `min(now, reward_end)` clamping ensures rewards stop accumulating after the reward period ends.
 
-> **Warning:** The zero-balance guard is critical. If `total_staked` is zero, the update must be skipped entirely --- dividing by zero panics the AVM, and accumulating rewards when nobody is staked would create tokens from nowhere. Always check `total_staked > 0` before updating the accumulator.
+::: {.warning}
+The zero-balance guard is critical. If `total_staked` is zero, the update must be skipped entirely --- dividing by zero panics the AVM, and accumulating rewards when nobody is staked would create tokens from nowhere. Always check `total_staked > 0` before updating the accumulator.
+:::
 
 ### Wide Arithmetic
 
@@ -510,7 +512,7 @@ The multiplication `reward_rate * delta_t * PRECISION` can overflow `UInt64` (ma
 
 $$1{,}000{,}000 \times 86{,}400 \times 10^9 = 8.64 \times 10^{19}$$
 
-This exceeds `UInt64`'s maximum. We apply the same wide arithmetic pattern from Chapters 3 and 5 --- `op.mulw` for the 128-bit intermediate product and `op.divmodw` for the division:
+This exceeds `UInt64`'s maximum. We apply the same wide arithmetic pattern from Chapters {{chn:token-vesting}} and {{chn:amm}} --- `op.mulw` for the 128-bit intermediate product and `op.divmodw` for the division:
 
 ```python
 # Enforce the bounds that make reward_rate * delta_t safe:
@@ -525,13 +527,19 @@ q_hi, increment, r_hi, r_lo = op.divmodw(
 )
 ```
 
-> **Note:** The `rate_time = reward_rate * delta_t` product must fit in `UInt64`, and so must the scaled increment when `total_staked` is as small as 1. With `MAX_REWARD_RATE` set to 584 base units per second and `MAX_REWARD_DURATION` set to 365 days, `reward_rate * delta_t * PRECISION` is still below the $1.84 \times 10^{19}$ `UInt64` limit. If you need more extreme parameters, use `BigUInt` or a carefully designed multiword arithmetic helper.
+::: {.note}
+The `rate_time = reward_rate * delta_t` product must fit in `UInt64`, and so must the scaled increment when `total_staked` is as small as 1. With `MAX_REWARD_RATE` set to 584 base units per second and `MAX_REWARD_DURATION` set to 365 days, `reward_rate * delta_t * PRECISION` is still below the $1.84 \times 10^{19}$ `UInt64` limit. If you need more extreme parameters, use `BigUInt` or a carefully designed multiword arithmetic helper.
+:::
 
 ### Visual Trace: Two Stakers
 
 Let us trace through a concrete scenario with `reward_rate = 10` tokens/second and `PRECISION = 10^9`.
 
 **Time 0: Alice stakes 100 LP**
+
+{{tbl:farming-trace-alice-stakes}} records the accumulator state at this point.
+
+Table: Accumulator state after Alice stakes {#tbl:farming-trace-alice-stakes}
 
 | Event | `reward_per_token` | Alice snapshot | Bob snapshot | Alice pending | Bob pending |
 |-------|-------------------|----------------|-------------|---------------|------------|
@@ -546,6 +554,10 @@ Before Bob's stake, update the accumulator:
 $$increment = \frac{10 \times 100 \times 10^9}{100} = 10{,}000{,}000{,}000$$
 
 $$\text{reward\_per\_token} = 0 + 10{,}000{,}000{,}000 = 10{,}000{,}000{,}000$$
+
+{{tbl:farming-trace-bob-stakes}} records the state once Bob's stake lands.
+
+Table: Accumulator state after Bob stakes {#tbl:farming-trace-bob-stakes}
 
 | Event | `reward_per_token` | Alice snapshot | Bob snapshot | Alice pending | Bob pending |
 |-------|-------------------|----------------|-------------|---------------|------------|
@@ -565,6 +577,10 @@ $$increment = \frac{10 \times 100 \times 10^9}{300} = 3{,}333{,}333{,}333$$
 
 $$\text{reward\_per\_token} = 10{,}000{,}000{,}000 + 3{,}333{,}333{,}333 = 13{,}333{,}333{,}333$$
 
+{{tbl:farming-trace-alice-claims}} records the state after Alice claims.
+
+Table: Accumulator state after Alice claims {#tbl:farming-trace-alice-claims}
+
 | Event | `reward_per_token` | Alice snapshot | Bob snapshot | Alice pending | Bob pending |
 |-------|-------------------|----------------|-------------|---------------|------------|
 | Claims at t=200 | 13,333,333,333 | 0 | 10,000,000,000 | 1,333 | 666 |
@@ -574,7 +590,9 @@ Bob: $200 \times (13{,}333{,}333{,}333 - 10{,}000{,}000{,}000) / 10^9 = 666$ tok
 
 Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor. The production contract tracks only the distributable portion in `rewards_remaining`; dust stays in the contract outside that pool. Here the dust is a single token, but its magnitude depends on how the staked total compares to `rate * delta_t * PRECISION`; the accumulator-precision warning later in this chapter derives the bound past which "dust" grows into whole stranded intervals.
 
-> **Warning:** The total rewards distributed must never exceed `reward_rate * elapsed_time`. Rounding in `op.divmodw` floors toward zero, ensuring the contract always retains dust. If you ever observe total distributions exceeding the reward pool, you have a bug. This is the single most important property to verify in your tests.
+::: {.warning}
+The total rewards distributed must never exceed `reward_rate * elapsed_time`. Rounding in `op.divmodw` floors toward zero, ensuring the contract always retains dust. If you ever observe total distributions exceeding the reward pool, you have a bug. This is the single most important property to verify in your tests.
+:::
 
 **Self-check:** If Charlie stakes 300 LP at time 200 and everyone claims at time 300, how much does each person receive for the t=200 to t=300 interval? (Answer: the accumulator increment is $\lfloor 10 \times 100 \times 10^9 / 600 \rfloor = 1{,}666{,}666{,}666$. Alice gets $\lfloor 100 \times 1{,}666{,}666{,}666 / 10^9 \rfloor = 166$, Bob gets 333, and Charlie gets 499 (500 minus one unit of rounding dust) --- proportional to their 100:200:300 stakes out of the new total of 600.)
 
@@ -588,7 +606,7 @@ This exceeds `UInt64`'s maximum of $\approx 1.84 \times 10^{19}$ if computed as 
 
 If your reward parameters are more extreme than the chapter's bounds allow, switch to `BigUInt` or a carefully designed multiword arithmetic helper. Do not merely increase `MAX_REWARD_RATE`; the proof obligation is that every intermediate value is either bounded or computed with wide arithmetic.
 
-*Recall the wide arithmetic pattern from the Chapter 5 AMM's swap calculation. What was the purpose of `mulw` and `divmodw` there? The same pattern --- 128-bit intermediate product divided back to 64 bits --- reappears throughout this chapter.*
+*Recall the wide arithmetic pattern from the {{ch:amm}} AMM's swap calculation. What was the purpose of `mulw` and `divmodw` there? The same pattern --- 128-bit intermediate product divided back to 64 bits --- reappears throughout this chapter.*
 
 
 ## Duration Multipliers
@@ -617,7 +635,9 @@ Despite depositing half as many LP tokens, Alice earns twice Bob's reward rate b
 
 The `total_staked` global variable (renamed to `total_effective` in the production contract) now tracks the sum of effective balances, not raw LP amounts. When Alice stakes, we add 400. When she unstakes, we subtract 400. The accumulator formula is unchanged --- it already uses the total in the denominator. This is the beauty of the accumulator pattern: adding multipliers requires zero changes to the core distribution math. You only change how each user's weight is calculated.
 
-> **Note:** Why not use a quadratic or exponential multiplier instead of linear? The choice affects game theory. A linear multiplier means the marginal benefit of each additional lock day is constant. An exponential multiplier would disproportionately reward the longest locks, potentially concentrating rewards among a few whales who can afford to lock for a year. A square-root multiplier (explored in Exercise 3) has diminishing returns --- the first extra month of locking is worth more than the last. Linear is the simplest to reason about and audit, which matters for a contract holding user funds.
+::: {.note}
+Why not use a quadratic or exponential multiplier instead of linear? The choice affects game theory. A linear multiplier means the marginal benefit of each additional lock day is constant. An exponential multiplier would disproportionately reward the longest locks, potentially concentrating rewards among a few whales who can afford to lock for a year. A square-root multiplier (explored in Exercise 3) has diminishing returns --- the first extra month of locking is worth more than the last. Linear is the simplest to reason about and audit, which matters for a contract holding user funds.
+:::
 
 ```python
 SCALE = 1000
@@ -662,7 +682,9 @@ assert lp_id == self.lp_token_id.value, "LP token mismatch"
 
 The `get_ex_uint64` opcode returns a tuple of `(value, exists)`. Always check `exists` --- if the key does not exist in the target app's global state, `value` is zero, and silently using zero as a valid value is a common bug.
 
-> **Warning:** The foreign apps array has a maximum of 8 entries per transaction (shared across the group since AVM v9). Each cross-contract read consumes one slot. If your transaction already references several apps, you may not have room for the AMM reference. Plan your foreign reference budget carefully when designing multi-contract interactions.
+::: {.warning}
+The foreign apps array has a maximum of 8 entries per transaction (shared across the group since AVM v9). Each cross-contract read consumes one slot. If your transaction already references several apps, you may not have room for the AMM reference. Plan your foreign reference budget carefully when designing multi-contract interactions.
+:::
 
 **Design tradeoff: read-on-init vs. read-on-every-call.** We could read the LP token once during initialization and store the result, or read it on every stake call. Reading once is cheaper (fewer opcodes per stake) but trusts that the stored value remains correct forever. Reading every time costs ~5 extra opcodes per call but guarantees that the stored farm value still matches the configured AMM. For this contract, we read the AMM's state during initialization --- the LP token ID cannot change after the AMM is bootstrapped, so a one-time read is enough for this educational design.
 
@@ -717,6 +739,10 @@ class StakePosition(arc4.Struct):
 
 Five `arc4.UInt64` fields = 40 bytes. Box key: `b"s_"` prefix (2 bytes) + 32-byte address = 34 bytes. Box MBR: $2{,}500 + 400 \times (34 + 40) = 32{,}100$ microAlgos per staker. The production version makes the staker fund that MBR in the same atomic group as the LP-token transfer, then refunds the exact amount when the box is deleted during `unstake`.
 
+{{tbl:farming-box-lifecycle}} tracks who owns that minimum balance at each moment in a staker's life.
+
+Table: Stake box lifecycle and who pays the minimum balance {#tbl:farming-box-lifecycle}
+
 | Moment | Box lifecycle |
 |--------|---------------|
 | Before `stake` | No user box exists, so no per-user box MBR is locked |
@@ -736,7 +762,9 @@ claimed + rewards_remaining = sum(accepted distributable deposits)
 
 Dust is not a user reward. It remains in the contract until a production sweep path handles it.
 
-> **Note:** `Global.latest_timestamp` is the timestamp of the block containing the current transaction, not the wall-clock time. It is accurate to within about 25 seconds and is set by the block proposer. For a staking contract with lock periods measured in days, this precision is more than adequate. Do not use timestamps for sub-minute precision requirements.
+::: {.note}
+`Global.latest_timestamp` is the timestamp of the block containing the current transaction, not the wall-clock time. It is accurate to within about 25 seconds and is set by the block proposer. For a staking contract with lock periods measured in days, this precision is more than adequate. Do not use timestamps for sub-minute precision requirements.
+:::
 
 ### Consolidated Imports and Constants
 
@@ -922,7 +950,9 @@ The bounds are machine-checked. `duration_seconds` cannot exceed `MAX_REWARD_DUR
 
 The accumulator-capacity check is intentionally conservative. It assumes the worst case: one effective staking unit receives the entire new schedule. If that worst-case increment would overflow the lifetime `reward_per_token_stored` accumulator, the deposit is rejected immediately instead of accepting a schedule that could later block `claim()` or `unstake()`.
 
-> **Warning:** The `deposit_rewards` method rejects overlapping reward periods. New rewards can be deposited after the previous period has ended, while unclaimed rewards from earlier periods remain covered by `rewards_remaining`. A production contract that accepts top-ups during an active period must explicitly roll the unearned old schedule into the new rate or account for it separately.
+::: {.warning}
+The `deposit_rewards` method rejects overlapping reward periods. New rewards can be deposited after the previous period has ended, while unclaimed rewards from earlier periods remain covered by `rewards_remaining`. A production contract that accepts top-ups during an active period must explicitly roll the unearned old schedule into the new rate or account for it separately.
+:::
 
 
 ## Staking LP Tokens
@@ -1051,7 +1081,13 @@ This is the accumulator update, called at the top of every state-changing method
 
 The two-stage wide arithmetic is straightforward. First, `rate * delta_t` is computed as a plain `UInt64` product, but only after checking the same bounds enforced by `deposit_rewards`. The `mulw` then multiplies this intermediate result by `PRECISION` ($10^9$) to produce a 128-bit value, and `divmodw` divides by `total` to yield the 64-bit increment. The `q_hi == 0` and accumulator-capacity assertions make accumulator overflow fail loudly instead of corrupting reward accounting.
 
-> **Warning:** `PRECISION = 10^9` also sets a *usability bound* on the other side. Each update computes $increment = \lfloor rate \times \Delta t \times 10^9 / \text{total\_effective} \rfloor$, so whenever `total_effective` exceeds $rate \times \Delta t \times 10^9$, the increment floors to zero --- yet `last_update_time` still advances, so that interval's rewards are permanently stranded. With very large stakes relative to the reward rate, most of a schedule's rewards can strand this way. Conservation still holds --- the contract never overpays, and unstreamed rewards simply stay in `rewards_remaining` --- but stakers receive less than the advertised rate. Production systems shrink the loss to negligible by using $10^{18}$-scale precision (with `BigUInt` arithmetic) or by carrying the division remainder forward between updates.
+::: {.warning}
+`PRECISION = 10^9` also sets a *usability bound* on the other side. Each update computes $increment = \lfloor rate \times \Delta t \times 10^9 / \text{total\_effective} \rfloor$, so whenever `total_effective` exceeds $rate \times \Delta t \times 10^9$, the increment floors to zero --- yet `last_update_time` still advances, so that interval's rewards are permanently stranded. With very large stakes relative to the reward rate, most of a schedule's rewards can strand this way. Conservation still holds --- the contract never overpays, and unstreamed rewards simply stay in `rewards_remaining` --- but stakers receive less than the advertised rate. Production systems shrink the loss to negligible by using $10^{18}$-scale precision (with `BigUInt` arithmetic) or by carrying the division remainder forward between updates.
+:::
+
+{{tbl:update-reward-assumptions}} lists the assumptions this subroutine depends on and where each one is enforced.
+
+Table: Assumptions _update_reward relies on {#tbl:update-reward-assumptions}
 
 | Assumption | Checked where | Protects |
 |------------|---------------|----------|
@@ -1087,9 +1123,9 @@ def _calculate_multiplier(duration: UInt64) -> UInt64:
 ### Deployment Script
 
 The finished project uses generated typed clients in `scripts/run_lp_farming.py`
-to deploy the farming contract alongside the AMM from Chapter 5.
-That script resolves the Chapter 5 AMM generated client from the repository
-root and the Chapter 7 farm generated client from this project. The following
+to deploy the farming contract alongside the AMM from {{ch:amm}}.
+That script resolves the {{ch:amm}} AMM generated client from the repository
+root and the {{ch:yield-farming}} farm generated client from this project. The following
 excerpt is the conceptual deployment flow with the generic app-client API; use
 `scripts/run_lp_farming.py` for the runnable version.
 
@@ -1278,7 +1314,9 @@ The `accrued_rewards` field captures rewards that were calculated during a previ
 
 The `rewards_remaining` check is the reward conservation invariant in code. The accumulator should already make over-distribution impossible, but the remaining-pool counter turns that assumption into a final guard: every reward payout must be backed by tokens that were added to the distributable pool during `deposit_rewards`.
 
-> **Project vs. printed snippets.** The chapter keeps the pending-reward math inline in `claim`, `extend_lock`, and `unstake` so you can see each step where it is used. The finished project extracts that repeated calculation into `_pending_for(pos, current_rpt)`. When comparing the project to the printed snippets, map each inline `effective * (current_rpt - paid_rpt) / PRECISION` block to that helper.
+::: {.note}
+**Project vs. printed snippets.** The chapter keeps the pending-reward math inline in `claim`, `extend_lock`, and `unstake` so you can see each step where it is used. The finished project extracts that repeated calculation into `_pending_for(pos, current_rpt)`. When comparing the project to the printed snippets, map each inline `effective * (current_rpt - paid_rpt) / PRECISION` block to that helper.
+:::
 
 ### Extending a Lock
 
@@ -1441,7 +1479,9 @@ The `unstake` method verifies the lock has expired, settles final rewards, retur
 
 The MBR refund is 32,100 microAlgos --- the exact cost of the position box. The staker funded that amount in the `stake` group, and when the box is deleted the contract's MBR requirement drops by the same amount, freeing the Algo for the refund payment. This is the same MBR lifecycle pattern from the vesting contract: fund on creation, refund on cleanup.
 
-> **Warning:** The `del self.stakes[key]` call and the MBR refund payment happen *after* the state update (`total_effective -= effective`). If the box deletion or payment fails (e.g., insufficient contract balance), the entire transaction rolls back atomically --- the state update is reverted too. This is safe on Algorand because of atomic rollback semantics, but it means you must ensure the contract always has enough Algo to cover the refund.
+::: {.warning}
+The `del self.stakes[key]` call and the MBR refund payment happen *after* the state update (`total_effective -= effective`). If the box deletion or payment fails (e.g., insufficient contract balance), the entire transaction rolls back atomically --- the state update is reverted too. This is safe on Algorand because of atomic rollback semantics, but it means you must ensure the contract always has enough Algo to cover the refund.
+:::
 
 Notice that the accumulator update (`_update_reward()`) happens before computing the user's pending reward and before modifying the user's stake. This ordering is mathematically necessary --- the global `reward_per_token` must reflect the current state of the world before individual positions are calculated against it. This is an algorithmic correctness requirement, not a reentrancy guard (reentrancy is impossible on Algorand --- inner transactions do not trigger callbacks).
 
@@ -1462,7 +1502,7 @@ farm_client.send.call(
 
 ## Consuming the AMM's TWAP Oracle
 
-The Chapter 5 AMM tracks cumulative price accumulators and exposes a `get_twap_price` read-only method. The farming contract does not need to maintain its own oracle --- it can consume the AMM's TWAP for position valuation.
+The {{ch:amm}} AMM tracks cumulative price accumulators and exposes a `get_twap_price` read-only method. The farming contract does not need to maintain its own oracle --- it can consume the AMM's TWAP for position valuation.
 
 A natural extension of the farming contract is displaying the dollar value of a staked position. A frontend would:
 
@@ -1639,6 +1679,10 @@ This chapter extended the AMM into a two-contract system. The farming contract d
 
 The accumulator pattern you learned here appears in virtually every DeFi staking system: Synthetix's StakingRewards, Curve's gauge system, Sushiswap's MasterChef, and their Algorand equivalents. The specific numbers change (precision factors, multiplier curves, reward schedules), but the core insight --- track a global per-unit accumulator and diff it against per-user snapshots --- is universal.
 
+{{tbl:farming-summary}} lists the features built here and the concepts each one introduced.
+
+Table: Features built and concepts introduced {#tbl:farming-summary}
+
 | Feature | New Concepts |
 |---------|-------------|
 | Reward distribution | Accumulator pattern, reward_per_token, snapshot-and-diff |
@@ -1661,9 +1705,11 @@ In the next chapter, we cover common patterns and idioms that apply across all A
 
 4. **(Create)** Add an on-chain randomness bonus using `op.Block.blk_seed`. Every time a user claims, the contract reads the block seed from 2 rounds ago and hashes it with the user's address. If the resulting hash (mod 100) is less than 5, the user receives a 10% bonus on their claim. Implement the method and explain why reading the seed from 2 rounds ago (rather than the current round) prevents the user from choosing when to submit their claim based on a known seed.
 
-5. **(Create, cross-chapter)** Write a farming contract that reads the LP token ID from the AMM contract (Chapter 5) using a cross-contract state read (`op.AppGlobal.get_ex_uint64`) and verifies that the staked token matches. This combines the composition pattern from this chapter with the AMM's global state layout from Chapter 5.
+5. **(Create, cross-chapter)** Write a farming contract that reads the LP token ID from the AMM contract ({{ch:amm}}) using a cross-contract state read (`op.AppGlobal.get_ex_uint64`) and verifies that the staked token matches. This combines the composition pattern from this chapter with the AMM's global state layout from {{ch:amm}}.
 
-> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 4.3 (reading another app's state), 6.2 (BoxMap for per-user data), 6.4 (box MBR calculation), 13.2 (ARC-4 structs), and 8.4 (fee pooling for inner transactions).
+::: {.tryit}
+**Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 4.3 (reading another app's state), 6.2 (BoxMap for per-user data), 6.4 (box MBR calculation), 13.2 (ARC-4 structs), and 8.4 (fee pooling for inner transactions).
+:::
 
 ## Further Reading
 

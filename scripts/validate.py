@@ -441,7 +441,7 @@ CHAPTERS_DIR = ROOT / "chapters"
 BOOK_MANIFEST = CHAPTERS_DIR / "book.yaml"
 
 XREF_RE = re.compile(r"\{\{([a-z][a-z-]*):([^}]*)\}\}")
-XREF_NAMESPACES = {"ex", "tbl", "fig", "ch", "part", "include-ex"}
+XREF_NAMESPACES = {"ex", "tbl", "fig", "ch", "chn", "part", "include-ex"}
 # {{figure:...}} is the single most likely typo for {{fig:...}} and would
 # otherwise sail through as an unknown namespace. Name it explicitly.
 BANNED_NAMESPACES = {"figure", "table", "example", "chapter", "sec", "section"}
@@ -455,6 +455,16 @@ TIER_LINE_BUDGET = {"core": 35, "extended": 20}
 
 # Check 4 stays registered but disabled until Phase 5 folds A1-cookbook.md into
 # the need-shaped chapters. Flipping this to True is the last act of Phase 5.
+# The callout vocabulary, kept in step with build.py's CALLOUT_LABEL and the
+# tcolorbox environments in chapters/metadata.yaml. Eight kinds of aside plus
+# .gotcha, which Phase 3 populates and harvests into an appendix.
+CALLOUT_CLASSES = {
+    "note", "tip", "warning", "gotcha", "setup",
+    "spec", "version", "check", "tryit",
+}
+CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)\}$")
+CALLOUT_ANY_OPEN_RE = re.compile(r"^:::\s*\S")
+
 COOKBOOK_RETIRED = False
 COOKBOOK_FILE = "A1-cookbook.md"
 
@@ -632,6 +642,46 @@ def check_structure(strict: bool = False) -> None:
                                 f"project chapter re-teaches a concept: {line.strip()!r}")
                     )
 
+        # -- check 12: callout vocabulary ---------------------------------
+        # New in Phase 1, beyond the eleven of §11.3, because the callout
+        # system it guards is also new. An unrecognised class is worse than a
+        # missing one: the HTML renderer boxes anything with a class attribute,
+        # while pandoc's LaTeX writer silently drops a Div it has no
+        # environment for. A typo would therefore render as a callout in the
+        # HTML and as bare prose in the PDF, and nothing would report it.
+        depth = 0
+        for line_no, line in _outside_fences(text):
+            stripped = line.strip()
+            if stripped == ":::":
+                depth -= 1
+                if depth < 0:
+                    problems.append(
+                        Problem(12, "error", f"{rel}:{line_no}",
+                                "callout closed but never opened")
+                    )
+                    depth = 0
+                continue
+            opening = CALLOUT_OPEN_RE.match(stripped)
+            if CALLOUT_ANY_OPEN_RE.match(stripped) and not opening:
+                problems.append(
+                    Problem(12, "error", f"{rel}:{line_no}",
+                            f"malformed callout {stripped!r}; expected ::: {{.class}}")
+                )
+                depth += 1
+                continue
+            if opening:
+                depth += 1
+                if opening.group(1) not in CALLOUT_CLASSES:
+                    problems.append(
+                        Problem(12, "error", f"{rel}:{line_no}",
+                                f"unknown callout class {opening.group(1)!r}; "
+                                f"one of {', '.join(sorted(CALLOUT_CLASSES))}")
+                    )
+        if depth:
+            problems.append(
+                Problem(12, "error", rel, f"{depth} callout(s) left unclosed")
+            )
+
         # -- check 11: capstone leak --------------------------------------
         # The capstone must be assemblable from what precedes it. A chapter
         # that names capstone-only material has leaked the ending.
@@ -646,7 +696,7 @@ def check_structure(strict: bool = False) -> None:
     # -- check 1 (continued): every reference resolves ---------------------
     for key, wheres in references.items():
         ns, _, slug = key.partition(":")
-        if ns == "ch":
+        if ns in ("ch", "chn"):
             known = slug in chapter_slugs
         elif ns in ("ex", "include-ex"):
             known = slug in example_slugs

@@ -316,13 +316,15 @@ The $\text{MINIMUM\_LIQUIDITY}$ lock (typically 1,000 LP tokens) prevents a firs
 
 These formulas are the entire economic engine of the AMM. Everything else is implementation details around making them work correctly, safely, and efficiently on the [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/).
 
-> **Design decision: why constant product?** If I were designing this from scratch, I would start with the simplest invariant: what relationship between reserves should never be violated? The product $x \times y = k$ is the simplest nonlinear invariant. It is not the only option.
->
-> *Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a plus or minus 1% range provides roughly 200x the capital efficiency of a full-range V2 position, and an extremely tight 0.10% range (practical only for stable pairs) approaches ~4,000x --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
->
-> *StableSwap* (Curve, and Pact stable pools on Algorand) uses a hybrid invariant tuned for assets that should trade near 1:1 (stablecoins, wrapped assets). It provides dramatically lower slippage for pegged pairs.
->
-> Constant product is the right starting point because it is simple enough to reason about completely, requires no off-chain infrastructure for active management, and is the foundation that V3 and StableSwap build upon. Master this, and the others are variations on the theme.
+::: {.note}
+**Design decision: why constant product?** If I were designing this from scratch, I would start with the simplest invariant: what relationship between reserves should never be violated? The product $x \times y = k$ is the simplest nonlinear invariant. It is not the only option.
+
+*Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a plus or minus 1% range provides roughly 200x the capital efficiency of a full-range V2 position, and an extremely tight 0.10% range (practical only for stable pairs) approaches ~4,000x --- but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
+
+*StableSwap* (Curve, and Pact stable pools on Algorand) uses a hybrid invariant tuned for assets that should trade near 1:1 (stablecoins, wrapped assets). It provides dramatically lower slippage for pegged pairs.
+
+Constant product is the right starting point because it is simple enough to reason about completely, requires no off-chain infrastructure for active management, and is the foundation that V3 and StableSwap build upon. Master this, and the others are variations on the theme.
+:::
 
 ## Pool Contract Creation and the Escrow Pattern
 
@@ -625,9 +627,13 @@ The `BigUInt` multiplication prevents overflow in the product --- if both amount
 
 The sender-binding checks are not redundant. The ABI router verifies that `deposit_a` and `deposit_b` are asset-transfer transactions, but it does not know that the LP tokens should go only to the account that sent both deposits. If Alice signs a group containing her two deposits and Bob's app call, Bob would receive the LP tokens unless the contract checks that both deposit senders equal `Txn.sender`.
 
-> **Check your understanding:** What relationship does the typed transaction argument prove, and what relationship does it *not* prove?
+::: {.check}
+What relationship does the typed transaction argument prove, and what relationship does it *not* prove?
+:::
 
-> **Warning:** The caller must have already opted into the LP token before calling this method. If they have not, the inner `AssetTransfer` sending LP tokens will fail, and the entire atomic group rolls back --- the pool receives no tokens and no state changes. This is the "lazy opt-in" pattern: the contract does not check the opt-in explicitly; the protocol enforces it automatically. Client code must perform a zero-amount self-transfer of the LP token before calling `add_initial_liquidity`.
+::: {.warning}
+The caller must have already opted into the LP token before calling this method. If they have not, the inner `AssetTransfer` sending LP tokens will fail, and the entire atomic group rolls back --- the pool receives no tokens and no state changes. This is the "lazy opt-in" pattern: the contract does not check the opt-in explicitly; the protocol enforces it automatically. Client code must perform a zero-amount self-transfer of the LP token before calling `add_initial_liquidity`.
+:::
 
 
 ## The Swap
@@ -669,13 +675,15 @@ def _calculate_swap_output(
     return output
 ```
 
-This is the same wide arithmetic pattern from the vesting calculation in Chapter 3: `mulw` produces a 128-bit product, `addw` combines low words with carry, and `divmodw` divides the wide value back down. Here the numbers are different (trade amounts x reserves instead of token amounts x elapsed time) but the technique is identical. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The wide arithmetic keeps the intermediate product in 128 bits.
+This is the same wide arithmetic pattern from the vesting calculation in {{ch:token-vesting}}: `mulw` produces a 128-bit product, `addw` combines low words with carry, and `divmodw` divides the wide value back down. Here the numbers are different (trade amounts x reserves instead of token amounts x elapsed time) but the technique is identical. With reserves of 10^12 and an input of 10^9, the numerator `input_with_fee * reserve_out` reaches 10^21 --- overflowing uint64. The wide arithmetic keeps the intermediate product in 128 bits.
 
 The helper also checks that `input_amount * 997` fits in `UInt64` before using it in the numerator. For a 6-decimal token, that still allows single swaps up to about 18.5 billion tokens --- far beyond normal tutorial-scale supplies. For assets with extreme supply parameters, keep these bounds explicit rather than relying on accidental overflow behavior.
 
 Floor division in the output calculation means the user gets slightly less than the mathematically exact amount. This is correct: the rounding dust stays in the pool, ensuring the constant product invariant is maintained or strengthened (never weakened) by rounding.
 
-> **Check your understanding:** Why is floor division correct from the pool's perspective? What would happen if the contract rounded *up* instead? Think about the constant product invariant: would it be maintained, strengthened, or violated?
+::: {.check}
+Why is floor division correct from the pool's perspective? What would happen if the contract rounded *up* instead? Think about the constant product invariant: would it be maintained, strengthened, or violated?
+:::
 
 Add this method to the `ConstantProductPool` class in `smart_contracts/constant_product_pool/contract.py`:
 
@@ -1002,6 +1010,10 @@ The IL formula for a price change of ratio $r$ (where $r = \text{new price} / \t
 
 $$IL = \frac{2\sqrt{r}}{1 + r} - 1$$
 
+{{tbl:impermanent-loss-magnitudes}} evaluates that formula at a few representative price ratios.
+
+Table: Impermanent loss at selected price ratios {#tbl:impermanent-loss-magnitudes}
+
 | Price Change | IL |
 |-------------|-----|
 | 1.25x (25% up) | -0.6% |
@@ -1014,7 +1026,9 @@ The same loss applies for equivalent price *decreases* (a 2x drop = same 5.7% IL
 
 **When do fees overcome IL?** If the pool generates enough trading fees to exceed the IL, providing liquidity is profitable. This depends on trading volume relative to pool size. A pool with $100K TVL and $50K daily volume generates far more fee income per LP dollar than a pool with $10M TVL and the same volume. High-volume, tight-spread pools (like major stablecoin pairs) tend to overcome IL; low-volume, volatile pairs often do not.
 
-> **Warning:** Impermanent loss is the primary risk for liquidity providers. The 0.3% swap fee partially offsets IL but does not eliminate it. Before providing liquidity in production, calculate the breakeven volume needed for your pool's volatility profile.
+::: {.warning}
+Impermanent loss is the primary risk for liquidity providers. The 0.3% swap fee partially offsets IL but does not eliminate it. Before providing liquidity in production, calculate the breakeven volume needed for your pool's volatility profile.
+:::
 
 This is the fundamental reason Uniswap V3 introduced concentrated liquidity --- by letting LPs focus capital in a narrow price range, they earn higher fees per dollar (improving the fees-vs-IL tradeoff) but amplify the loss if price moves outside their range. No Algorand DEX currently implements a full Uniswap V3-style concentrated liquidity AMM; the ecosystem uses constant product (V2-style) pools and StableSwap variants. The constant product model we built here is what Tinyman and Pact use in production.
 
@@ -1048,7 +1062,9 @@ Never submit an on-chain transaction just to get a price quote. The swap output 
 
 ## The TWAP Price Oracle
 
-> **Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity, and the contract as built so far compiles and runs without any of the code in this section. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the factory contract in Chapter 6 or the farming contract in Chapter 7.
+::: {.note}
+**Optional section.** The core AMM is now complete --- you can bootstrap a pool, add liquidity, swap, and remove liquidity, and the contract as built so far compiles and runs without any of the code in this section. The remainder of this chapter extends the AMM with a Time-Weighted Average Price (TWAP) oracle. This is an advanced topic that you can skip on first reading and return to later. The TWAP is not required for the factory contract in {{ch:amm-factory}} or the farming contract in {{ch:yield-farming}}.
+:::
 
 Our AMM stores its reserves in global state, which any other contract can read. This makes the pool a natural price oracle --- but one that must be used carefully.
 
@@ -1173,11 +1189,15 @@ A read-only method returns the average price over a caller-specified window. The
         return op.btoi(twap.bytes)
 ```
 
-> **Note:** The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display real-time price data. The inline accumulation at the top of `get_twap_price` ensures the cumulative value is current even if the pool has not been interacted with recently --- the same approach Uniswap V2 takes in its `currentCumulativePrices` helper. The accumulation happens entirely in a local variable --- nothing is written to state.
+::: {.note}
+The `readonly=True` flag means this method can be called via `simulate` without submitting a transaction --- no fees, no state changes. Frontends use this to display real-time price data. The inline accumulation at the top of `get_twap_price` ensures the cumulative value is current even if the pool has not been interacted with recently --- the same approach Uniswap V2 takes in its `currentCumulativePrices` helper. The accumulation happens entirely in a local variable --- nothing is written to state.
+:::
 
 The method returns a `UInt64`, which means the TWAP result must fit in 64 bits. This is a deliberate design choice --- `UInt64` is easier for callers to work with than a variable-length `BigUInt` --- but it requires a bounds check.
 
-> **Warning:** The `op.btoi` call accepts a byte array of 0--8 bytes and interprets it as a big-endian unsigned integer. A `BigUInt` that exceeds $2^{64} - 1$ would produce more than 8 bytes, causing `btoi` to fail at runtime. The `assert twap < BigUInt(2**64)` guard ensures the TWAP result fits in 64-bit range before the conversion. With `TWAP_PRECISION = 10^9` and typical asset prices, this bound is safe for years of accumulation. If you use a higher precision scale factor or expect extreme price ratios, return a `BigUInt` instead of converting to `UInt64`.
+::: {.warning}
+The `op.btoi` call accepts a byte array of 0--8 bytes and interprets it as a big-endian unsigned integer. A `BigUInt` that exceeds $2^{64} - 1$ would produce more than 8 bytes, causing `btoi` to fail at runtime. The `assert twap < BigUInt(2**64)` guard ensures the TWAP result fits in 64-bit range before the conversion. With `TWAP_PRECISION = 10^9` and typical asset prices, this bound is safe for years of accumulation. If you use a higher precision scale factor or expect extreme price ratios, return a `BigUInt` instead of converting to `UInt64`.
+:::
 
 ### Manipulation Resistance
 
@@ -1212,7 +1232,9 @@ def get_price_from_amm(
     return price
 ```
 
-> **Warning:** The preceding spot price example is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
+::: {.warning}
+The preceding spot price example is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
+:::
 
 Multi-hop price derivation (reading prices across chained pools, e.g., ALGO/USDC via ALGO/TOKEN and TOKEN/USDC) follows the same pattern --- read reserves from each pool in the chain and multiply the ratios. (See [Opcodes Overview](https://dev.algorand.co/concepts/smart-contracts/opcodes-overview/) for the cross-app state reading opcodes.)
 
@@ -1229,7 +1251,7 @@ tests --- are the ones you should implement for any production contract.
 
 After you attempt these helpers yourself, compare them with the real tests in `projects/chapter5/constant-product-amm/tests/`. The finished project includes static tests that run everywhere and LocalNet integration tests that exercise the full pool workflow when LocalNet is available.
 
-As with Chapter 3, here is one complete test helper showing how the Chapter 2 pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
+As with {{ch:token-vesting}}, here is one complete test helper showing how the {{ch:testing}} pattern translates to the AMM. The remaining helpers (`bootstrap_pool`, `add_liquidity`, `swap`) follow the same approach --- adapt the deployment script patterns from earlier in this chapter:
 
 ```python
 from pathlib import Path
@@ -1263,7 +1285,9 @@ def deploy_pool(algorand, admin):
     return app_client
 ```
 
-> **Exercise:** Implement `bootstrap_pool(algorand, admin, pool, token_a, token_b)` using the bootstrap deployment script as a template. It should call the `bootstrap` method with a seed payment and both token IDs, then return the LP token ID.
+::: {.tryit}
+**Exercise.** Implement `bootstrap_pool(algorand, admin, pool, token_a, token_b)` using the bootstrap deployment script as a template. It should call the `bootstrap` method with a seed payment and both token IDs, then return the LP token ID.
+:::
 
 The following structural outlines belong in `tests/test_amm.py` after you implement the fixtures and helper functions (not part of the contract code):
 
@@ -1390,6 +1414,10 @@ In this chapter you learned to:
 
 This chapter applied the foundational concepts from the vesting contract to a significantly more complex DeFi application. Some concepts were reused directly (inner transactions, group transactions, security checks), while others were introduced fresh.
 
+{{tbl:amm-summary}} lists the features built here and the concepts each one introduced.
+
+Table: Features built and concepts introduced {#tbl:amm-summary}
+
 | Feature | New Concepts |
 |---------|-------------|
 | Constant product formula | AMM theory, fee mechanics, invariant $x \times y = k$ |
@@ -1416,9 +1444,11 @@ In the next chapter, we move AMM pool creation on-chain with a factory contract.
 
 4. **(Analyze)** The TWAP oracle stops accumulating if no transactions interact with the pool. If there is a 24-hour gap with no swaps or liquidity operations, the TWAP becomes stale. Design a public `poke_twap` method that allows anyone (a keeper bot) to trigger a TWAP update without performing a swap. What should the method do, and what incentive does a keeper have to call it?
 
-5. **(Create, cross-chapter)** Write a simulate-based test (Chapter 2's pattern) that verifies the AMM rejects a swap where `min_output` exceeds the available output. Use `.simulate()` to construct the failing swap and verify the failure message contains `"Slippage exceeded"`.
+5. **(Create, cross-chapter)** Write a simulate-based test ({{ch:testing}}'s pattern) that verifies the AMM rejects a swap where `min_output` exceeds the available output. Use `.simulate()` to construct the failing swap and verify the failure message contains `"Slippage exceeded"`.
 
-> **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 3.2--3.3 (BigUInt and wide arithmetic), 4.3 (reading another app's state), 7.2 (ASA opt-in), 8.4 (fee pooling), and 12.1 (module-level subroutines).
+::: {.tryit}
+**Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 3.2--3.3 (BigUInt and wide arithmetic), 4.3 (reading another app's state), 7.2 (ASA opt-in), 8.4 (fee pooling), and 12.1 (module-level subroutines).
+:::
 
 ## Further Reading
 

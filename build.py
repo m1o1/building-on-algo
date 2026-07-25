@@ -28,6 +28,7 @@ Install mdbook from the official guide:
 """
 
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -37,6 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 CHAPTERS_DIR = ROOT / "chapters"
+SCRIPTS_DIR = ROOT / "scripts"
 CHANGES_DIR = ROOT / "changes"
 MDBOOK_DIR = ROOT / "mdbook"
 SRC_DIR = MDBOOK_DIR / "src"
@@ -134,10 +136,11 @@ def load_book(manifest: Path = MANIFEST) -> Book:
     for part in doc.get("parts", []):
         part_id = part.get("id", "")
         title = part.get("title", "")
-        # A part header is emitted before the part's FIRST chapter only.
-        header = ""
-        if part.get("mdbook_break", True):
-            header = "# " + (part.get("mdbook_title") or title)
+        # A part header is emitted before the part's FIRST chapter only, and
+        # it uses the same `title` the PDF's \part{} directive typesets. Phase 0
+        # honoured mdbook_title/mdbook_break overrides here so the migration
+        # could be proven byte-for-byte; Phase 1 retired them.
+        header = "# " + title
         for i, raw in enumerate(part.get("chapters", [])):
             book.entries.append(
                 _entry_from(
@@ -150,7 +153,7 @@ def load_book(manifest: Path = MANIFEST) -> Book:
             )
 
     app = doc.get("appendices") or {}
-    app_header = "# " + (app.get("mdbook_title") or app.get("part_title", "Appendices"))
+    app_header = "# " + app.get("part_title", "Appendices")
     for i, raw in enumerate(app.get("files", [])):
         book.entries.append(
             _entry_from(
@@ -260,6 +263,154 @@ def transclude_examples(text: str, index: dict[str, dict], examples_root: Path, 
     return INCLUDE_EX_RE.sub(_expand, text)
 
 
+# ---------------------------------------------------------------------------
+# Cross-references: dual-identity numbering
+# ---------------------------------------------------------------------------
+#
+# Every numbered element in the book carries two identities. The slug is
+# permanent, written by the author, and never renumbered. The display number is
+# computed at build time and never written down anywhere in the source.
+#
+# An author declares a caption:
+#
+#     Table: Storage options compared {#tbl:storage-options}
+#
+# and cites it from anywhere in the book:
+#
+#     ... as {{tbl:storage-options}} shows ...
+#
+# Pass 1 walks chapters/ in book order and assigns display numbers. Pass 2
+# substitutes. Inserting a table in chapter 4 renumbers everything after it in
+# chapter 4, and every reference across the whole book follows, because no
+# reference ever contained a number to begin with.
+#
+# The full map is written to build/xref.json — not because the build needs it,
+# but because "which chapter is Figure 9-3 in?" should be answerable without
+# grepping.
+
+CAPTION_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<kind>Table|Figure|Example):[ \t]+"
+    r"(?P<title>.*?)[ \t]*\{#(?P<ns>tbl|fig|ex):(?P<slug>[a-z0-9][a-z0-9-]*)\}[ \t]*$",
+    re.MULTILINE,
+)
+REF_RE = re.compile(r"\{\{(?P<ns>tbl|fig|ex|ch|chn|part):(?P<slug>[a-z0-9][a-z0-9-]*)\}\}")
+# {{figure:...}} is the likeliest typo for {{fig:...}} and silently survives a
+# naive resolver as ordinary prose. Name it, and fail on it.
+BANNED_REF_RE = re.compile(r"\{\{(figure|table|example|chapter|sec|section):[^}]*\}\}")
+
+NS_LABEL = {"tbl": "Table", "fig": "Figure", "ex": "Example"}
+
+
+def _chapter_label(entry: Entry) -> str:
+    """The number a table or figure in this file is prefixed with: 4, or A."""
+    if entry.role == "appendix":
+        return chr(ord("A") + entry.number - 1)
+    return str(entry.number)
+
+
+def collect_xrefs(book: Book) -> dict:
+    """Pass 1: assign a display number to every anchor in the book."""
+    xrefs: dict[str, dict] = {}
+    parts: dict[str, str] = {}
+    roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+
+    part_order: list[str] = []
+    for entry in book.entries:
+        if entry.role == "chapter" and entry.part_id and entry.part_id not in part_order:
+            part_order.append(entry.part_id)
+    for i, part_id in enumerate(part_order):
+        parts[part_id] = roman[i] if i < len(roman) else str(i + 1)
+
+    for entry in book.entries:
+        if entry.role == "chapter":
+            display = f"Chapter {entry.number}"
+        elif entry.role == "appendix":
+            display = f"Appendix {_chapter_label(entry)}"
+        else:
+            display = ""
+        xrefs[f"ch:{entry.slug}"] = {
+            "kind": "chapter",
+            "display": display,
+            "file": entry.path.name,
+            "title": "",
+        }
+        # The bare-number form. Prose that pluralises -- "Chapters 5 and 6",
+        # "Chapters 2 through 7" -- has already written the noun, so {{ch:}}
+        # would render "Chapters Chapter 5 and Chapter 6". {{chn:}} supplies
+        # the number alone so those constructions stay idiomatic without any
+        # chapter number being written into the source.
+        xrefs[f"chn:{entry.slug}"] = {
+            "kind": "chapter-number",
+            "display": _chapter_label(entry) if entry.role in {"chapter", "appendix"} else "",
+            "file": entry.path.name,
+            "title": "",
+        }
+
+        ordinals = {"tbl": 0, "fig": 0, "ex": 0}
+        prefix = _chapter_label(entry)
+        text = entry.path.read_text(encoding="utf-8")
+        for match in CAPTION_RE.finditer(text):
+            ns = match.group("ns")
+            slug = match.group("slug")
+            key = f"{ns}:{slug}"
+            if key in xrefs:
+                raise SystemExit(
+                    f"chapters/{entry.path.name}: duplicate anchor {{#{key}}}, "
+                    f"already declared in {xrefs[key]['file']}"
+                )
+            ordinals[ns] += 1
+            if not prefix:
+                raise SystemExit(
+                    f"chapters/{entry.path.name}: {{#{key}}} is in front or back "
+                    f"matter, which has no chapter number to hang a caption on"
+                )
+            xrefs[key] = {
+                "kind": NS_LABEL[ns],
+                "display": f"{NS_LABEL[ns]} {prefix}-{ordinals[ns]}",
+                "number": f"{prefix}-{ordinals[ns]}",
+                "file": entry.path.name,
+                "chapter": entry.number,
+                "title": match.group("title").strip(),
+            }
+
+    for part_id, numeral in parts.items():
+        xrefs[f"part:{part_id}"] = {
+            "kind": "part",
+            "display": f"Part {numeral}",
+            "file": "",
+            "title": "",
+        }
+    return xrefs
+
+
+def _resolve_text(text: str, xrefs: dict, where: str) -> str:
+    """Pass 2: rewrite captions to their display form and substitute references."""
+    banned = BANNED_REF_RE.search(text)
+    if banned:
+        raise SystemExit(
+            f"{where}: {banned.group(0)} is not a cross-reference namespace. "
+            f"Use {{{{fig:}}}}, {{{{tbl:}}}}, {{{{ex:}}}}, {{{{ch:}}}}, {{{{chn:}}}} or {{{{part:}}}}."
+        )
+
+    def _caption(match: re.Match) -> str:
+        key = f"{match.group('ns')}:{match.group('slug')}"
+        info = xrefs[key]
+        # Pandoc's table-caption syntax. clean_for_mdbook() rewrites it for the
+        # HTML renderer, which has no caption concept of its own.
+        return f"{match.group('indent')}: {info['display']}. {info['title']}"
+
+    text = CAPTION_RE.sub(_caption, text)
+
+    def _ref(match: re.Match) -> str:
+        key = f"{match.group('ns')}:{match.group('slug')}"
+        info = xrefs.get(key)
+        if info is None:
+            raise SystemExit(f"{where}: unresolved cross-reference {{{{{key}}}}}")
+        return info["display"]
+
+    return REF_RE.sub(_ref, text)
+
+
 def resolve_book(book: Book) -> Book:
     """Write build/resolved/ and return a Book whose entries point at it."""
     if RESOLVED_DIR.exists():
@@ -268,14 +419,20 @@ def resolve_book(book: Book) -> Book:
 
     index = load_example_index(book.examples_manifest)
     examples_root = book.examples_root or (ROOT / "examples")
+    xrefs = collect_xrefs(book)
+    (BUILD_DIR / "xref.json").write_text(
+        json.dumps(xrefs, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     resolved = Book(
         examples_root=book.examples_root,
         examples_manifest=book.examples_manifest,
     )
     for entry in book.entries:
+        where = f"chapters/{entry.path.name}"
         text = entry.path.read_text(encoding="utf-8")
-        text = transclude_examples(text, index, examples_root, f"chapters/{entry.path.name}")
+        text = transclude_examples(text, index, examples_root, where)
+        text = _resolve_text(text, xrefs, where)
         out = RESOLVED_DIR / entry.path.name
         out.write_text(text, encoding="utf-8")
         resolved.entries.append(replace(entry, path=out))
@@ -394,11 +551,30 @@ def _convert_math_delimiters(text: str) -> str:
     return "\n".join(out)
 
 
+# The book's callout vocabulary. Nine classes, fixed: eight kinds of aside plus
+# .gotcha, which Phase 3 harvests into an appendix. A reader learns what each
+# box means once. Anything outside this set is a typo, and scripts/validate.py
+# check 12 says so rather than letting it render as ordinary prose.
+CALLOUT_LABEL = {
+    "note": "Note",
+    "tip": "Tip",
+    "warning": "Warning",
+    "gotcha": "Gotcha",
+    "setup": "Setup",
+    "spec": "How it works",
+    "version": "Version",
+    "check": "Check your understanding",
+    "tryit": "Try it yourself",
+}
+CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)\}\s*$")
+
+
 def clean_for_mdbook(text: str) -> str:
     """Transform pandoc-flavored markdown for mdBook consumption.
 
     - Strips \\newpage and \\part{...} directives
     - Strips pandoc attributes from sub-headings
+    - Converts callout fenced divs to HTML (pulldown-cmark has no fenced divs)
     - Converts --- to em-dash
     - Converts LaTeX math delimiters for MathJax
     - Drops content before the first # heading (part intros)
@@ -407,6 +583,7 @@ def clean_for_mdbook(text: str) -> str:
     lines = text.split("\n")
     out: list[str] = []
     in_code = False
+    callout_depth = 0
 
     for line in lines:
         stripped = line.strip()
@@ -420,8 +597,34 @@ def clean_for_mdbook(text: str) -> str:
         if not in_code:
             # Strip pandoc attributes from sub-headings: ## Title {#id} → ## Title
             line = re.sub(r"^(#{2,6}\s+.+?)\s*\{[^}]*\}\s*$", r"\1", line)
+            # Resolved captions: pandoc writes ": Table 4-1. Title", which
+            # pulldown-cmark has no notion of. Render it as a bold lead-in.
+            line = re.sub(
+                r"^(\s*): (Table|Figure|Example) ([\w-]+)\. (.*)$",
+                r"\1**\2 \3.** \4",
+                line,
+            )
             # Pandoc em-dashes → unicode
             line = line.replace(" --- ", " — ")
+
+            # Callouts. pulldown-cmark has no fenced-div syntax, so the class
+            # becomes an HTML wrapper the theme stylesheet can reach. The blank
+            # line after the opening tag matters: without it pulldown-cmark
+            # treats everything up to the closing tag as a raw HTML block and
+            # stops rendering the markdown inside.
+            opening = CALLOUT_OPEN_RE.match(line)
+            if opening:
+                cls = opening.group(1)
+                out.append(f'<div class="callout callout-{cls}">')
+                out.append(f'<p class="callout-label">{CALLOUT_LABEL[cls]}</p>')
+                out.append("")
+                callout_depth += 1
+                continue
+            if line.strip() == ":::" and callout_depth:
+                out.append("")
+                out.append("</div>")
+                callout_depth -= 1
+                continue
 
         out.append(line)
 
@@ -677,7 +880,12 @@ def build_pdf() -> None:
         "-o",
         str(output),
         "--pdf-engine=xelatex",
-        "--syntax-highlighting=tango",
+        # Div classes are invisible to pandoc's LaTeX writer without this.
+        f"--lua-filter={SCRIPTS_DIR / 'callouts.lua'}",
+        # Pandoc has never had a --syntax-highlighting flag; the option is
+        # --highlight-style. The typo sat here unnoticed because pandoc exits
+        # 6 before doing any work, so the PDF target failed on every run.
+        "--highlight-style=tango",
         "--top-level-division=chapter",
         "--toc",
         "--toc-depth=2",

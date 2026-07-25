@@ -153,7 +153,7 @@ def fee_sponsor() -> bool:
 
 The LogicSig account needs to be pre-funded with Algo. Anyone can submit transactions authorized by the LogicSig as long as they satisfy its conditions. This enables gasless transactions without an always-online relayer --- the funded LogicSig account acts as an autonomous fee sponsor.
 
-**Security consideration:** Carefully constrain what the LogicSig approves. An overly permissive LogicSig can be drained by crafting transactions that technically satisfy its conditions but weren't intended. Always cap the fee, restrict the group structure, verify the target application, and give the authorization an expiry --- the `EXPIRY_ROUND` check matters because a fee-sponsor authorization with no deadline can be grief-drained forever, one capped fee at a time. (Chapter 9's LogicSig checklist makes expiry mandatory.)
+**Security consideration:** Carefully constrain what the LogicSig approves. An overly permissive LogicSig can be drained by crafting transactions that technically satisfy its conditions but weren't intended. Always cap the fee, restrict the group structure, verify the target application, and give the authorization an expiry --- the `EXPIRY_ROUND` check matters because a fee-sponsor authorization with no deadline can be grief-drained forever, one capped fee at a time. ({{ch:limit-order-book}}'s LogicSig checklist makes expiry mandatory.)
 
 ### Approach E: "Algo-less" Swaps via Intermediary
 
@@ -165,7 +165,7 @@ The most user-friendly pattern for users who have zero Algo but hold ASA tokens.
 
 This is architecturally complex but provides the best UX for onboarding users who arrive with only bridged tokens and no native Algo.
 
-We used Approach A in the vesting contract's `initialize` method (Chapter 3) and the AMM's `swap` method (Chapter 5). Chapter 7's `unstake` is the fee-arithmetic case worth memorizing: one outer call plus up to 3 inner transactions (LP return, reward send, MBR refund) means the caller sets a static fee of 4,000 microAlgos. The keeper bot in Chapter 9 uses Approach C (relayer).
+We used Approach A in the vesting contract's `initialize` method ({{ch:token-vesting}}) and the AMM's `swap` method ({{ch:amm}}). {{ch:yield-farming}}'s `unstake` is the fee-arithmetic case worth memorizing: one outer call plus up to 3 inner transactions (LP return, reward send, MBR refund) means the caller sets a static fee of 4,000 microAlgos. The keeper bot in {{ch:limit-order-book}} uses Approach C (relayer).
 
 
 ## Pattern 2: The "Fund-Then-Call" Atomic Group
@@ -194,7 +194,7 @@ The `gtxn.AssetTransferTransaction` and `gtxn.PaymentTransaction` parameter type
 
 **Why not just have the contract pull assets directly?** Because Algorand's security model requires the asset holder to sign the transfer. The contract cannot unilaterally debit a user's account (unless the user previously granted approval via a delegated LogicSig, which is rare). This "push" model --- user pushes assets, then tells the contract what to do --- is fundamental to Algorand's design.
 
-Chapter 2's `initialize`, every `deposit_tokens`/`create_schedule` call in Chapters 3-4, and `add_liquidity` in Chapter 5 follow this pattern.
+{{ch:testing}}'s `initialize`, every `deposit_tokens`/`create_schedule` call in Chapters {{chn:token-vesting}}-{{chn:nfts}}, and `add_liquidity` in {{ch:amm}} follow this pattern.
 
 
 ## Pattern 3: The Escrow Contract Account Pattern
@@ -228,7 +228,7 @@ Group:
     ↳ Inner: Contract opts into asset_b
 ```
 
-Both the vesting contract (Chapter 3) and the AMM pool (Chapter 5) use this escrow pattern. The limit order system (Chapter 9) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
+Both the vesting contract ({{ch:token-vesting}}) and the AMM pool ({{ch:amm}}) use this escrow pattern. The limit order system ({{ch:limit-order-book}}) adds a second layer: the LogicSig contract account is also an escrow, but governed by a program instead of an application.
 
 
 ## Pattern 4: MBR Funding as Part of User Operations
@@ -267,7 +267,7 @@ Note that the box *name* is the `BoxMap` key prefix plus the encoded key, not th
 
 This keeps the contract's MBR accounting clean: users pay for the storage they consume. The contract never needs to dip into its own reserves for user-initiated storage. (See [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) for the complete MBR schedule.)
 
-Chapter 7's `stake` method is the strictest form of this pattern: it requires an *exact* 32,100 microAlgo MBR payment in the stake group --- the precise cost of the position box.
+{{ch:yield-farming}}'s `stake` method is the strictest form of this pattern: it requires an *exact* 32,100 microAlgo MBR payment in the stake group --- the precise cost of the position box.
 
 
 ## Pattern 5: MBR Refund on Cleanup
@@ -302,7 +302,7 @@ def close_position(self) -> None:
 
 This creates a complete lifecycle: user pays MBR on entry, gets it back on exit. It's the Algorand equivalent of Ethereum's gas refund for clearing storage slots, except it's explicit, deterministic, and the user gets real Algo back rather than a gas discount. Users appreciate getting their deposit back --- it signals a well-designed protocol. (See [Accounts Overview](https://dev.algorand.co/concepts/accounts/overview/) for MBR mechanics.)
 
-The vesting contract's `cleanup_schedule` method (Chapter 3) implements this pattern, and Chapter 7 completes the loop: `unstake` deletes the position box and atomically refunds the same 32,100 microAlgos the staker funded on entry.
+The vesting contract's `cleanup_schedule` method ({{ch:token-vesting}}) implements this pattern, and {{ch:yield-farming}} completes the loop: `unstake` deletes the position box and atomically refunds the same 32,100 microAlgos the staker funded on entry.
 
 
 ## Pattern 6: Canonical Asset Ordering to Prevent Duplicate Pools
@@ -319,7 +319,7 @@ def bootstrap(self, asset_a: Asset, asset_b: Asset) -> UInt64:
     # ...
 ```
 
-Chapter 6 turns this into a full factory pattern. The factory uses the ordered
+{{ch:amm-factory}} turns this into a full factory pattern. The factory uses the ordered
 pair as the box key for O(1) pool lookup:
 
 ```python
@@ -343,8 +343,8 @@ def get_pool(asset_x: int, asset_y: int) -> int:
 
 This pattern applies everywhere pairs appear: LP token names (`"LP-{min_id}-{max_id}"`), analytics keys, router lookups. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/) for ASA ID assignment.)
 
-The AMM's `bootstrap` method (Chapter 5) and the factory's `create_pool`
-method (Chapter 6) enforce `asset_a.id < asset_b.id` for exactly this reason.
+The AMM's `bootstrap` method ({{ch:amm}}) and the factory's `create_pool`
+method ({{ch:amm-factory}}) enforce `asset_a.id < asset_b.id` for exactly this reason.
 
 
 *Before reading on: your AMM contract needs to send LP tokens to liquidity providers, but they might not have opted into the LP token yet. How would you handle this? Should the contract check and fail, or should it handle the opt-in automatically?*
@@ -471,7 +471,7 @@ The second parameter controls the fee source (`OpUpFeeSource.GroupCredit` = call
 
 Algorand doesn't have Ethereum-style events, but you can emit structured data by logging from your contract. Indexers and off-chain services parse these logs to build analytics, trigger notifications, or update UI state.
 
-The following fragment mirrors the Chapter 5 grouped-transfer pattern: the input transfer is validated first, then `input_amount` is derived from that transaction before the event is emitted.
+The following fragment mirrors the {{ch:amm}} grouped-transfer pattern: the input transfer is validated first, then `input_amount` is derived from that transaction before the event is emitted.
 
 ```python
 @arc4.abimethod
@@ -545,7 +545,7 @@ For production, use Nodely's indexer at `https://mainnet-idx.4160.nodely.dev` (f
 
 ## Pattern 11: Reserve Tracking vs Balance Reading
 
-*Before reading: the Chapter 5 AMM tracks reserves explicitly in global state. An alternative is to read the contract's actual on-chain balance each time. Which approach would you choose, and what could go wrong with the other?*
+*Before reading: the {{ch:amm}} AMM tracks reserves explicitly in global state. An alternative is to read the contract's actual on-chain balance each time. Which approach would you choose, and what could go wrong with the other?*
 
 Your AMM tracks reserves in global state (`self.reserve_a`, `self.reserve_b`). An alternative design reads the contract's actual asset balances each time. Both approaches have tradeoffs:
 
@@ -627,9 +627,9 @@ Reading global state is a free API call to any algod node --- no transaction, no
 
 1. **(Apply)** Implement Patterns 4 and 5 (MBR funding and refund) for a contract that stores 256-byte user profiles in box storage. Calculate the exact MBR per box, write the `create_profile` method that validates the funding payment, and write the `delete_profile` method that refunds the MBR.
 
-2. **(Analyze)** A user has 500 USDC (as an ASA) but zero Algo. Using Pattern 1 (fee subsidization) and Pattern 2 (fund-then-call), design a transaction group that lets a relayer cover their fees so they can execute a swap on the Chapter 5 AMM. How many transactions are in the group, and what is each transaction's fee?
+2. **(Analyze)** A user has 500 USDC (as an ASA) but zero Algo. Using Pattern 1 (fee subsidization) and Pattern 2 (fund-then-call), design a transaction group that lets a relayer cover their fees so they can execute a swap on the {{ch:amm}} AMM. How many transactions are in the group, and what is each transaction's fee?
 
-3. **(Apply)** Modify the AMM's `swap` method from Chapter 5 to emit a `Swapped` event (Pattern 10) containing the input amount, output amount, and new spot price after the swap.
+3. **(Apply)** Modify the AMM's `swap` method from {{ch:amm}} to emit a `Swapped` event (Pattern 10) containing the input amount, output amount, and new spot price after the swap.
 
 4. **(Create)** Write a client-side `get_swap_quote` function following Pattern 12. The function should read reserves from global state, calculate the expected output using the constant product formula with fee, and return the output amount and price impact as a percentage.
 

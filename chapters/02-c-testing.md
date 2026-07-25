@@ -6,13 +6,15 @@ On a blockchain, deployed code is immutable. A bug in a web application means a 
 
 Testing is not optional. It is the most important skill in this book after the mental model itself.
 
-In Chapter 1 you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You deployed a HelloAlgorand contract and called it from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
+In {{ch:mental-model}} you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You deployed a HelloAlgorand contract and called it from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
 
-This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: *positive tests* that verify correct behavior, *negative tests* that verify security checks, and simulate-based tests that construct attacks without submitting them. Most unusually, we will also write tests that deliberately fail --- those failing tests reveal exactly what the simplified contract cannot handle, and those gaps become the specification for the production contract in Chapter 3.
+This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: *positive tests* that verify correct behavior, *negative tests* that verify security checks, and simulate-based tests that construct attacks without submitting them. Most unusually, we will also write tests that deliberately fail --- those failing tests reveal exactly what the simplified contract cannot handle, and those gaps become the specification for the production contract in {{ch:token-vesting}}.
 
 An important distinction before we begin: smart contract testing has two layers. **Contract logic testing** verifies that the on-chain code behaves correctly --- the right assertions fire, the math is accurate, state transitions are safe. **Client code testing** verifies that your off-chain scripts compose transactions correctly, encode ABI arguments properly, and handle errors gracefully. This chapter focuses on contract logic testing, which is the blockchain-specific skill. Client code testing is standard Python testing (pytest, mocking, assertions) and does not require special tooling. The *integration tests* we write here test *both layers simultaneously* --- when one fails, the bug could be in the contract or in the client code that calls it. The *unit tests* test *contract logic only*.
 
-> **Tip:** Algorand Python also provides `algorand-python-testing`, a unit testing library that lets you test contract logic without running LocalNet. If you are primarily interested in testing math and assertion logic (not transaction flows), skip ahead to the unit testing section at the end of this chapter. We start with integration tests because they cover more ground and are what you will use for most production testing.
+::: {.tip}
+Algorand Python also provides `algorand-python-testing`, a unit testing library that lets you test contract logic without running LocalNet. If you are primarily interested in testing math and assertion logic (not transaction flows), skip ahead to the unit testing section at the end of this chapter. We start with integration tests because they cover more ground and are what you will use for most production testing.
+:::
 
 By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
 
@@ -21,14 +23,16 @@ By the end of this chapter, you will have a working test suite and the testing p
 The completed integration-test project for this chapter is in
 `projects/chapter2/simple-vesting/`. It preserves the deliberately simplified
 contract from the chapter, including the limitations that the "Tests That Fail"
-section turns into Chapter 3's production requirements.
+section turns into {{ch:token-vesting}}'s production requirements.
 
-> **Note:** The shipped reference project refactors the chapter's inline code
-> onto the generated typed client (`SimpleVestingClient`), with the helper
-> functions moved into `scripts/localnet_helpers.py`. The behavior is
-> identical --- the refactor just makes the project more maintainable --- so if
-> you diff the project against the listings in this chapter, expect different
-> plumbing, not different logic.
+::: {.note}
+The shipped reference project refactors the chapter's inline code
+onto the generated typed client (`SimpleVestingClient`), with the helper
+functions moved into `scripts/localnet_helpers.py`. The behavior is
+identical --- the refactor just makes the project more maintainable --- so if
+you diff the project against the listings in this chapter, expect different
+plumbing, not different logic.
+:::
 
 Before running it, make three predictions: why the pre-cliff claim returns `0`,
 why the contract account must opt into the ASA before the deposit, and which
@@ -156,9 +160,9 @@ algokit project run test-static
 
 ## The Simplified Vesting Contract
 
-We need a contract to test. Rather than testing HelloAlgorand (too trivial to teach anything transferable), we will build a simplified version of the token vesting contract that Chapter 3 covers in full. This version strips away everything that is not essential to the core idea: one beneficiary, linear vesting with a cliff, admin deposits tokens, beneficiary claims.
+We need a contract to test. Rather than testing HelloAlgorand (too trivial to teach anything transferable), we will build a simplified version of the token vesting contract that {{ch:token-vesting}} covers in full. This version strips away everything that is not essential to the core idea: one beneficiary, linear vesting with a cliff, admin deposits tokens, beneficiary claims.
 
-Here is what "simplified" means in practice. The production contract in Chapter 3 uses box storage for unlimited beneficiaries, wide arithmetic for overflow safety, a separate `revoke` method, schedule cleanup with MBR refunds, and read-only query methods. Our simplified version uses global state (one beneficiary only), plain `UInt64` arithmetic, no revocation, and a combined initialize-and-deposit method. It is roughly 90 lines of PuyaPy compared to Chapter 3's 200+.
+Here is what "simplified" means in practice. The production contract in {{ch:token-vesting}} uses box storage for unlimited beneficiaries, wide arithmetic for overflow safety, a separate `revoke` method, schedule cleanup with MBR refunds, and read-only query methods. Our simplified version uses global state (one beneficiary only), plain `UInt64` arithmetic, no revocation, and a combined initialize-and-deposit method. It is roughly 90 lines of PuyaPy compared to {{ch:token-vesting}}'s 200+.
 
 Here is the complete contract. It has five methods: `create` stores the deployer as admin, `opt_in_to_asset` prepares the contract to hold tokens, `initialize` accepts a token deposit and records the vesting schedule, `claim` releases tokens proportional to elapsed time, and `get_claimable` lets anyone check how many tokens are currently available. A sixth bare method, `reject_lifecycle`, makes the contract immutable by rejecting update and delete calls. Read the contract through, then we will discuss the key points:
 
@@ -333,11 +337,11 @@ Let us walk through the design decisions.
 
 **Global state for everything.** The vesting parameters --- `total_amount`, `start_time`, `cliff_end`, `vesting_end`, `claimed_amount` --- are all global state fields. This limits us to a single beneficiary (one set of parameters), but it avoids the complexity of box storage, box references, and MBR management. That is 2 byte-slice slots (`admin` and `beneficiary`, stored as raw address bytes) and 6 uint slots --- well within the 64-slot limit.
 
-**Separate opt-in, then initialize-and-deposit.** The contract needs to opt into the ASA before it can receive the deposit. On Algorand, an asset transfer to an account that has not opted in will fail. So we call `opt_in_to_asset` first, then send a grouped transaction: an asset transfer (the deposit) followed by the `initialize` app call. The contract verifies the deposit matches the declared amount and asset. This is simpler than Chapter 3's approach but less flexible --- you cannot add more tokens after initialization.
+**Separate opt-in, then initialize-and-deposit.** The contract needs to opt into the ASA before it can receive the deposit. On Algorand, an asset transfer to an account that has not opted in will fail. So we call `opt_in_to_asset` first, then send a grouped transaction: an asset transfer (the deposit) followed by the `initialize` app call. The contract verifies the deposit matches the declared amount and asset. This is simpler than {{ch:token-vesting}}'s approach but less flexible --- you cannot add more tokens after initialization.
 
 **No wide arithmetic.** The vesting calculation `total_amount * elapsed // duration` uses plain `UInt64` arithmetic. If `total_amount * elapsed` exceeds `UInt64` max (~1.8 x 10^19), the AVM panics. With small test amounts this is fine. With production amounts (100M tokens at 6 decimals = 10^14 base units times months of elapsed time), it overflows. We will test this gap explicitly.
 
-**`claim` returns zero instead of asserting.** If nothing is claimable (before cliff, or everything already claimed), the method returns 0 rather than failing. This is a design choice --- the Chapter 3 version asserts because a zero-claim is likely a user error and should fail loudly. Here we return zero for simplicity.
+**`claim` returns zero instead of asserting.** If nothing is claimable (before cliff, or everything already claimed), the method returns 0 rather than failing. This is a design choice --- the {{ch:token-vesting}} version asserts because a zero-claim is likely a user error and should fail loudly. Here we return zero for simplicity.
 
 **`fee=UInt64(0)` on every inner transaction.** This makes the fee pooling intent explicit --- the outer transaction overpays to cover inner fees. In PuyaPy, the default inner transaction fee is already 0, but writing it explicitly ensures anyone reading the code immediately sees the intent. If a non-zero fee were set (or if a lower-level language left the field defaulting to the minimum fee), that amount would be deducted from the contract's Algo balance. An attacker could then call your contract repeatedly, draining its balance through accumulated fees.
 
@@ -464,11 +468,15 @@ There are several important things to understand about this setup.
 
 *Here is a puzzle: if you call `time.sleep(10)` in your test and then check the block timestamp, it has not changed. Why?*
 
-> **Note:** The `advance_time` helper is the single most confusing aspect of LocalNet testing for newcomers. On a live network, block timestamps advance with wall-clock time because blocks are produced continuously. On LocalNet, blocks are only produced when you submit a transaction. If you `time.sleep(10)` but do not submit a transaction, the block timestamp stays where it was. You need both the sleep (to advance wall-clock time) and the dummy transaction (to produce a block reflecting that time).
+::: {.note}
+The `advance_time` helper is the single most confusing aspect of LocalNet testing for newcomers. On a live network, block timestamps advance with wall-clock time because blocks are produced continuously. On LocalNet, blocks are only produced when you submit a transaction. If you `time.sleep(10)` but do not submit a transaction, the block timestamp stays where it was. You need both the sleep (to advance wall-clock time) and the dummy transaction (to produce a block reflecting that time).
+:::
 
 **Session-scoped fixtures.** The `algorand` and `admin` fixtures use `scope="session"` so they are created once and reused across all tests. Each test deploys its own fresh contract instance --- the `deploy` helper in the next section uses `factory.send.bare.create()`, which always creates a brand-new application --- so tests do not interfere with each other despite sharing the same LocalNet connection.
 
-> **Note:** For testing, use short durations --- seconds instead of months. Set a cliff of 5 seconds and total vesting of 20 seconds instead of 90 days and 365 days. This keeps your test suite fast while still exercising the time-dependent logic faithfully.
+::: {.note}
+For testing, use short durations --- seconds instead of months. Set a cliff of 5 seconds and total vesting of 20 seconds instead of 90 days and 365 days. This keeps your test suite fast while still exercising the time-dependent logic faithfully.
+:::
 
 
 ## Writing Tests That Pass
@@ -610,7 +618,9 @@ def setup_initialized_contract(
     return app_client, token_id, beneficiary
 ```
 
-> **Note:** The `deploy` helper calls `factory.send.bare.create()`, not `factory.deploy()`, and the difference is worth internalizing. `deploy()` is *idempotent*: it looks up an existing application by creator and name and reuses it if one is found. That is exactly what you want in a deployment script --- run it twice, get the same app --- and exactly what you do *not* want in a test suite, where a reused app would leak state from one test into the next. `send.bare.create()` unconditionally creates a new application, so every test starts from a clean instance.
+::: {.note}
+The `deploy` helper calls `factory.send.bare.create()`, not `factory.deploy()`, and the difference is worth internalizing. `deploy()` is *idempotent*: it looks up an existing application by creator and name and reuses it if one is found. That is exactly what you want in a deployment script --- run it twice, get the same app --- and exactly what you do *not* want in a test suite, where a reused app would leak state from one test into the next. `send.bare.create()` unconditionally creates a new application, so every test starts from a clean instance.
+:::
 
 The `setup_initialized_contract` helper follows a 7-step sequence. Each step has a specific purpose:
 
@@ -960,7 +970,9 @@ The key difference is `.simulate()` instead of `.send()`. The transaction is con
 
 This is far more precise than `pytest.raises(Exception)`. You are not just testing that the call fails --- you are testing that it fails *because of the authorization check*, not because of insufficient funds, a missing box reference, or some other unrelated error.
 
-> **Tip:** For every security assertion in your contract, write a test that constructs the specific attack and simulates it. Verify the failure message matches the assertion you intended. This builds a library of negative tests that proves each security check works for the right reason.
+::: {.tip}
+For every security assertion in your contract, write a test that constructs the specific attack and simulates it. Verify the failure message matches the assertion you intended. This builds a library of negative tests that proves each security check works for the right reason.
+:::
 
 Here is the same pattern applied to the admin-only `initialize` check:
 
@@ -1052,12 +1064,14 @@ Here is the same pattern applied to the admin-only `initialize` check:
 
 The simulate approach is especially valuable during development. When a test fails unexpectedly, simulating the same transaction gives you the exact failure reason and program counter, which you can map back to your source code using the ARC-56 source map.
 
-> **Try it yourself:** Write a simulate-based test that verifies the `Already initialized` assertion fires when `initialize` is called twice on the same contract instance. Construct the second `initialize` call identically to the first, simulate it inside `pytest.raises(algokit_utils.LogicError)`, and check that the exception message contains `"Already initialized"`.
+::: {.tryit}
+Write a simulate-based test that verifies the `Already initialized` assertion fires when `initialize` is called twice on the same contract instance. Construct the second `initialize` call identically to the first, simulate it inside `pytest.raises(algokit_utils.LogicError)`, and check that the exception message contains `"Already initialized"`.
+:::
 
 
 ## Tests That Fail --- Revealing the Gaps
 
-The preceding tests prove the simplified contract works correctly within its design scope. But that scope is deliberately narrow. The following tests expose limitations that would matter in production --- and each one motivates a specific feature in Chapter 3's full implementation.
+The preceding tests prove the simplified contract works correctly within its design scope. But that scope is deliberately narrow. The following tests expose limitations that would matter in production --- and each one motivates a specific feature in {{ch:token-vesting}}'s full implementation.
 
 ### Gap 1: Arithmetic Overflow with Large Amounts
 
@@ -1110,7 +1124,7 @@ class TestSimpleVestingGaps:
 
 The comment explains what *would* happen with production parameters. We cannot easily test the overflow with integration tests (we would need to sleep for a year), but we can document it as a known limitation.
 
-*Chapter 3 solves this with wide arithmetic: `op.mulw(total, elapsed)` produces a 128-bit intermediate product as two `UInt64` values, and `op.divmodw` divides it back to `UInt64`. The intermediate product never overflows.*
+*{{ch:token-vesting}} solves this with wide arithmetic: `op.mulw(total, elapsed)` produces a 128-bit intermediate product as two `UInt64` values, and `op.divmodw` divides it back to `UInt64`. The intermediate product never overflows.*
 
 ### Gap 2: Only One Beneficiary
 
@@ -1175,7 +1189,7 @@ The comment explains what *would* happen with production parameters. We cannot e
 
 The "Already initialized" assertion fires because `self.asset_id.value` is no longer zero. A real vesting contract serving a startup team needs to support dozens or hundreds of beneficiaries, each with independent schedules.
 
-*Chapter 3 introduces `BoxMap(Account, VestingSchedule, key_prefix=b"v_")` for per-beneficiary storage. Each schedule gets its own box, independently created and deleted. The `initialize` method sets up the contract and token; a separate `create_schedule` method adds individual beneficiaries.*
+*{{ch:token-vesting}} introduces `BoxMap(Account, VestingSchedule, key_prefix=b"v_")` for per-beneficiary storage. Each schedule gets its own box, independently created and deleted. The `initialize` method sets up the contract and token; a separate `create_schedule` method adds individual beneficiaries.*
 
 ### Gap 3: No Revocation
 
@@ -1226,7 +1240,7 @@ The "Already initialized" assertion fires because `self.asset_id.value` is no lo
 
 Even the admin cannot retrieve unvested tokens. Once deposited, tokens are fully committed to the beneficiary's vesting schedule, regardless of whether they leave the team on day two.
 
-*Chapter 3 adds a `revoke` method: it calculates how many tokens are vested at revocation time, caps the beneficiary's `total_amount` at the vested amount, and returns the unvested remainder to the admin via an inner transaction.*
+*{{ch:token-vesting}} adds a `revoke` method: it calculates how many tokens are vested at revocation time, caps the beneficiary's `total_amount` at the vested amount, and returns the unvested remainder to the admin via an inner transaction.*
 
 ### Gap 4: Rounding Behavior Across Multiple Claims
 
@@ -1280,9 +1294,9 @@ Even the admin cannot retrieve unvested tokens. Once deposited, tokens are fully
 
 This test should pass because the final claim uses the `now >= vesting_end` branch, which bypasses division entirely and returns the full remaining amount (`total - claimed`). Floor division during intermediate claims means the beneficiary gets slightly less than their exact entitlement, and the final claim resolves the dust. This is correct behavior --- but it only works because the simplified contract's arithmetic does not overflow. With production-scale amounts, the overflow from Gap 1 would make the rounding behavior moot --- the program panics before it can round at all.
 
-*Chapter 3 extracts the vesting math into a `calculate_vested` subroutine using `op.mulw`/`op.divmodw`. Floor division consistently favors the contract: the beneficiary never receives more than their total allocation, and the dust resolves on the final claim when the full `total - claimed` remainder is released.*
+*{{ch:token-vesting}} extracts the vesting math into a `calculate_vested` subroutine using `op.mulw`/`op.divmodw`. Floor division consistently favors the contract: the beneficiary never receives more than their total allocation, and the dust resolves on the final claim when the full `total - claimed` remainder is released.*
 
-These four gaps --- overflow, single-beneficiary limitation, missing revocation, and overflow-dependent rounding --- form the specification for Chapter 3. You now know exactly *what* the production contract must solve and *why*. When Chapter 3 introduces `BoxMap` or `op.mulw`, you will understand the motivation instead of taking it on faith.
+These four gaps --- overflow, single-beneficiary limitation, missing revocation, and overflow-dependent rounding --- form the specification for {{ch:token-vesting}}. You now know exactly *what* the production contract must solve and *why*. When {{ch:token-vesting}} introduces `BoxMap` or `op.mulw`, you will understand the motivation instead of taking it on faith.
 
 
 ## Unit Testing with algorand-python-testing
@@ -1458,6 +1472,10 @@ The `algopy_testing_context()` context manager provides a mock AVM environment. 
 
 **When to use each approach:**
 
+{{tbl:integration-vs-unit}} compares the two approaches on the dimensions that decide which one to reach for.
+
+Table: Integration tests compared with unit tests {#tbl:integration-vs-unit}
+
 | Aspect | Integration Tests | Unit Tests |
 |--------|---|---|
 | **Speed** | Slow (seconds) | Fast (milliseconds) |
@@ -1470,7 +1488,9 @@ The `algopy_testing_context()` context manager provides a mock AVM environment. 
 
 In practice, start with unit tests for math and business logic --- the parts where a wrong number means lost funds --- then write integration tests for the full lifecycle: deploy, initialize, interact, and verify on-chain state. When a unit test passes but an integration test fails, the bug is in ABI encoding, opcode budget, or a deployment detail that only surfaces on-chain.
 
-> **Note:** In production applications, you will also have client-side code that deserves its own tests --- SDK wrappers, frontend transaction composers, error handling, retry logic. That is standard Python (or TypeScript) testing with no blockchain-specific tooling. This chapter covers the blockchain-specific skill: testing the smart contract itself.
+::: {.note}
+In production applications, you will also have client-side code that deserves its own tests --- SDK wrappers, frontend transaction composers, error handling, retry logic. That is standard Python (or TypeScript) testing with no blockchain-specific tooling. This chapter covers the blockchain-specific skill: testing the smart contract itself.
+:::
 
 
 ## Test Organization
@@ -1498,7 +1518,9 @@ tests/
 
 **Every security assertion gets a negative test.** If your contract has `assert Txn.sender.bytes == self.admin.value`, write a test where a non-admin calls that method. If it has `assert total_amount > UInt64(0)`, write a test that passes zero. One negative test per assertion. This is the single most effective practice for preventing security bugs.
 
-> **Note:** The `conftest.py` fixtures and helper functions from this chapter are reused throughout the book. When you reach Chapter 3, you will add contract-specific helpers (`create_schedule`, `deposit_tokens`) but the foundational `fund_account`, `create_test_asa`, and `advance_time` helpers remain unchanged.
+::: {.note}
+The `conftest.py` fixtures and helper functions from this chapter are reused throughout the book. When you reach {{ch:token-vesting}}, you will add contract-specific helpers (`create_schedule`, `deposit_tokens`) but the foundational `fund_account`, `create_test_asa`, and `advance_time` helpers remain unchanged.
+:::
 
 
 ## Summary
@@ -1512,6 +1534,10 @@ In this chapter you learned to:
 - Distinguish integration tests from unit tests and choose which to write first
 - Structure a test suite with fixtures, helpers, and descriptive naming conventions
 - Write tests that deliberately fail to expose a simplified contract's limitations and define a production specification
+
+{{tbl:testing-summary}} collects the concepts this chapter introduced.
+
+Table: Chapter concepts and key takeaways {#tbl:testing-summary}
 
 | Concept | Key Takeaway |
 |---------|-------------|
@@ -1553,12 +1579,12 @@ In this chapter you learned to:
 
 ## Before You Continue
 
-Before starting Chapter 3, you should be able to:
+Before starting {{ch:token-vesting}}, you should be able to:
 
 - [ ] Write a pytest test that deploys a contract to LocalNet and calls a method
 - [ ] Use `advance_time` to test time-dependent contract logic
 - [ ] Write a negative test using `simulate` that verifies a specific security assertion
 - [ ] Explain the difference between integration tests and unit tests for smart contracts
-- [ ] Identify the four limitations of the simplified vesting contract that Chapter 3 addresses
+- [ ] Identify the four limitations of the simplified vesting contract that {{ch:token-vesting}} addresses
 
-If any of these are unclear, revisit the relevant section before proceeding. Chapter 3 assumes you are comfortable writing and running tests --- every feature we build there will be tested using the patterns established here.
+If any of these are unclear, revisit the relevant section before proceeding. {{ch:token-vesting}} assumes you are comfortable writing and running tests --- every feature we build there will be tested using the patterns established here.

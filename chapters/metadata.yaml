@@ -19,6 +19,11 @@ fontsize: 11pt
 linestretch: 1.15
 toc: true
 toc-depth: 2
+# Front matter now carries a List of Figures and a List of Tables. Every
+# numbered element is captioned at build time, so these lists are generated
+# from the same source of truth as the cross-references -- they cannot drift.
+lof: true
+lot: true
 numbersections: true
 colorlinks: true
 linkcolor: "blue!60!black"
@@ -36,8 +41,49 @@ header-includes:
       }%
       \null\clearpage
     }
+    % The resolver writes the display number into the caption text itself
+    % ("Table 4-1. Storage options compared") because the HTML renderer has no
+    % caption counter of its own. Left alone, LaTeX would add a second number
+    % and print "Table 1: Table 4-1. Storage options compared". Suppressing the
+    % label leaves exactly one number, from exactly one source. listformat does
+    % the same job for the List of Tables and List of Figures, where the number
+    % is written separately from the caption body and so survives labelformat.
+    \usepackage{caption}
+    \captionsetup{labelformat=empty,listformat=empty}
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
+    % --- Callouts -------------------------------------------------------
+    % Nine classes, nine looks. A reader who has met one .warning knows what
+    % the next one means before reading a word of it, which is the whole point
+    % of having a fixed set instead of whatever label the author felt like
+    % typing. scripts/callouts.lua maps the markdown class to the environment.
+    \usepackage[most]{tcolorbox}
+    \definecolor{cNote}{HTML}{2563EB}
+    \definecolor{cTip}{HTML}{059669}
+    \definecolor{cWarn}{HTML}{DC2626}
+    \definecolor{cGotcha}{HTML}{B45309}
+    \definecolor{cSetup}{HTML}{6B7280}
+    \definecolor{cSpec}{HTML}{7C3AED}
+    \definecolor{cVersion}{HTML}{0891B2}
+    \definecolor{cCheck}{HTML}{BE185D}
+    \definecolor{cTry}{HTML}{15803D}
+    \newtcolorbox{calloutbase}[2]{
+      enhanced, breakable, colback=#1!4, colframe=#1,
+      boxrule=0pt, leftrule=3pt, arc=0pt, outer arc=0pt,
+      left=8pt, right=8pt, top=6pt, bottom=6pt,
+      before skip=10pt, after skip=10pt,
+      fonttitle=\bfseries\sffamily\small, coltitle=#1,
+      title={#2}, attach title to upper=\par}
+    \newenvironment{calloutnote}{\begin{calloutbase}{cNote}{NOTE}}{\end{calloutbase}}
+    \newenvironment{callouttip}{\begin{calloutbase}{cTip}{TIP}}{\end{calloutbase}}
+    \newenvironment{calloutwarning}{\begin{calloutbase}{cWarn}{WARNING}}{\end{calloutbase}}
+    \newenvironment{calloutgotcha}{\begin{calloutbase}{cGotcha}{GOTCHA}}{\end{calloutbase}}
+    \newenvironment{calloutsetup}{\begin{calloutbase}{cSetup}{SETUP}}{\end{calloutbase}}
+    \newenvironment{calloutspec}{\begin{calloutbase}{cSpec}{HOW IT WORKS}}{\end{calloutbase}}
+    \newenvironment{calloutversion}{\begin{calloutbase}{cVersion}{VERSION}}{\end{calloutbase}}
+    \newenvironment{calloutcheck}{\begin{calloutbase}{cCheck}{CHECK YOUR UNDERSTANDING}}{\end{calloutbase}}
+    \newenvironment{callouttryit}{\begin{calloutbase}{cTry}{TRY IT YOURSELF}}{\end{calloutbase}}
+    % --------------------------------------------------------------------
     \usepackage{fancyhdr}
     \pagestyle{fancy}
     \fancyhf{}

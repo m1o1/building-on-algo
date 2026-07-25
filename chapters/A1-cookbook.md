@@ -210,7 +210,9 @@ The AVM has exactly two native types. Everything else is built on top of these.
 
 ### 3.2 --- BigUInt: up to 512-bit integers
 
-> **When to use BigUInt vs wide arithmetic (3.3):** Use `BigUInt` when the *result itself* must exceed 64 bits (e.g., cumulative accumulators like TWAP that grow unboundedly). Use `mulw`/`divmodw` (Recipe 3.3) when the final result fits in 64 bits but an intermediate product might overflow (e.g., proportional calculations like `a * b / c`).
+::: {.tip}
+**When to use BigUInt vs wide arithmetic (3.3):** Use `BigUInt` when the *result itself* must exceed 64 bits (e.g., cumulative accumulators like TWAP that grow unboundedly). Use `mulw`/`divmodw` (Recipe 3.3) when the final result fits in 64 bits but an intermediate product might overflow (e.g., proportional calculations like `a * b / c`).
+:::
 
 ```python
 from algopy import ARC4Contract, BigUInt, UInt64, arc4, op
@@ -330,7 +332,9 @@ Requires the target app ID in the transaction's foreign apps array.
 
 ### 5.1 --- Per-user state with opt-in
 
-> **When to use local state vs box storage (Section 6):** Use local state only for non-critical user preferences or caches --- data where unilateral deletion by the user is acceptable. For financial data, debts, or anything the application must control, use box storage (Section 6). Users can delete their local state via ClearState at any time; they cannot delete boxes.
+::: {.tip}
+**When to use local state vs box storage (Section 6):** Use local state only for non-critical user preferences or caches --- data where unilateral deletion by the user is acceptable. For financial data, debts, or anything the application must control, use box storage (Section 6). Users can delete their local state via ClearState at any time; they cannot delete boxes.
+:::
 
 ```python
 from algopy import ARC4Contract, LocalState, Txn, UInt64, arc4
@@ -373,7 +377,9 @@ class LocalReader(ARC4Contract):
 
 ### 6.1 --- Simple named box (Box)
 
-> **When to use Box vs BoxMap (6.2) vs raw box (6.3):** Use `Box` for a single named value (e.g., a config struct). Use `BoxMap` for per-user or per-entity data keyed by address or ID (the most common pattern). Use raw box access (6.3) only when you need byte-level operations (`extract`, `replace`, `splice`) on packed binary data.
+::: {.tip}
+**When to use Box vs BoxMap (6.2) vs raw box (6.3):** Use `Box` for a single named value (e.g., a config struct). Use `BoxMap` for per-user or per-entity data keyed by address or ID (the most common pattern). Use raw box access (6.3) only when you need byte-level operations (`extract`, `replace`, `splice`) on packed binary data.
+:::
 
 ```python
 from algopy import ARC4Contract, Box, UInt64, arc4
@@ -428,7 +434,9 @@ class BalanceMap(ARC4Contract):
 
 Use `Box(Bytes, key=...)` when you need low-level methods such as `create`, `extract`, `replace`, `resize`, and `splice` for packed binary data.
 
-> **Note:** `BoxRef` still appears in the API for compatibility, but the PuyaPy v5.8.1 [`_box` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/_box.pyi) mark it deprecated because the same methods are available directly on `Box`.
+::: {.note}
+`BoxRef` still appears in the API for compatibility, but the PuyaPy v5.9.0 [`_box` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/_box.pyi) mark it deprecated because the same methods are available directly on `Box`.
+:::
 
 ```python
 from algopy import ARC4Contract, Box, Bytes, UInt64, arc4
@@ -784,7 +792,7 @@ def parameterized_escrow() -> bool:
 
 Compile: `puyapy contract.py --template-var RECEIVER=0xABCD... --template-var MAX_AMOUNT=5000000 --template-var EXPIRY=40000000`
 
-Recipes 10.1 and 10.2 are minimal teaching examples: production LogicSigs also need an expiry check and a `Global.genesis_hash` network check (see Chapter 9's security checklist and the Gotchas cheat sheet).
+Recipes 10.1 and 10.2 are minimal teaching examples: production LogicSigs also need an expiry check and a `Global.genesis_hash` network check (see {{ch:limit-order-book}}'s security checklist and the Gotchas cheat sheet).
 
 ### 10.3 --- LogicSig reading group transaction fields
 
@@ -1342,7 +1350,9 @@ algorand.send.asset_transfer(
 # and recovers 100,000 μAlgo of MBR.
 ```
 
-> **Warning:** The `close_asset_to` field sends the *entire* remaining balance of that ASA, regardless of the `amount` field. Tokens are not destroyed: they go to the close-to address if it is opted in, and the transaction fails if it is not. Still, double-check the recipient --- a balance closed to the wrong opted-in address is gone from your control.
+::: {.warning}
+The `close_asset_to` field sends the *entire* remaining balance of that ASA, regardless of the `amount` field. Tokens are not destroyed: they go to the close-to address if it is opted in, and the transaction fails if it is not. Still, double-check the recipient --- a balance closed to the wrong opted-in address is gone from your control.
+:::
 
 ### 17.2 --- Account rekeying
 
@@ -1373,12 +1383,18 @@ algorand.send.payment(
 )
 ```
 
-> **Warning:** Rekeying is irreversible without the new key. If you rekey to an address you do not control, the account is permanently lost. Always verify the `rekey_to` address before signing.
+::: {.warning}
+Rekeying is irreversible without the new key. If you rekey to an address you do not control, the account is permanently lost. Always verify the `rekey_to` address before signing.
+:::
 
 
 ## Quick Reference: AVM Limits
 
 (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) for the full specification.)
+
+{{tbl:avm-limits}} collects the limits worth committing to memory.
+
+Table: AVM limits quick reference {#tbl:avm-limits}
 
 | Limit | Value |
 |-------|-------|

@@ -6,11 +6,11 @@ Look at what you have accomplished. You started with no smart contract knowledge
 
 Here is where to go next.
 
-**Concentrated liquidity AMMs.** The constant product AMM in Chapter 5 is the Uniswap V2 model. The broader DeFi industry has moved toward concentrated liquidity (V3), where LPs choose price ranges for dramatically higher capital efficiency. As of this writing, no Algorand DEX has implemented a full V3-style concentrated liquidity AMM --- this is an open opportunity. Porting V3 concepts to the AVM would require creative use of box storage for tick data and careful opcode budget management for tick-crossing math.
+**Concentrated liquidity AMMs.** The constant product AMM in {{ch:amm}} is the Uniswap V2 model. The broader DeFi industry has moved toward concentrated liquidity (V3), where LPs choose price ranges for dramatically higher capital efficiency. As of this writing, no Algorand DEX has implemented a full V3-style concentrated liquidity AMM --- this is an open opportunity. Porting V3 concepts to the AVM would require creative use of box storage for tick data and careful opcode budget management for tick-crossing math.
 
 **Lending and borrowing protocols.** Folks Finance and the now-sunset Algofi demonstrated that full lending/borrowing is possible on Algorand. Key concepts to study: overcollateralization, health factors, liquidation mechanics (calling AMM swaps via inner transactions to convert seized collateral), and interest rate models (utilization curves). These protocols compose heavily with AMMs for price oracles and liquidation execution.
 
-**Cross-chain bridges and State Proofs.** Chapter 10 introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
+**Cross-chain bridges and State Proofs.** {{ch:zk-voting}} introduced State Proofs and Falcon signatures. The practical application: building a light client on Ethereum that verifies Algorand State Proofs, enabling trustless asset transfers between chains. This is active infrastructure work in the Algorand ecosystem.
 
 **Ecosystem integration.** This book built everything from scratch. Production applications integrate with existing protocols. Study the ABIs of Tinyman, Pact, and Folks Finance to understand how to call their contracts from yours. The ARC-56 specs for deployed contracts are your entry point --- load them with AlgoKit Utils and call methods directly.
 
