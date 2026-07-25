@@ -13,8 +13,11 @@ test = [
     "typing-extensions",
 ]
 compile = [
-    "puyapy==5.8.1",
-    "algorand-python==3.5.0",
+    "puyapy==5.9.0",
+    "algorand-python==3.5.1",
+]
+build = [
+    "pyyaml",
 ]
 
 [tool.pytest.ini_options]

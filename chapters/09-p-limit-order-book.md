@@ -326,7 +326,7 @@ LogicSigs handle #1 perfectly --- each order is a unique program encoding that u
 
 The architecture:
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │                 ORDER BOOK                       │
 │            (Smart Contract)                      │
@@ -452,7 +452,8 @@ def limit_order() -> bool:
         assert gtxn.Transaction(0).type == TransactionType.AssetTransfer
         assert gtxn.Transaction(0).xfer_asset == Asset(BUY_ASSET)
         assert gtxn.Transaction(0).asset_receiver == Txn.sender
-        assert gtxn.Transaction(0).asset_amount * PRICE_D >= Txn.asset_amount * PRICE_N
+        received = gtxn.Transaction(0).asset_amount
+        assert received * PRICE_D >= Txn.asset_amount * PRICE_N
 
     # ── Bind to the exact order book call ────────────────────
     # gtxn.ApplicationCallTransaction asserts the type is appl
@@ -484,7 +485,7 @@ Example: Alice wants 0.25 ALGO per USDC → `PRICE_N = 250_000` (0.25 ALGO in mi
 
 The price check uses cross-multiplication to avoid division and potential precision loss:
 
-```
+```text
 buy_amount × PRICE_D ≥ sell_amount × PRICE_N
 ```
 
@@ -580,8 +581,10 @@ The `place_order` method registers a new order in box storage. The seller calls 
         order_data = op.concat(order_data, op.itob(price_n))
         order_data = op.concat(order_data, op.itob(price_d))
         order_data = op.concat(order_data, op.itob(max_amount))
-        order_data = op.concat(order_data, op.itob(UInt64(0)))             # filled_amount
-        order_data = op.concat(order_data, op.itob(UInt64(ORDER_ACTIVE)))  # status
+        # filled_amount starts at zero
+        order_data = op.concat(order_data, op.itob(UInt64(0)))
+        # status
+        order_data = op.concat(order_data, op.itob(UInt64(ORDER_ACTIVE)))
         order_data = op.concat(order_data, op.itob(expiry_round))
         order_data = op.concat(order_data, lsig_hash)
 
@@ -1259,7 +1262,7 @@ class TestLimitOrderBook:
 
 The limit order system becomes dramatically more useful when keepers can atomically fill limit orders using the AMM from Chapter 5 as a liquidity source. The keeper doesn't need to hold inventory --- they borrow from the AMM in the same [atomic group](https://dev.algorand.co/concepts/transactions/atomic-txn-groups/).
 
-```
+```text
 Atomic Group (5 transactions):
 [0] Keeper → Alice: 125 ALGO (keeper's payment)
 [1] Alice → Keeper: 500 USDC (LogicSig: limit order)
@@ -1360,7 +1363,7 @@ In this chapter you learned to:
 
 4. **(Analyze)** Why is app ID validation not enough to bind a delegated LogicSig to one network? What would your wrong-genesis regression test assert?
 
-## Appendix A: New Concepts Introduced in This Project
+## New Concepts Introduced in This Project
 
 See [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) for the official reference on all LogicSig concepts below.
 
@@ -1381,7 +1384,7 @@ See [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-si
 | `gtxn.Transaction(n)` field access | LogicSig inspecting grouped transactions | Cross-transaction validation in stateless programs |
 | LogicSig opcode pooling | Background (20,000 cost-budget units per txn) | Sets up the ZK verification pattern in Chapter 10 |
 
-## Appendix B: LogicSig vs Smart Contract Decision Matrix
+## LogicSig vs Smart Contract: A Decision Matrix
 
 See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/overview/) and [Logic Signatures](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) for the capabilities and constraints of each.
 
@@ -1396,7 +1399,7 @@ See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/
 | Fee sponsorship | LogicSig (contract account) | Simple conditional payment |
 | Multi-sig governance | Smart contract | Needs state for proposal tracking |
 
-## Appendix C: Resources
+## Further Reading
 
 | Resource | URL |
 |----------|-----|

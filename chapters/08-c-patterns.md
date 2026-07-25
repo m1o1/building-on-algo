@@ -49,13 +49,13 @@ composer.send()
 
 This is what "always set inner transaction fees to zero" relies on. The user's outer app call overpays enough to cover the inner asset transfer the contract sends back. The total fee math is:
 
-```
+```text
 sum(all outer fees) >= num_outer_txns × min_fee + num_inner_txns × min_fee
 ```
 
 So for a swap (1 asset transfer + 1 app call + 1 inner asset transfer back):
 
-```
+```text
 total_fee_needed = 3 × 1,000 = 3,000 microAlgos
 ```
 
@@ -219,7 +219,7 @@ contract_address = Global.current_application_address
 
 **Practical tip:** Calculate the total MBR needed at deployment and fund the contract account in the same atomic group as the `create_application` call. If you fund it separately, there's a window where the contract exists but can't operate. Here's a typical bootstrap group:
 
-```
+```text
 Group:
 [0] Creator -> Contract: Payment of 0.6 Algo (MBR funding)
 [1] Creator -> Contract: App call to bootstrap(asset_a, asset_b)
@@ -357,7 +357,7 @@ Users must opt into the LP token before they can receive it. Two approaches:
 
 The user opts into the LP token in a transaction preceding the add-liquidity call. The contract verifies they're already opted in before sending LP tokens. Simple and explicit.
 
-```
+```text
 Group:
 [0] User -> User: ASA opt-in to LP token (0-amount self-transfer)
 [1] User -> Pool: Asset A transfer

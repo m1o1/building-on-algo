@@ -1,0 +1,43 @@
+# examples/index.yaml — one entry per numbered example in the book.
+#
+# GENERATED, eventually. Until the chapter sources carry example front matter
+# (Phase 5), this file is hand-maintained and the seed entries below are the
+# Phase 0 proof that the harness works end to end. A hand-maintained index of
+# ~470 files drifts within a month, which is why the generator is scheduled
+# rather than optional.
+#
+# Fields:
+#   slug     stable identity. Referenced from prose as {{ex:slug}}. Never changes.
+#   path     relative to examples/. THIS FILE IS WHAT THE BOOK PRINTS (check 9).
+#   tier     core | extended. Sets the printed-line budget (check 10):
+#            core <= 35 lines, extended <= 20.
+#   mode     compile | compile-fail | unit | localnet
+#            EVERY mode except compile-fail compiles the example — the
+#            Completeness Contract says a printed artifact builds, so `unit`
+#            means "compiles AND its test passes", not "skip the compile".
+#   chapter  destination chapter number in the v2 map (informational)
+#   expect   compile-fail only. Substring that MUST appear in stderr. Without
+#            it a compile-fail example passes when it fails for a typo.
+#   test     unit only. Test file, relative to examples/. Lives on disk and is
+#            not printed; only its load-bearing assertion is quoted in prose.
+
+examples:
+  - slug: local-state-optin
+    path: ch03_state/local_optin.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: global-counter
+    path: ch03_state/global_counter.py
+    tier: core
+    mode: unit
+    chapter: 3
+    test: ch03_state/global_counter_test.py
+
+  - slug: struct-missing-copy
+    path: ch03_state/missing_copy.py
+    tier: core
+    mode: compile-fail
+    chapter: 3
+    expect: "must be copied using .copy()"

@@ -12,3 +12,10 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Resolution pass output (chapters/ after transclusion + xref resolution)
+build/
+
+# uv
+.venv/
+examples/.venv/

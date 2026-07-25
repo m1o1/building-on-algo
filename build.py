@@ -32,6 +32,7 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -39,44 +40,255 @@ CHAPTERS_DIR = ROOT / "chapters"
 CHANGES_DIR = ROOT / "changes"
 MDBOOK_DIR = ROOT / "mdbook"
 SRC_DIR = MDBOOK_DIR / "src"
+BUILD_DIR = ROOT / "build"
+MANIFEST = CHAPTERS_DIR / "book.yaml"
+
 
 # ---------------------------------------------------------------------------
-# Book structure metadata
+# Book structure metadata — read from chapters/book.yaml
 # ---------------------------------------------------------------------------
+#
+# Ordering used to be lexical (a filename-prefix sort of F* < 0* < A* < Z*)
+# with part breaks and front/back matter hard-coded in three module-level
+# constants. That made chapter position a property of the filename, so
+# reordering a chapter meant renaming a file and every reference to it.
+#
+# Ordering is now declared in chapters/book.yaml. Nothing in this module
+# infers structure from a filename any more.
 
-# Part breaks: chapter filename → mdBook SUMMARY.md part header.
-# Inserted before the named chapter in the table of contents.
-PART_BREAKS: dict[str, str] = {
-    "01-the-algorand-mental-model.md": "# Part I: Foundations",
-    "05-a-constant-product-amm.md": "# Part II: Automated Market Making",
-    "09-delegated-limit-order-book.md": "# Part III: Advanced Topics",
-    "A1-cookbook.md": "# Appendices",
-}
 
-# Front-matter chapters appear as prefix entries (no bullet) in SUMMARY.md.
-FRONT_MATTER = {"F1-legal-notice.md", "F2-preface.md"}
+@dataclass
+class Entry:
+    """One file in the book, in reading order."""
 
-# Back-matter chapters appear as suffix entries (no bullet) after a separator.
-BACK_MATTER = {"Z1-whats-next.md", "Z2-glossary.md", "Z3-bibliography.md"}
+    path: Path
+    slug: str
+    role: str  # front | chapter | appendix | back
+    kind: str = ""  # concept | project | capstone (chapters only)
+    code: str = ""  # project directory, if any
+    part_id: str = ""
+    part_title: str = ""
+    # SUMMARY.md part header to emit before this entry, or "" for none.
+    mdbook_part_header: str = ""
+    # Display number, assigned by number_entries(). 0 = unnumbered.
+    number: int = 0
+
+
+@dataclass
+class Book:
+    entries: list[Entry] = field(default_factory=list)
+    examples_root: Path | None = None
+    examples_manifest: Path | None = None
+
+    @property
+    def files(self) -> list[Path]:
+        return [e.path for e in self.entries]
+
+    def by_slug(self, slug: str) -> Entry | None:
+        for e in self.entries:
+            if e.slug == slug:
+                return e
+        return None
+
+
+def _load_yaml(path: Path) -> dict:
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover - environment problem, not logic
+        print(
+            "Error: PyYAML is required to read chapters/book.yaml.\n"
+            "Install it with:  pip install pyyaml",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _entry_from(raw: dict, role: str, **extra) -> Entry:
+    name = raw["file"]
+    path = CHAPTERS_DIR / name
+    if not path.exists():
+        raise SystemExit(f"book.yaml references a missing file: chapters/{name}")
+    if "slug" not in raw:
+        raise SystemExit(f"book.yaml entry for {name} has no slug")
+    return Entry(
+        path=path,
+        slug=raw["slug"],
+        role=role,
+        kind=raw.get("kind", ""),
+        code=raw.get("code", ""),
+        **extra,
+    )
+
+
+def load_book(manifest: Path = MANIFEST) -> Book:
+    """Parse chapters/book.yaml into an ordered list of entries."""
+    if not manifest.exists():
+        raise SystemExit(f"Error: {manifest} not found.")
+    doc = _load_yaml(manifest)
+    book = Book()
+
+    for raw in doc.get("front", []):
+        book.entries.append(_entry_from(raw, "front"))
+
+    for part in doc.get("parts", []):
+        part_id = part.get("id", "")
+        title = part.get("title", "")
+        # A part header is emitted before the part's FIRST chapter only.
+        header = ""
+        if part.get("mdbook_break", True):
+            header = "# " + (part.get("mdbook_title") or title)
+        for i, raw in enumerate(part.get("chapters", [])):
+            book.entries.append(
+                _entry_from(
+                    raw,
+                    "chapter",
+                    part_id=part_id,
+                    part_title=title,
+                    mdbook_part_header=header if i == 0 else "",
+                )
+            )
+
+    app = doc.get("appendices") or {}
+    app_header = "# " + (app.get("mdbook_title") or app.get("part_title", "Appendices"))
+    for i, raw in enumerate(app.get("files", [])):
+        book.entries.append(
+            _entry_from(
+                raw,
+                "appendix",
+                part_title=app.get("part_title", "Appendices"),
+                mdbook_part_header=app_header if i == 0 else "",
+            )
+        )
+
+    for raw in doc.get("back", []):
+        book.entries.append(_entry_from(raw, "back"))
+
+    ex = doc.get("examples") or {}
+    if ex.get("root"):
+        book.examples_root = ROOT / ex["root"]
+    if ex.get("manifest"):
+        book.examples_manifest = ROOT / ex["manifest"]
+
+    number_entries(book)
+    _check_orphans(book)
+    return book
+
+
+def number_entries(book: Book) -> None:
+    """Assign display numbers: chapters 1..N, appendices A..Z."""
+    n = 0
+    a = 0
+    for e in book.entries:
+        if e.role == "chapter":
+            n += 1
+            e.number = n
+        elif e.role == "appendix":
+            a += 1
+            e.number = a
+
+
+def _check_orphans(book: Book) -> None:
+    """Every .md in chapters/ must be claimed by the manifest."""
+    declared = {e.path.name for e in book.entries}
+    on_disk = {p.name for p in CHAPTERS_DIR.glob("*.md")}
+    orphans = sorted(on_disk - declared)
+    if orphans:
+        raise SystemExit(
+            "Files in chapters/ that book.yaml does not list "
+            "(add them or delete them): " + ", ".join(orphans)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Resolution pass: chapters/ → build/resolved/
+# ---------------------------------------------------------------------------
+#
+# Neither renderer reads chapters/ directly. Both read build/resolved/, which
+# is chapters/ after every mechanical substitution has been applied. Today that
+# means example transclusion; Phase 1 adds cross-reference number resolution to
+# the same pass. Keeping one resolution stage means the PDF and the HTML can
+# never disagree about what the source says.
+#
+# Transclusion directive, on a line by itself:
+#
+#     {{include-ex:global-counter}}
+#
+# expands to a tagged ```python fence holding the current contents of the file
+# examples/index.yaml maps that slug to. This is what makes the Completeness
+# Contract mechanical rather than aspirational: the book cannot print code that
+# differs from the code CI compiles, because the book does not store code.
+#
+# Note the deliberate distinction from the inline reference form {{ex:slug}},
+# which Phase 1 resolves to a display number like "Example 3-4". `ex:` cites an
+# example; `include-ex:` prints one.
+
+RESOLVED_DIR = BUILD_DIR / "resolved"
+INCLUDE_EX_RE = re.compile(r"^[ \t]*\{\{include-ex:([a-z0-9][a-z0-9-]*)\}\}[ \t]*$", re.MULTILINE)
+EXAMPLE_LANG = {".py": "python", ".teal": "teal", ".ts": "typescript", ".json": "json"}
+
+
+def load_example_index(manifest: Path | None) -> dict[str, dict]:
+    """Map example slug → entry from examples/index.yaml."""
+    if manifest is None or not manifest.exists():
+        return {}
+    doc = _load_yaml(manifest) or {}
+    return {e["slug"]: e for e in doc.get("examples", []) if e.get("slug")}
+
+
+def transclude_examples(text: str, index: dict[str, dict], examples_root: Path, where: str) -> str:
+    """Replace {{include-ex:slug}} directives with the example's source."""
+
+    def _expand(match: re.Match) -> str:
+        slug = match.group(1)
+        entry = index.get(slug)
+        if entry is None:
+            raise SystemExit(
+                f"{where}: {{{{include-ex:{slug}}}}} names an example that is not "
+                f"in examples/index.yaml"
+            )
+        source = examples_root / entry["path"]
+        if not source.exists():
+            raise SystemExit(
+                f"{where}: example {slug!r} points at a missing file: "
+                f"examples/{entry['path']}"
+            )
+        lang = EXAMPLE_LANG.get(source.suffix, "text")
+        body = source.read_text(encoding="utf-8").strip("\n")
+        return f"```{lang}\n{body}\n```"
+
+    return INCLUDE_EX_RE.sub(_expand, text)
+
+
+def resolve_book(book: Book) -> Book:
+    """Write build/resolved/ and return a Book whose entries point at it."""
+    if RESOLVED_DIR.exists():
+        shutil.rmtree(RESOLVED_DIR)
+    RESOLVED_DIR.mkdir(parents=True, exist_ok=True)
+
+    index = load_example_index(book.examples_manifest)
+    examples_root = book.examples_root or (ROOT / "examples")
+
+    resolved = Book(
+        examples_root=book.examples_root,
+        examples_manifest=book.examples_manifest,
+    )
+    for entry in book.entries:
+        text = entry.path.read_text(encoding="utf-8")
+        text = transclude_examples(text, index, examples_root, f"chapters/{entry.path.name}")
+        out = RESOLVED_DIR / entry.path.name
+        out.write_text(text, encoding="utf-8")
+        resolved.entries.append(replace(entry, path=out))
+    return resolved
 
 
 # ---------------------------------------------------------------------------
 # Chapter file discovery
 # ---------------------------------------------------------------------------
 
-def _chapter_sort_key(path: Path) -> tuple[int, str]:
-    """Sort key that orders F* < 0* < A* < Z*."""
-    c = path.name[0]
-    order = {"F": 0, "A": 2, "Z": 3}.get(c, 1)
-    return (order, path.name)
-
-
 def get_chapter_files() -> list[Path]:
     """Return chapter .md files from chapters/ in book order."""
-    return sorted(
-        (p for p in CHAPTERS_DIR.glob("*.md")),
-        key=_chapter_sort_key,
-    )
+    return load_book().files
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +516,8 @@ def _build_changelog() -> str | None:
 
 def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
     """Build the mdBook HTML site from chapter sources."""
-    chapter_files = get_chapter_files()
+    book = resolve_book(load_book())
+    chapter_files = book.files
     if not chapter_files:
         print("Error: no chapter files found in chapters/", file=sys.stderr)
         sys.exit(1)
@@ -331,7 +544,9 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
         (SRC_DIR / "cover.md").write_text(cover_md, encoding="utf-8")
         summary_lines.append("[Cover](./cover.md)")
 
-    for path in chapter_files:
+    seen_back = False
+    for entry in book.entries:
+        path = entry.path
         text = path.read_text(encoding="utf-8")
         heading = extract_heading(text)
         if heading is None:
@@ -344,18 +559,19 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
         (SRC_DIR / path.name).write_text(cleaned, encoding="utf-8")
 
         # Part break before this chapter?
-        if path.name in PART_BREAKS:
-            summary_lines.append(f"\n{PART_BREAKS[path.name]}\n")
+        if entry.mdbook_part_header:
+            summary_lines.append(f"\n{entry.mdbook_part_header}\n")
 
         # Separator before back matter
-        if path.name == "Z1-whats-next.md":
+        if entry.role == "back" and not seen_back:
             summary_lines.append("\n---\n")
+            seen_back = True
 
         # Convert pandoc em-dashes for display
         display_title = title.replace(" --- ", " — ")
 
         # SUMMARY.md entry: front/back matter get no bullet, chapters get bullet
-        if path.name in FRONT_MATTER or path.name in BACK_MATTER:
+        if entry.role in ("front", "back"):
             summary_lines.append(f"[{display_title}](./{path.name})")
         else:
             summary_lines.append(f"- [{display_title}](./{path.name})")
@@ -412,6 +628,24 @@ After installing, make sure the mdbook executable is on your PATH.
 # PDF build
 # ---------------------------------------------------------------------------
 
+APPENDIX_MARKER = "```{=latex}\n\\appendix\n```\n"
+
+
+def _pdf_source_list(book: Book) -> list[Path]:
+    """Book files with a raw-LaTeX \\appendix marker before the first appendix."""
+    sources: list[Path] = []
+    emitted = False
+    for entry in book.entries:
+        if entry.role == "appendix" and not emitted:
+            BUILD_DIR.mkdir(parents=True, exist_ok=True)
+            marker = BUILD_DIR / "_appendix.md"
+            marker.write_text(APPENDIX_MARKER, encoding="utf-8")
+            sources.append(marker)
+            emitted = True
+        sources.append(entry.path)
+    return sources
+
+
 def build_pdf() -> None:
     """Build PDF via pandoc + xelatex from chapter sources."""
     if not shutil.which("pandoc"):
@@ -423,16 +657,23 @@ def build_pdf() -> None:
         print(f"Error: {metadata} not found.", file=sys.stderr)
         sys.exit(1)
 
-    chapter_files = get_chapter_files()
+    book = resolve_book(load_book())
+    chapter_files = book.files
     if not chapter_files:
         print("Error: no chapter files found in chapters/", file=sys.stderr)
         sys.exit(1)
+
+    # Without \appendix, pandoc's -N numbers the first appendix as though it
+    # were the next chapter of the book — the Cookbook has been presented to
+    # readers as "Chapter 11". Emitting the directive ahead of the first
+    # appendix restarts the counter at A.
+    sources = _pdf_source_list(book)
 
     output = ROOT / "Building-on-Algorand.pdf"
     cmd = [
         "pandoc",
         str(metadata),
-        *[str(f) for f in chapter_files],
+        *[str(f) for f in sources],
         "-o",
         str(output),
         "--pdf-engine=xelatex",
@@ -459,7 +700,7 @@ def build_concat() -> None:
         print(f"Error: {metadata} not found.", file=sys.stderr)
         sys.exit(1)
 
-    chapter_files = get_chapter_files()
+    chapter_files = resolve_book(load_book()).files
     if not chapter_files:
         print("Error: no chapter files found in chapters/", file=sys.stderr)
         sys.exit(1)

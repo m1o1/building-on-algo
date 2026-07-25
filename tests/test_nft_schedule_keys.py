@@ -1,6 +1,7 @@
 """Regression tests for Chapter 4's NFT schedule box-key design."""
 
 import struct
+import sys
 from pathlib import Path
 
 
@@ -44,8 +45,15 @@ def test_chapter_mbr_constants_match_schedule_struct_size() -> None:
 
 
 def test_chapter_uses_explicit_schedule_box_references() -> None:
+    # Resolved through book.yaml rather than hard-coded: chapter filenames are
+    # not stable, slugs are. This is the whole point of the manifest.
     repo_root = Path(__file__).resolve().parents[1]
-    chapter = (repo_root / "chapters/04-nfts.md").read_text(encoding="utf-8")
+    sys.path.insert(0, str(repo_root))
+    from build import load_book
+
+    entry = load_book().by_slug("nfts")
+    assert entry is not None, "book.yaml has no chapter with slug 'nfts'"
+    chapter = entry.path.read_text(encoding="utf-8")
 
     assert "placeholder_box_key" not in chapter
     assert "box_key(0)" not in chapter

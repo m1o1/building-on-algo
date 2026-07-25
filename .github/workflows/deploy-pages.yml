@@ -28,6 +28,10 @@ jobs:
           curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz | tar -xz
           sudo mv mdbook /usr/local/bin/
 
+      # build.py reads chapters/book.yaml for ordering.
+      - name: Install build dependencies
+        run: python3 -m pip install --upgrade pyyaml
+
       - name: Build mdbook
         run: python3 build.py mdbook
 

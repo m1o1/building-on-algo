@@ -1,0 +1,30 @@
+[project]
+name = "building-on-algo-examples"
+version = "0.1.0"
+description = "Every numbered example in Building on Algorand, as a runnable program"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+# This directory is a package, not a folder of loose files, and the
+# pyproject.toml is load-bearing rather than decorative: compiling a bare .py
+# outside a package root makes puyapy emit
+#
+#     warning: could not determine algopy version
+#
+# and the algopy version pin is precisely what the book is asserting when it
+# prints an example. The pins below must match the root pyproject.toml.
+
+[dependency-groups]
+compile = [
+    "puyapy==5.9.0",
+    "algorand-python==3.5.1",
+]
+test = [
+    "pytest",
+    "algorand-python-testing==1.1.0",
+    "py-algorand-sdk",
+    "typing-extensions",
+]
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]

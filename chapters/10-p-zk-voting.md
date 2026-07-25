@@ -82,7 +82,7 @@ The `ec_*` opcodes shipped in AVM v10; `mimc` arrived a version later, in AVM v1
 
 The `ec_pairing_check` opcode is the workhorse for SNARK verification. A Groth16 verification requires checking:
 
-```
+```text
 e(A, B) · e(-vk_α, vk_β) · e(-∑(pub_i · vk_i), vk_γ) · e(-C, vk_δ) = 1
 ```
 
@@ -981,7 +981,7 @@ In this chapter you learned to:
 
 5. **(Create)** Replace the admin-trusted `record_verified_proof` hook with a bound verifier-group design. Identify the trusted parties you are removing, the exact group shape, where public inputs are exposed, what the app checks, what the verifier checks, and which negative tests prove the binding fails safely.
 
-## Appendix A: Opcode Costs for Cryptographic Operations
+## Opcode Costs for Cryptographic Operations
 
 Costs from the [AVM opcodes reference](https://dev.algorand.co/reference/algorand-teal/opcodes/).
 
@@ -1001,7 +1001,7 @@ Costs from the [AVM opcodes reference](https://dev.algorand.co/reference/algoran
 | ed25519verify | --- | 1,900 |
 | falcon_verify | --- | 1,700 |
 
-## Appendix B: Key Differences Between Smart Contracts and LogicSigs
+## Key Differences Between Smart Contracts and LogicSigs
 
 See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full specification of both execution modes.
 
@@ -1018,7 +1018,7 @@ See [AVM](https://dev.algorand.co/concepts/smart-contracts/avm/) for the full sp
 | Can access other apps' state | Yes (with references) | No |
 | Primary use case | Stateful dApps | ZK verification, delegation, specialized escrow |
 
-## Appendix C: Resources
+## Further Reading
 
 | Resource | URL |
 |----------|-----|

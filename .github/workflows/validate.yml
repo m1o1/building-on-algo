@@ -1,0 +1,62 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Fast job. Runs on every commit: manifest, unit tests, contract compiles,
+  # and the eleven structural checks of the book apparatus.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --group test --group compile --group build
+
+      - name: Validate
+        run: uv run python scripts/validate.py --all --structure
+
+  # Slow job. One puyapy invocation per numbered example, so it does not run
+  # on every commit alongside the fast checks -- it runs beside them, and it is
+  # the job that actually enforces the Completeness Contract.
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --group test --group compile --group build
+
+      # puyapy finds examples/pyproject.toml by walking up from each source
+      # file, so this runs from the repository root like every other target.
+      - name: Compile and test every numbered example
+        run: uv run python scripts/validate.py --examples
+
+  # The full build must succeed before anything is published.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mdbook
+        run: |
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          sudo mv mdbook /usr/local/bin/
+
+      - name: Install build dependencies
+        run: python3 -m pip install --upgrade pyyaml
+
+      - name: Build mdbook
+        run: python3 build.py mdbook

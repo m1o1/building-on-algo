@@ -239,11 +239,13 @@ The `__init__` method has special semantics: it runs exactly once, during the ap
 Add the following class to `smart_contracts/token_vesting/contract.py`, after the `VestingSchedule` struct defined in the previous section:
 
 ```python
-from algopy import ARC4Contract, GlobalState, Txn, Bytes, UInt64, arc4, BoxMap, Account
+from algopy import (
+    Account, ARC4Contract, BoxMap, Bytes, GlobalState, Txn, UInt64, arc4,
+)
 
 class TokenVesting(ARC4Contract):
     def __init__(self) -> None:
-        self.admin = GlobalState(Bytes())          # Admin address (set during creation)
+        self.admin = GlobalState(Bytes())      # Admin address, set at creation
         self.asset_id = GlobalState(UInt64(0))
         self.is_initialized = GlobalState(UInt64(0))
         self.beneficiary_count = GlobalState(UInt64(0))
@@ -839,7 +841,8 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
         assert beneficiary in self.schedules, "No schedule"
 
         schedule = self.schedules[beneficiary].copy()
-        assert schedule.claimed_amount.as_uint64() >= schedule.total_amount.as_uint64()
+        claimed = schedule.claimed_amount.as_uint64()
+        assert claimed >= schedule.total_amount.as_uint64()
 
         del self.schedules[beneficiary]
         self.beneficiary_count.value -= UInt64(1)

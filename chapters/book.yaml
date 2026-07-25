@@ -1,0 +1,89 @@
+# Building on Algorand — book manifest
+#
+# This file is the single source of truth for book structure. Ordering is
+# explicit here rather than derived from filename sort order, which is the
+# precondition for reordering chapters without renaming files.
+#
+# Fields on a chapter entry:
+#   file    required. Path relative to chapters/.
+#   slug    required. Stable identifier. Referenced from prose as {{ch:slug}}.
+#           NEVER change a slug once it ships; the display number is computed.
+#   kind    concept | project | capstone. Drives the chapter-opener banner,
+#           the HTML class, and the LaTeX rule.
+#   code    project chapters only. Path to the runnable project directory.
+#           A missing directory is a build error, not a thing nobody noticed.
+#           Directory names keep the OLD chapter numbering on purpose; this
+#           field is where the old-to-new mapping lives, so chapters can
+#           renumber without a single directory rename.
+#
+# Field on a part entry:
+#   mdbook_title  LEGACY OVERRIDE. build.py's old PART_BREAKS dict disagreed
+#                 with the in-file \part{} directives: it declared four parts
+#                 with different names than the PDF's five. These overrides
+#                 reproduce that output byte-for-byte so the Phase 0 migration
+#                 is provably behaviour-preserving. They are scheduled for
+#                 deletion in Phase 1, at which point both renderers use
+#                 `title` and the HTML and PDF finally agree on what a Part is.
+#   mdbook_break  false suppresses the part header in SUMMARY.md only. Same
+#                 legacy reason, same Phase 1 deletion.
+
+version: 1
+
+front:
+  - {file: F1-legal-notice.md, slug: legal-notice}
+  - {file: F2-preface.md,      slug: preface}
+
+parts:
+  - id: foundations
+    title: Foundations
+    mdbook_title: "Part I: Foundations"
+    chapters:
+      - {file: 01-c-mental-model.md,    slug: mental-model,    kind: concept}
+      - {file: 02-c-testing.md,         slug: testing,         kind: concept,
+         code: projects/chapter2/simple-vesting}
+      - {file: 03-p-token-vesting.md,   slug: token-vesting,   kind: project,
+         code: projects/chapter3/token-vesting}
+      - {file: 04-p-nfts.md,            slug: nfts,            kind: project,
+         code: projects/chapter4/nft-vesting}
+
+  - id: dex
+    title: Building a DEX
+    mdbook_title: "Part II: Automated Market Making"
+    chapters:
+      - {file: 05-p-amm.md,             slug: amm,             kind: project,
+         code: projects/chapter5/constant-product-amm}
+      - {file: 06-p-amm-factory.md,     slug: amm-factory,     kind: project,
+         code: projects/chapter6/amm-factory}
+      - {file: 07-p-yield-farming.md,   slug: yield-farming,   kind: project,
+         code: projects/chapter7/lp-farming}
+      - {file: 08-c-patterns.md,        slug: patterns,        kind: concept}
+
+  - id: logicsigs
+    title: Logic Signatures and Stateless Programs
+    mdbook_title: "Part III: Advanced Topics"
+    chapters:
+      - {file: 09-p-limit-order-book.md, slug: limit-order-book, kind: project}
+      # code: projects/chapter9/limit-order-book — created in Phase 6 (§12).
+
+  - id: cryptography
+    title: Cryptography and Zero-Knowledge Proofs
+    mdbook_break: false
+    chapters:
+      - {file: 10-p-zk-voting.md,        slug: zk-voting,        kind: project}
+      # code: projects/chapter10/zk-voting — created in Phase 6 (§12).
+
+appendices:
+  part_title: Appendices
+  mdbook_title: Appendices
+  files:
+    - {file: A1-cookbook.md, slug: cookbook}
+    - {file: A2-gotchas.md,  slug: gotchas}
+
+back:
+  - {file: Z1-whats-next.md,  slug: whats-next}
+  - {file: Z2-glossary.md,    slug: glossary}
+  - {file: Z3-bibliography.md, slug: bibliography}
+
+examples:
+  root: examples
+  manifest: examples/index.yaml
