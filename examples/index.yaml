@@ -935,3 +935,120 @@ examples:
     tier: extended
     mode: compile
     chapter: 6
+
+  # -- Chapter 7, the Mini-Build --------------------------------------------
+  # The one Mini-Build in the book that carries its own test suite, because
+  # this chapter is where the reader is told every example ships with one.
+  # Two of the seven tests pin defects the broken contract still has.
+  - slug: simple-vesting-broken
+    path: ch07_proving_it_works/simple_vesting_broken.py
+    tier: minibuild
+    mode: unit
+    chapter: 7
+    test: ch07_proving_it_works/simple_vesting_test.py
+
+  # Compiled by CI, never transcluded — §2.4 presents the fixed Mini-Build
+  # as a diff. Same arrangement as tip-jar-fixed above. The shared test file
+  # registered on simple-vesting-broken exercises this module too.
+  - slug: simple-vesting-fixed
+    path: ch07_proving_it_works/simple_vesting_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 7
+
+  # -- Chapter 7, cluster 1: Making the Contract Say Why --------------------
+  - slug: assert-message-home
+    path: ch07_proving_it_works/assert_message_home.py
+    tier: core
+    mode: compile
+    chapter: 7
+
+  - slug: logged-assert
+    path: ch07_proving_it_works/logged_assert.py
+    tier: extended
+    mode: compile
+    chapter: 7
+
+  - slug: logged-err
+    path: ch07_proving_it_works/logged_err.py
+    tier: extended
+    mode: compile
+    chapter: 7
+
+  - slug: op-err
+    path: ch07_proving_it_works/op_err.py
+    tier: extended
+    mode: compile
+    chapter: 7
+
+  # -- Chapter 7, cluster 2: Failing in the Right Place ---------------------
+  - slug: validate-at-boundary
+    path: ch07_proving_it_works/validate_at_boundary.py
+    tier: core
+    mode: compile
+    chapter: 7
+
+  - slug: no-reentrancy
+    path: ch07_proving_it_works/no_reentrancy.py
+    tier: core
+    mode: compile
+    chapter: 7
+
+  # -- Chapter 7, cluster 3: Running a Call Without Committing It -----------
+  # Every example in this cluster is core rather than extended: a complete
+  # algokit-utils client program costs about twelve lines before any logic,
+  # and the extended budget is twenty. Extended fits contracts, not clients.
+  - slug: simulate-instead-of-submit
+    path: ch07_proving_it_works/simulate_instead_of_submit.py
+    tier: core
+    mode: script
+    chapter: 7
+
+  - slug: simulate-extra-budget
+    path: ch07_proving_it_works/simulate_extra_budget.py
+    tier: core
+    mode: script
+    chapter: 7
+
+  # Not slugged `simulate-trace`: that slug belongs to this chapter's figure.
+  - slug: simulate-unnamed-resources
+    path: ch07_proving_it_works/simulate_unnamed_resources.py
+    tier: core
+    mode: script
+    chapter: 7
+
+  - slug: abi-return-shapes
+    path: ch07_proving_it_works/abi_return_shapes.py
+    tier: core
+    mode: script
+    chapter: 7
+
+  - slug: pc-to-source-line
+    path: ch07_proving_it_works/pc_to_source_line.py
+    tier: core
+    mode: script
+    chapter: 7
+
+  # -- Chapter 7, cluster 4: Tests That Can Actually Fail --------------------
+  # The chapter's thesis in two contracts: an assertion copied from the code
+  # holds for both of them, and an assertion taken from the requirement holds
+  # for exactly one. Its test file is the worked demonstration.
+  - slug: requirement-vs-code
+    path: ch07_proving_it_works/requirement_vs_code.py
+    tier: core
+    mode: unit
+    chapter: 7
+    test: ch07_proving_it_works/requirement_vs_code_test.py
+
+  - slug: unit-test-context
+    path: ch07_proving_it_works/unit_test_context.py
+    tier: core
+    mode: unit
+    chapter: 7
+    test: ch07_proving_it_works/unit_test_context_test.py
+
+  - slug: negative-test-simulate
+    path: ch07_proving_it_works/negative_test_simulate.py
+    tier: core
+    mode: script
+    chapter: 7

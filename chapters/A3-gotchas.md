@@ -279,6 +279,12 @@ Each box reference grants 2,048 bytes of I/O budget, and that allowance is check
 
 *From {{ch:boxes}}.*
 
+### Unnamed resources are a discovery tool, not a permission
+
+Setting `allow_unnamed_resources=True` on a simulate lets the program reach accounts, assets, applications and boxes that the transaction never declared, and reports every one of them back under `unnamed-resources-accessed`. It is tempting to read a passing simulate as evidence the call works. It is not: the submitted transaction is still subject to the ordinary resource rules and will fail on the first undeclared reference. The flag exists so that tooling can *find out* what to declare --- algokit-utils uses exactly this response to populate the reference arrays for you --- and the correct use is to run the simulate, read the resources back, and put them in the real call. A related trap sits next to it: the resource arrays have a per-transaction cap, and a method that touches more than fits cannot be fixed by declaring harder. It has to be split across a group, which is a design change and better discovered here than in production.
+
+*From {{ch:testing}}.*
+
 ### Opcode budget and fees pool over different transactions
 
 Opcode budget and fees pool over different sets of transactions. Fees pool across the **whole group**: one transaction may overpay and cover a sibling of any type. Opcode budget pools only across the **application-call transactions** in the group --- adding a payment transaction to raise your compute ceiling does nothing at all. Two mechanisms, two scopes, and a group padded with the wrong transaction type fails with an opcode-budget error that looks like a fee problem.
@@ -373,9 +379,15 @@ Every LogicSig that authorizes a payment must assert `Txn.close_remainder_to == 
 
 *From {{ch:contracts}}.*
 
-### simulate replaced dryrun; dryrun is gone from the node entirely
+### A failed transaction returns no logs; a failed simulation does
 
-Older material, blog posts, and a good deal of surviving example code reach for the `dryrun` endpoint for exactly this job. It has been removed from go-algorand --- not deprecated, removed --- and any SDK call to it now fails against a current node. `simulate` is the replacement and it is strictly better: it runs the real program against real ledger state, honours the group, and can be asked for opcode-level traces. If you find yourself reading documentation that mentions `dryrun`, treat everything around it as dated by several protocol versions.
+It is natural to assume that if a contract logs its reason before failing, the reason comes back with the rejection. It does not, on a submitted transaction: the node's response to a failed `POST /v2/transactions` is a message and nothing else, with no logs array, no matter what the program logged before it aborted. Logs from a failing group survive in exactly one place --- the simulate response, at `txn-groups[g].txn-results[i].txn-result.logs`, which the simulator saves specifically because a debugging tool needs them. They are not on the execution trace either; a trace unit carries a program counter, stack and scratch changes, and spawned inner transactions, and has no log field. So ARC-65's promise that the failure reason is recoverable from the API response is true of simulate and false of a real submission. Plan your error reporting accordingly: for a client that can afford to re-run a failure through simulate, logs are recoverable; for one reacting to a rejection in the wild, the program counter is all there is.
+
+*From {{ch:testing}}.*
+
+### A failing simulate raises rather than returning a failure
+
+`composer.simulate()` and the group-level `.simulate()` in algokit-utils inspect the response before handing it back, and if the group failed they raise `LogicError` instead of returning. This catches out almost everyone writing a negative test for the first time, because the natural shape --- call simulate, then read `failure-message` off the result --- has no result to read. Everything you wanted is on the exception: `.message`, `.pc`, `.transaction_id`, and `.traces`, which carries the execution trace if you enabled it. Wrap the call in `try`/`except LogicError` and assert against `.message` specifically rather than merely that something was raised --- and assert with `in`, because `.message` wraps your string in the contract name, application ID and transaction ID. Two related facts are worth carrying. algokit-utils turns on `allow_more_logs`, `allow_unnamed_resources`, `allow_empty_signatures` and a full trace config on every simulate it makes, and always substitutes an empty signer, so a simulate that succeeds is not evidence that the same group would have been accepted with real signatures and declared resources. And `simulate` is the only endpoint for this job now: `dryrun` has been removed from go-algorand outright, not deprecated, so any older material or example code that reaches for it is dated by several protocol versions.
 
 *From {{ch:testing}}.*
 
@@ -440,6 +452,24 @@ Assertion messages do not exist on chain. The AVM aborts at a program counter; t
 Returning `Bytes` from an ABI method gives the method a `byte[]` return type, and a conforming client decodes `byte[]` into a list of integers --- because that is what the type means. Text that you concatenated by hand comes back as `[118, 105, 115, ...]`, and the caller has no way to know it was ever meant to be read. This never raises: it is a wrong answer that succeeds. If the value has structure, say so in the return type --- `arc4.String`, a tuple, a struct --- and let the encoding carry the meaning instead of a comment in your codebase.
 
 *From {{ch:contracts}}.*
+
+### The string in an assert message is not in your program
+
+`assert cond, "message"` puts the string in two places and neither is the chain: a TEAL comment, which is discarded at assembly, and an ARC-56 `sourceInfo` entry keyed by the program counter of the `assert` opcode. The compiled bytes do not contain it --- `b"owner only" in bytecode` is `False` --- and the AVM reports only `assert failed pc=85`. Everything legible after that is a client-side lookup against the app spec, which means a caller integrating from a different toolchain, a different language, or a block explorer gets a number and has to come and ask you what it means. Worse, a *bare* `assert` with no message produces no `sourceInfo` entry at all, so it is invisible to every tool that reads the spec, and it will sit in the bytecode immediately beside the existence assertions PuyaPy inserts on state reads, which do have messages. If the reason must survive without the app spec, `logged_assert()` writes it into the program as an ARC-65 log. Expect the approval program to grow by roughly forty per cent or more for a couple of checks, and be clear that you are buying legibility for callers who lack your artifacts, not for anything on-chain.
+
+*From {{ch:testing}}.*
+
+### A readonly call is simulated with skipped signatures and a huge budget
+
+{{ch:contracts}} established that `readonly=True` is a promise to callers rather than anything the compiler or the AVM enforces, and that a readonly method which writes state has its writes silently discarded. The half that bites later is *how* the client keeps the promise. algokit-utils answers a readonly call with a simulate, and that simulate runs with signatures skipped and the maximum extra opcode budget granted --- which is why a readonly call is free and instant, and also why it is a much more permissive environment than a real submission. A readonly method that consumes 2,000 opcodes answers correctly in your client every time and fails the first time anybody submits it, as does one that needed a signature the simulation waived. The rule is to submit every readonly method at least once, on LocalNet, before you trust the numbers it gives you.
+
+*From {{ch:testing}}.*
+
+### An unconditional failure in a value-returning method deadlocks the type checker
+
+`logged_err()` and `logged_assert()` are typed `-> None` in the algopy stubs, because from Python's point of view they are ordinary calls. PuyaPy knows better and treats them as terminal. The two views collide in a method that returns a value: put `logged_err(...)` as the last statement and mypy reports `Missing return statement`, add a `return` after it to satisfy mypy and PuyaPy reports unreachable code. Neither tool is wrong and there is no flag that resolves it. The shape that compiles is to make the failure a branch rather than a terminator --- bind a local, use `if`/`elif`/`else` with the failure in the `else`, and return the local once at the end. Void methods have no such problem. While you are writing them, expect PuyaPy to warn if your error code is not alphanumeric or not camelCase, to warn once the whole `ERR:code:message` string passes 64 bytes, and avoid the `AER` prefix, which is reserved for specific ARC errors.
+
+*From {{ch:testing}}.*
 
 ### The minimum fee is a consensus parameter, not a constant
 

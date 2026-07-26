@@ -710,6 +710,70 @@ A transaction with the default maximum validity window can read **exactly one** 
 
 ---
 
+### Failure reporting, simulate, and debuggability (verified 2026-07-26, puyapy 5.9.0 / algorand-python 3.5.1 / algorand-python-testing 1.1.0 / algokit-utils 4.2.3 / algosdk 2.x, against compile probes, installed stubs, and go-algorand source)
+
+**Where an assert message lives.** `assert cond, "msg"` puts the string in exactly two places: a TEAL comment (`assert // msg`) and the ARC-56 `sourceInfo` entry `{"pc":[N],"errorMessage":"msg"}`. It is **NOT in the bytecode** — verified: `b'Only beneficiary' in bytecode` → `False` for a 164-byte program whose sourceInfo names it. A bare `assert` with no message produces **no** sourceInfo entry at all. Consequence: **a caller without the app spec cannot recover an assert message by any means.** The AVM emits only `assert failed pc=%d`; algokit-utils reconstructs the human message by looking `pc` up in the app spec it already holds. Never write "the error message comes back from the node."
+
+**`op.err()` and `assert False, "msg"` compile to the IDENTICAL `err` opcode.** Verified side by side in one program. The only difference is that the assert form attaches an ARC-56 `errorMessage`; `op.err()` attaches nothing. Both surface to the caller as `err opcode executed` (distinct from `assert failed pc=%d`). From outside, with no app spec, `op.err()` is indistinguishable from a failed bare assert. Also: `assert False` (or `logged_err()`) followed by any statement → PuyaPy `error: unreachable code`; but a value-returning method whose last statement is `logged_err()` fails **mypy** with `Missing return statement` (the stubs return `None`, not `NoReturn`). This Catch-22 is resolved by restructuring to a local + `if/elif/else` + single trailing `return`. A **void**-returning method may call `logged_err()` as its last statement with no problem.
+
+⭐ **`logged_assert` and `logged_err` ARE algopy APIs, not helpers a reader writes.** `algopy-stubs/_util.pyi`, re-exported from `algopy/__init__`. Signatures: `logged_assert(condition, /, error_code, error_message=None, prefix=Literal["AER","ERR"]="ERR", *, desc=None)` and `logged_err(error_code, error_message=None, prefix="ERR", *, desc=None)`. They implement **ARC-65** and lower to `pushbytes "ERR:code:message"; log; err`. This puts the message in the **bytecode** and in the **logs** — the opposite of a plain assert. `desc=` changes only the ARC-56 `errorMessage`/TEAL comment, never the logged bytes. `AER:` is reserved (PuyaPy warns), and error codes should be camelCase (PuyaPy warns otherwise). Emitting them sets ARC-56 `arcs: [22, 28]`.
+
+⭐ **Logs do NOT survive a rejected submission, but DO survive a failing simulate.** Two different answers; do not conflate them.
+- **Real send:** a rejecting transaction never enters a block. `daemon/algod/api/server/v2/handlers.go:1196-1229` `RawTransaction` returns `badRequest(ctx, err, err.Error(), ...)` — a plain `{"message": "..."}` with **no logs array**. Anything `op.log()` wrote before the failure is unrecoverable. So `logged_assert` buys you **nothing on a real rejected send**.
+- **Simulate:** logs written before the failure point **are** returned. Chain: `sim_tracer.go:291-303` `BeforeOpcode` → `saveEvalDelta` (comment: "if this opcode fails, the block evaluator resets the EvalDelta"), called unconditionally in ModeApp and independent of `ReturnTrace()`; `AfterTxn` → `saveApplyData(ad, evalError != nil)`; `utils.go:477` `convertTxnResult` → `ConvertInnerTxn` → `convertLogs` → `txn-result.logs`.
+- **The exec trace has NO log field.** `SimulationOpcodeTraceUnit` carries only `pc`, `scratch-changes`, `state-changes`, `spawned-inners`, `stack-pop-count`, `stack-additions`. A `log` write is visible only indirectly, as the `stack-additions` of the preceding opcode.
+- **Therefore:** ARC-65's claim that "the Algod API response contains both the failed pc and the logs array" is true **only for simulate/dryrun**, never for `POST /v2/transactions`. The real payoff of `logged_assert` is that a caller **with no app spec** can read the error out of `txn-result.logs` in a simulate.
+
+⭐ **`line_no` on `LogicError` — the earlier "always None" entry needs one refinement.** It is `None` whenever the only source of truth is the PuyaPy ARC-56 app spec (`SourceInfo.teal` is never populated by PuyaPy, `pcOffsetMethod: "none"`). But `LogicError.__init__` takes a `source_map` argument, and when the client compiled the program itself (factory/deploy path, algod-produced source map) `line_no` **is** populated — as a **0-based TEAL line index**, not a Python line. In that state `__str__` gains the ` and Source Line {n}:` clause and `trace()` prints a ±5-line window of PuyaPy's commented TEAL, which names the Python file and line in a comment. Never claim it maps to a Python line directly.
+
+⭐ **PuyaPy emits a `.puya.map` per program, by default, and it maps PC → PYTHON SOURCE LINE.** `puyapy --help`: `--output-source-map  Output debug source maps [default: True]`. The file (`<Contract>.approval.puya.map`) is Source Map v3 whose `mappings` has exactly one segment per **bytecode byte** (indexed by program counter, not TEAL line) and whose line values are **0-based Python source lines** into `sources[0]`. It also carries a `pc_events` dict keyed by stringified PC with `{"op":..., "error":..., "stack_out":...}`. **algokit-utils never reads this file** — you must read it yourself with `algosdk.source_map.SourceMap(raw).get_line_for_pc(pc)`. This is what makes "read a LogicError back to a source line" actually achievable under PuyaPy 5.9; the algokit-utils path alone cannot do it.
+
+⭐ **`resource_encoding` defaults to `"value"` as of PuyaPy 5.0** (`algopy-stubs/arc4.pyi:30-80`). An `Asset` / `Application` ABI parameter is encoded as `uint64` and an `Account` as `address`, **not** as an ARC-4 foreign-array index byte. Practical trap verified by probe: a hand-written `arc4.arc4_signature("call_back(application)void")` yields selector `0x0da57170` while the compiled callee actually exposes `call_back(uint64)void` = `0xa98d0074`, so the inner call dies at the router with a bare `err`. Pass `arc4.UInt64(app.id)`, not a `UInt8` index. `abimethod` also accepts `validate_encoding: Literal["unsafe_disabled","args"]`.
+
+**Non-reentrancy, precisely.** `ledger/eval/eval.go:5936-5952`, inside `opTxSubmit`, evaluated at `itxn_submit`:
+```go
+if cx.appID == cx.subtxns[itx].Txn.ApplicationID { return fmt.Errorf("attempt to self-call") }
+depth := 0
+for parent := cx.caller; parent != nil; parent = parent.caller {
+    if parent.appID == cx.subtxns[itx].Txn.ApplicationID { return fmt.Errorf("attempt to re-enter %d", parent.appID) }
+    depth++
+}
+if depth >= maxAppCallDepth { return fmt.Errorf("appl depth (%d) exceeded", depth) }
+```
+`var maxAppCallDepth = 8` (`eval.go:62-66`), and the source comment is explicit that **total app depth can be 1 higher** counting the top-level call — so 9. The check walks the **ancestor chain only**: two *sibling* inner calls to the same app in one group are perfectly legal. Correct framing: the AVM has no callbacks at all — an inner transaction is queued and submitted, it never yields control back into the caller mid-execution — and on top of that, an app may not appear twice in one call stack. The Solidity instinct to reorder for checks-effects-interactions should be replaced with: **order state writes for readability**, and spend the attention on group composition and fee pooling instead.
+
+**Budgets and simulate limits.** Per-app-call opcode budget is `MaxAppProgramCost = 700`, **pooled** across the group when `EnableAppCostPooling` (`eval.go:497-505`: `*pooledApplicationBudget = apps * proto.MaxAppProgramCost`), and each inner app call adds another 700 (`eval.go:591-594`). Exceeding it: `dynamic cost budget exceeded, executing %s: local program cost was %d` (`eval.go:1738-1741`). **`MaxExtraOpcodeBudget = 20000 * 16 = 320,000`** (`ledger/simulation/trace.go:107-108`, commented as "group-size × logic-sig-budget"); exceeding that: `extra budget %d > simulation extra budget limit %d` (`sim_simulator.go:332-338`). algokit-utils exposes this as `MAX_SIMULATE_OPCODE_BUDGET`.
+
+**Two shapes of the algod error string, and both match `parse_logic_error`.** On a real send: `transaction {TXID}: logic eval error: {msg}. Details: app={id}, pc={n}`. Under simulate: the same plus `, opcodes={...}` (because `sim_tracer.go:567 DetailedEvalErrors() → true`, and `eval.go:1151-1173 evalError` appends `pc=%d, opcodes=%s` only then), and algokit-utils prefixes `Transaction failed at transaction(s) {failed_at} in the group. `. `app=%d, ` is **always** present in ModeApp, which is why `AppClient`'s registered error transformer (which gates on `f"app={self._app_id}" in str(e)`) fires in both cases.
+
+⭐ **`composer.simulate()` RAISES on failure — it never returns a result you can inspect.** `transaction_composer.py:1932-1943` `_handle_simulate_error` raises whenever `failure-message` is present. So "simulate to see the trace of a failure" requires catching the exception and reading `LogicError.traces` / `create_simulate_traces_for_logic_error`, **not** reading the return value. Separately, `_debugging.py:209-238 simulate_response` **always** substitutes `EmptySigner()` and defaults `allow_more_logs=True`, `allow_unnamed_resources=True`, `allow_empty_signatures=True`, and a fully-enabled `SimulateTraceConfig(enable, stack_change, scratch_change, state_change)` — so simulate can never validate signatures, and passing `allow_empty_signatures=False` would break it.
+
+**Four different shapes of `abi_return` in algokit-utils 4.2.3.** Getting this wrong is the commonest client-side book error.
+1. `AppClient.send.call()` on a **readonly** method → `.abi_return` is the **decoded value**; the call is silently routed through `simulate(skip_signatures=True, extra_opcode_budget=MAX_SIMULATE_OPCODE_BUDGET, ...)` (`app_client.py:1175-1244`) and never submitted.
+2. `AppClient.send.call()` on a non-readonly method → also the **decoded value** (`_process_method_call_return`, `app_client.py:2163-2179`).
+3. `algorand.send.app_call_method_call()` → `.abi_return` is an **`ABIReturn` object** (via `AppManager.get_abi_return`, which returns `None` when no `method` was supplied).
+4. `composer.simulate()` → **no `abi_return` attribute at all**; `SendAtomicTransactionComposerResults` exposes `returns: list[ABIReturn]`.
+
+`ABIReturn.__init__` (`applications/abi.py:42-88`) sets `decode_error` **first** and populates `raw_value`/`value`/`method`/`tx_info` **only when there is no decode error** — so on a decode failure `.value` is `None`, not "the raw bytes", and `get_arc56_value()` raises `ValueError(decode_error)`. `returns` contains one entry per **ABI method call**, so it does **not** index-align with `transactions`. A void method still yields an entry whose `.value` is `None` — distinct from `abi_return is None` ("no method attached"). `readonly=True` is a client-side ARC-56 convention only: it does not make the method free or read-only on-chain, and any state it writes is silently discarded in the simulation.
+
+⭐ **`algorand-python-testing` 1.1.0 DOES emulate AVM arithmetic aborts** (`_algopy_testing/primitives/uint64.py`). All of `+ - * // % **` route through `_checked_result`, which raises `ArithmeticError(f"{op} underflows")` below zero and `OverflowError(f"{op} overflows")` above `MAX_UINT64`; `//`/`%` by zero propagate Python's `ZeroDivisionError`. The file header states the convention explicitly: "TypeError, ValueError are used for operations that are compile time errors / ArithmeticError and subclasses are used for operations that would fail during AVM execution." **So a narrow-multiply overflow IS unit-testable** — `pytest.raises(OverflowError, match=r"\* overflows")` inside `algopy_testing_context()`. Any claim that an overflow "cannot be tested without a network" is false. **But the message text diverges from the AVM's**, so never assert on the AVM string in a unit test:
+
+| operation | emulator | AVM (`eval.go`) |
+|---|---|---|
+| `+` overflow | `+ overflows` | `+ overflowed` |
+| `*` overflow | `* overflows` | `* overflowed` |
+| `-` negative | `- underflows` | `- would result negative` |
+| `// 0` | `ZeroDivisionError` | `/ 0` |
+| `% 0` | `ZeroDivisionError` | `% 0` |
+
+`OverflowError` and `ZeroDivisionError` are both subclasses of `ArithmeticError`, so `pytest.raises(ArithmeticError)` catches all three.
+
+**Router-emitted checks are FREE — do not write them again.** Verified from generated TEAL for an ARC4Contract: `OnCompletion == NoOp` (`txn OnCompletion / ! / assert`); create-vs-call split (`txn ApplicationID / bz ...`); selector dispatch with a trailing `err` for no match; ABI argument width (`len / == / assert // invalid number of bytes for arc4.uint64`); `arc4.Address` length 32; dynamic-array header consistency; and **group-transaction type and position** for a `gtxn.*Transaction` parameter, lowered position-relatively as `txn GroupIndex / intc / - / dup / gtxns TypeEnum / == / assert // transaction type is axfer`. What is NOT free and must be written at the boundary: receiver/sender identity, asset ID identity, amount bounds, authorization, initialization state, and any cross-field invariant.
+
+**Toolchain traps hit while verifying the above:** (a) `uv run --group compile ...` must be invoked **from the project root** — prefixing with `cd /tmp/... &&` yields `warning: --group compile has no effect when used outside of a project` and `No module named puyapy`. (b) ARC-56 `sourceInfo.approval` is a **dict** with keys `sourceInfo` and `pcOffsetMethod`, not a bare list — index `d['sourceInfo']['approval']['sourceInfo']`.
+
+---
+
 ## Non-Documentable Expert Knowledge
 
 The following information cannot be reliably found through the reference links above. It represents historical data, specific on-chain identifiers, practical patterns, and operational knowledge that must be embedded directly.

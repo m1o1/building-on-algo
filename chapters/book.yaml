@@ -40,8 +40,6 @@ parts:
       # keeps a filename prefix that collides with the project chapter beside
       # it; ordering comes from this list, not from the filenames.
       - {file: 02-c-contracts.md,       slug: contracts,       kind: concept}
-      - {file: 02-c-testing.md,         slug: testing,         kind: concept,
-         code: projects/chapter2/simple-vesting}
       # The Phase 4 pilot concept chapter. It keeps a 03- filename prefix while
       # the vesting project also keeps its own; ordering comes from this list,
       # not from the filenames, which is exactly what the manifest is for.
@@ -55,12 +53,19 @@ parts:
       # vesting project runs on; ordering comes from this list, not from the
       # filenames.
       - {file: 05-c-numbers-and-time.md, slug: numbers-and-time, kind: concept}
-      # Phase 5a. Seventh in this part's reading order and the last concept
-      # chapter before the project chapter that consumes it. Inner
-      # transactions, grouped payments and transfers, and the assets a
-      # contract can hold --- the first point in the book where a contract
-      # moves value rather than merely computing what it owes.
+      # Phase 5a, the fifth on-ramp chapter. Inner transactions, grouped
+      # payments and transfers, and the assets a contract can hold --- the
+      # first point in the book where a contract moves value rather than
+      # merely computing what it owes.
       - {file: 06-c-moving-value.md,    slug: moving-value,    kind: concept}
+      # Phase 5a. Last in this part's reading order before the project chapter
+      # that consumes it, and the chapter that replaced 02-c-testing.md while
+      # keeping its `testing` slug, so the sixteen {{ch:testing}} references
+      # elsewhere in the book still resolve. Evidence: assert messages that
+      # survive compilation, simulate as the read-only execution path, and
+      # tests arranged so that some arrangement of the world turns them red.
+      - {file: 07-c-proving-it-works.md, slug: testing,        kind: concept,
+         code: projects/chapter2/simple-vesting}
       - {file: 03-p-token-vesting.md,   slug: token-vesting,   kind: project,
          code: projects/chapter3/token-vesting}
       - {file: 04-p-nfts.md,            slug: nfts,            kind: project,

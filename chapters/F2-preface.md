@@ -62,10 +62,6 @@ Boxed asides come in exactly nine kinds, and each kind always means the same thi
 
 The last two are the ones readers skip and later wish they had not. They are part of the teaching sequence, not supplementary material: the point of predicting an answer before you read it is that being wrong is what makes the correction stick.
 
-## Test Helpers and Client-Side Code {-}
-
-{{ch:testing}} introduces the foundational testing setup --- pytest fixtures, reusable helpers (`advance_time`, `create_test_asa`, `fund_account`), and the integration testing patterns used throughout the book. Each subsequent chapter includes test outlines specific to its contract. The helper functions referenced in tests are straightforward wrappers around the AlgoKit Utils and algosdk calls shown in each chapter's deployment and interaction scripts. The client-side scripts in this book use the **AlgoKit Utils v4 API** --- `AppFactory` for deployment, `app_client.send.call()` for method invocations, and `algorand.send.*` for standalone transactions. For production projects, you can also generate **typed clients** via `algokit generate client` (see Cookbook recipe 16.3) for compile-time type safety.
-
 ::: {.note}
 Admonitions like this one provide supplementary information, tips, or context that is useful but not essential to following the main narrative.
 :::
@@ -76,7 +72,7 @@ Both types appear throughout the book.
 Warning admonitions highlight security concerns, common mistakes, or behavior that could cause loss of funds in a production contract. Do not skip these.
 :::
 
-Client-side code uses two styles: **AlgoKit Utils v4** (`AlgorandClient`, `AppFactory`, `app_client.send.call(...)`) for deployment and ABI interactions, and **raw algosdk** (`transaction.PaymentTxn(...)`, `calculate_group_id(...)`) for atomic groups requiring fine-grained control over transaction fields (such as LogicSig-authorized transactions). Both are shown because production Algorand development uses both.
+Client-side code uses two styles: **AlgoKit Utils v4** (`AlgorandClient`, `AppFactory`, `app_client.send.call(...)`) for deployment and ABI interactions, and **raw algosdk** (`transaction.PaymentTxn(...)`, `calculate_group_id(...)`) for atomic groups requiring fine-grained control over transaction fields (such as LogicSig-authorized transactions). Both are shown because production Algorand development uses both. A third style exists and this book shows it once, in {{ex:typed-client}}: `algokit generate client` turns a compiled contract's ARC-56 specification into a Python class with one typed method per ABI method, which is what you would reach for on a real project and which teaches you nothing about the wire format while you are still learning what the wire format is.
 
 ## Using Code Examples {-}
 
