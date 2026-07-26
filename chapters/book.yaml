@@ -66,11 +66,24 @@ parts:
       - {file: 10-p-zk-voting.md,        slug: zk-voting,        kind: project}
       # code: projects/chapter10/zk-voting — created in Phase 6 (§12).
 
+# Appendix letters come from position in this list, not from the filename, in
+# exactly the way chapter numbers do. The A1/A2/... prefixes are sort keys for
+# the directory listing and carry no meaning of their own -- A3-gotchas.md is
+# Appendix C because it is third here.
+#
+# A3-gotchas.md is GENERATED. `python3 build.py gotchas` harvests every
+# ::: {.gotcha} callout in the book and writes it out grouped by topic. The
+# output is committed, for the same reason figures/out/ is committed: a
+# contributor who only wants to build the PDF should not have to run a
+# generation step first. `validate.py --structure` (check 14) fails if the
+# committed file has drifted from its sources, so it cannot go stale unnoticed.
 appendices:
   part_title: Appendices
   files:
-    - {file: A1-cookbook.md, slug: cookbook}
-    - {file: A2-gotchas.md,  slug: gotchas}
+    - {file: A1-setup.md,      slug: setup}
+    - {file: A2-avm-limits.md, slug: avm-limits}
+    - {file: A3-gotchas.md,    slug: gotchas, generated: true}
+    - {file: A4-cookbook.md,   slug: cookbook}
 
 back:
   - {file: Z1-whats-next.md,  slug: whats-next}

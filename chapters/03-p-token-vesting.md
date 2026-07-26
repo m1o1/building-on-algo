@@ -8,185 +8,49 @@ In {{ch:testing}}, you built a simplified version of this contract and discovere
 
 We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
 
-## Run It First!
+## Run It First
 
-If you want to see the destination before studying each piece, the finished
-{{ch:token-vesting}} project is in `projects/chapter3/token-vesting/`. You do not need to
-understand every step yet. The demo shows the whole loop: deploy and fund the
-app, create vesting schedules, then exercise claim, revoke, and cleanup
-workflows with a test Algorand Standard Asset (ASA).
-
-From the repository root:
+The finished project for this chapter is in `projects/chapter3/token-vesting/`.
+Running it before you study any one piece shows the whole loop: deploy and fund
+the app, create vesting schedules in boxes, then exercise the claim, revoke, and
+cleanup workflows against a test Algorand Standard Asset (ASA). Before running
+it, predict why each schedule needs its own box MBR payment, what Bob's
+revocation should return to the admin, and why cleanup is a separate step after
+claims and revocation.
 
 ```bash
 cd projects/chapter3/token-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-```
-
-Before running the workflow, predict why each schedule needs a box MBR payment,
-what Bob's revocation should return to the admin, and why cleanup is a separate
-step after claims and revocation.
-
-The finished project keeps the runnable workflow in
-`scripts/run_token_vesting.py`. Run it first:
-
-```bash
 poetry run python -m scripts.run_token_vesting
-```
-
-Then run the tests:
-
-```bash
 algokit project run test
 ```
 
-Now trace what the workflow just did. These are excerpts from the workflow file,
-not a standalone script; imports, generated-client setup, and repeated account
-funding boilerplate remain in the project.
+{{tbl:vesting-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
-- **Fund users:** `payment(...)` pays account MBR and fees.
-- **Create ASA:** `asset_create(...)` creates the token being vested.
-- **Initialize app:** `app_client.send.initialize(...)` stores the ASA ID and
-  opts in the app.
-- **Schedule boxes:** `box_references=[b"v_" + decode_address(...)]` points
-  the app call at the right box.
+Table: Output checkpoints for the token vesting workflow {#tbl:vesting-run-it-first}
 
-Deposits are explicit grouped transaction arguments. The ASA transfer is built
-with AlgoKit Utils, signed by the admin, then passed into `deposit_tokens`:
+| Output checkpoint | What to watch for |
+|-------------------|-------------------|
+| App ID and app address | The app account is the party that will custody the vested ASA |
+| Asset ID | The workflow creates its own test ASA, then the app opts into it during initialization |
+| Deposit confirmation | The ASA transfer is a grouped argument to `deposit_tokens`, so tokens and accounting move together or not at all |
+| Two schedule boxes created | Each `create_schedule` call carries an exact 32,500 microAlgo MBR payment and a `box_references` entry naming `v_` followed by the beneficiary's address |
+| Alice's partial claim | Past the cliff but short of full vesting, the linear formula releases a fraction |
+| Bob's revocation | Vested tokens settle to Bob and the unvested remainder returns to the admin, in one call |
+| Bob's post-revoke claim, only when positive | The workflow reads `get_claimable` first, because the contract rejects a zero-amount claim |
+| Cleanup refunds the MBR | Deleting an exhausted schedule box returns the 32,500 microAlgos that funded it |
+| Test suite passes | The suite reruns each of those paths, including the failure cases, against LocalNet |
 
-```python
-deposit_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=app_address,
-        asset_id=asset_id,
-        amount=2_000_000,
-    )
-)
-app_client.send.deposit_tokens(
-    DepositTokensArgs(
-        deposit_txn=TransactionWithSigner(
-            deposit_txn,
-            algorand.account.get_signer(admin.address),
-        )
-    ),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(1_000),
-        asset_references=[asset_id],
-    ),
-)
-```
+Without Docker or Podman, `algokit project run test-static` still compiles the
+contract, generates the typed client, and runs the source-shape guards for
+grouped transactions, wide arithmetic, and inner-transaction fee patterns.
+Treat `projects/chapter3/token-vesting/` as the reference implementation; when
+you are ready to build the contract yourself, work through the setup steps that
+follow in a fresh project.
 
-Schedule creation has the same shape: Alice opts into the vesting ASA, the admin
-pays the exact box MBR, and the method call includes both the beneficiary account
-and box reference:
-
-```python
-alice_box = b"v_" + decode_address(alice.address)
-algorand.send.asset_opt_in(
-    AssetOptInParams(sender=alice.address, asset_id=asset_id)
-)
-alice_mbr_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=admin.address,
-        receiver=app_address,
-        amount=AlgoAmount.from_micro_algo(32_500),
-    )
-)
-app_client.send.create_schedule(
-    CreateScheduleArgs(
-        beneficiary=alice.address,
-        total_amount=1_000_000,
-        cliff_duration=1,
-        vesting_duration=5,
-        mbr_payment=TransactionWithSigner(
-            alice_mbr_txn,
-            algorand.account.get_signer(admin.address),
-        ),
-    ),
-    params=CommonAppCallParams(
-        account_references=[alice.address],
-        box_references=[alice_box],
-    ),
-)
-```
-
-After time advances, `claim` and `cleanup_schedule` use the same box reference.
-Bob's revocation path adds one more rule: only claim after revocation if
-`get_claimable` returns a positive amount.
-
-```python
-bob_box = b"v_" + decode_address(bob.address)
-time.sleep(4)
-algorand.send.payment(
-    PaymentParams(
-        sender=dispenser.address,
-        receiver=dispenser.address,
-        amount=AlgoAmount.from_micro_algo(0),
-    )
-)
-bob_claimable = app_client.send.get_claimable(
-    GetClaimableArgs(beneficiary=bob.address),
-    params=CommonAppCallParams(
-        account_references=[bob.address],
-        box_references=[bob_box],
-    ),
-)
-revoked = app_client.send.revoke(
-    RevokeArgs(beneficiary=bob.address),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[asset_id],
-        account_references=[bob.address],
-        box_references=[bob_box],
-    ),
-)
-if bob_claimable.abi_return:
-    bob_claim = app_client.send.claim(
-        params=CommonAppCallParams(
-            sender=bob.address,
-            signer=algorand.account.get_signer(bob.address),
-            static_fee=AlgoAmount.from_micro_algo(2_000),
-            asset_references=[asset_id],
-            box_references=[bob_box],
-        )
-    )
-app_client.send.cleanup_schedule(
-    CleanupScheduleArgs(beneficiary=bob.address),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        box_references=[bob_box],
-    ),
-)
-```
-
-With LocalNet running, the tests repeat the important end-to-end workflows so
-you can verify that the contract still behaves as expected after edits.
-
-Use `scripts/run_token_vesting.py` when you need a quick reset, but keep the
-explicit runbook as the mental model.
-
-If you do not have Docker or Podman available for LocalNet, you can still
-compile the contract and run the non-network checks:
-
-```bash
-cd projects/chapter3/token-vesting
-algokit project bootstrap all
-algokit project run build
-algokit project run test-static
-```
-
-Those commands are not a substitute for the LocalNet workflow, but they catch
-contract syntax, typed-client generation, and source-shape guards for grouped
-transactions, wide arithmetic, and inner-transaction fee patterns before you run
-the full demo.
-
-Treat `projects/chapter3/token-vesting/` as a reference implementation. When
-you are ready to build the contract yourself, return to the repository root or
-your usual workspace, then work through the following setup steps in a fresh
-project.
 
 ## Project Setup
 
@@ -273,6 +137,10 @@ class TokenVesting(ARC4Contract):
 We declare `beneficiary_count`, `available_tokens`, and `schedules` in
 `__init__` even though they are not used until later sections. As with
 `asset_id`, the global state schema is fixed at deployment, so all fields must
+
+::: {.gotcha #schema-is-immutable topic="Global and local state" title="The state schema is fixed at creation and can never be widened"}
+The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch --- a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
+:::
 be declared upfront. The `available_tokens` counter tracks deposited tokens that
 have not yet been reserved for a vesting schedule. The `BoxMap` declaration uses
 box storage (introduced in {{ch:mental-model}}) --- it does not create any boxes on-chain.
@@ -406,7 +274,7 @@ inner fee is deducted from the contract's own Algo balance, not from the
 caller. An attacker can exploit that by repeatedly calling a method that emits
 inner transactions until the contract balance drops below MBR.
 
-::: {.warning}
+::: {.gotcha #inner-fee-zero topic="Inner transactions" title="A non-zero inner transaction fee is paid out of the contract's own balance"}
 A non-zero inner transaction fee is paid by the contract's own
 Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
 transaction cover the pooled fee.
@@ -596,7 +464,7 @@ Your first instinct might be **local state**. The MBR is charged to the opting-i
 
 But recall local state's fatal flaw: **users can clear their local state at any time by sending a ClearState transaction, and this always succeeds regardless of what your clear state program does**. For a vesting contract, the implication is devastating. If Bob has claimed 500 of his 1,000 vesting tokens and clears his local state, the contract loses track of his claims. Bob could potentially re-register and claim another 1,000 tokens.
 
-::: {.warning}
+::: {.gotcha #clear-state-always-succeeds topic="Global and local state" title="ClearState always succeeds, so local state cannot hold an obligation"}
 Users can delete their local state at any time via ClearState, and the protocol guarantees this always succeeds. Never use local state as the sole record of financial obligations, debts, or token claims.
 :::
 
@@ -614,7 +482,15 @@ The correct solution is **box storage** --- application-controlled key-value sto
 
 Recall the `VestingSchedule` struct we defined at the start of the chapter. We use `arc4.Struct` for typed, ABI-encoded data structures and `BoxMap` for a typed mapping where each entry is its own box. The box name (with prefix `"v_"` plus 32-byte address) is 34 bytes. The MBR per beneficiary: `2,500 + 400 * (34 + 41) = 32,500 microAlgos`, about 0.033 Algo.
 
+::: {.gotcha #box-prefix-mbr topic="Box storage" title="A BoxMap key prefix counts toward the box name length"}
+The `name_len` in `2,500 + 400 * (name_len + data_size)` is the length of the *full* box name, prefix included. A `BoxMap` declared with `key_prefix=b"v_"` and keyed by a 32-byte address has a name length of 34, not 32 --- and if you leave `key_prefix` off, PuyaPy uses the attribute name, so `self.schedules` silently gives you a 9-byte prefix and a 41-byte name. A funding calculation that forgot the prefix underfunds every box, and the failure surfaces as a balance error inside `create_schedule` rather than as anything about box names. Declare the prefix explicitly so the arithmetic is visible in the source.
+:::
+
 `Global.latest_timestamp` returns a Unix epoch timestamp from the current block header. The block proposer sets it from their system clock, constrained to be monotonically non-decreasing and at most 25 seconds ahead of the previous block. For vesting schedules measured in months, this imprecision is negligible.
+
+::: {.gotcha #block-timestamp-is-approximate topic="Arithmetic and time" title="Block timestamps come from a proposer's clock, not from a trusted clock"}
+`Global.latest_timestamp` is whatever the block proposer's system clock said, bounded only by monotonicity and a ceiling of roughly 25 seconds ahead of the previous block. It is fine for a cliff measured in months and useless for anything measured in seconds. Any logic where a 25-second skew changes who wins --- an auction close, a rate lock, a first-come claim --- must key on round numbers or accept that the boundary is fuzzy. And never compare it against a client-supplied timestamp for equality; compare with `>=` and let the window be wide.
+:::
 
 Now we encounter **box references** in practice --- the concept introduced in
 {{ch:mental-model}}. Every transaction that reads or writes a box must declare which
@@ -656,7 +532,7 @@ pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
 `algokit_utils.BoxReference` are client-side representations of this same
 resource-reference idea.
 
-::: {.warning}
+::: {.gotcha #box-refs-on-every-method topic="Box storage" title="Every method that touches a box needs its own box reference"}
 Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
 :::
 
@@ -857,6 +733,10 @@ the already-capped amount and underpay the beneficiary.
 
 After a beneficiary has claimed everything, their box consumes storage and locks MBR. Cleaning up deletes the box and refunds the freed MBR.
 
+::: {.gotcha #boxes-outlive-a-deleted-app topic="Box storage" title="Deleting an application does not delete its boxes, and the MBR is gone"}
+Cleanup is not housekeeping, it is the only way to get the money back. If an application is deleted while it still owns boxes, those boxes remain in the ledger and the MBR they hold is locked permanently --- there is no application left to call `box_del`, and no protocol path that reclaims it. A contract that creates boxes therefore needs a delete path that is *reachable*: either it refuses `DeleteApplication` outright, as this one does, or it asserts that no boxes remain before allowing deletion. Shipping a deletable, box-owning contract with no such assertion is how funds become unrecoverable without anybody writing a bug.
+:::
+
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
 ```python
@@ -969,7 +849,7 @@ def deploy_vesting(algorand, admin):
 
 Before diving into the test code, there are two LocalNet behaviors that will affect how you write your test helpers.
 
-::: {.warning}
+::: {.gotcha #localnet-time-needs-blocks topic="Testing and simulation" title="time.sleep() does not advance LocalNet's block timestamp"}
 On LocalNet, block timestamps only advance when new blocks are
 produced, and blocks are produced on demand when transactions are submitted.
 Calling `time.sleep(N)` alone does NOT advance the block timestamp. You must
@@ -999,7 +879,7 @@ and 365 days.
 
 A second LocalNet quirk affects rapid-fire test transactions.
 
-::: {.warning}
+::: {.gotcha #duplicate-txid-in-tests topic="Testing and simulation" title="Identical app calls in quick succession collide as duplicate transaction IDs"}
 Sending identical app calls in rapid succession on LocalNet can
 produce identical transaction IDs, causing `"transaction already in ledger"`
 errors. Add a unique `note` field to each transaction, such as

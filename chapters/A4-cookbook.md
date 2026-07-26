@@ -1,11 +1,6 @@
 \newpage
 
 
-
-\part{Appendices}
-
-The appendices provide lasting reference value. The Cookbook contains 50+ standalone code examples organized by topic, and the Gotchas Cheat Sheet catalogs the most common mistakes and how to avoid them.
-
 # Algorand Smart Contract Cookbook
 
 **50+ minimal, self-contained examples demonstrating every major Algorand smart contract concept. Each example is the smallest possible program that illustrates one idea. Use this as a reference while working through Projects 1–3.**
@@ -33,7 +28,7 @@ All examples use **Algorand Python (Puya)** and target **AVM v12**. Each can be 
 16. [Compilation and deployment](#16-compilation-and-deployment)
 17. [Additional patterns](#17-additional-patterns)
 
-The appendix closes with a [Quick Reference of AVM limits](#quick-reference-avm-limits).
+Every limit these recipes work within --- opcode budgets, MBR increments, resource availability --- is tabulated in {{ch:avm-limits}}.
 
 
 ## 1. Contract Basics {#1-contract-basics}
@@ -1386,32 +1381,3 @@ algorand.send.payment(
 ::: {.warning}
 Rekeying is irreversible without the new key. If you rekey to an address you do not control, the account is permanently lost. Always verify the `rekey_to` address before signing.
 :::
-
-
-## Quick Reference: AVM Limits
-
-(See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) for the full specification.)
-
-{{tbl:avm-limits}} collects the limits worth committing to memory.
-
-Table: AVM limits quick reference {#tbl:avm-limits}
-
-| Limit | Value |
-|-------|-------|
-| Max group size | 16 transactions |
-| Opcode budget per app call | 700 (pooled) |
-| Opcode budget per LogicSig txn | 20,000 (pooled, separate pool) |
-| Max inner transactions per group | 256 (16 per app call, pooled across group) |
-| Inner call depth | 8 |
-| Program size (approval + clear combined) | 2,048 bytes (base); up to 8,192 bytes with 3 extra pages (each adds 2,048) |
-| Global state pairs | 64 max |
-| Local state pairs per user | 16 max |
-| Key + value size | 128 bytes max |
-| Box size | 0–32,768 bytes |
-| Box name | 1–64 bytes |
-| Box MBR | 2,500 + 400 × (name_len + data_size) μAlgo |
-| Legacy foreign-resource arrays | 8 total per app call |
-| AVM v12 access-list entries | 16 entries |
-| ASA opt-in MBR | 100,000 μAlgo |
-| Min account balance | 100,000 μAlgo |
-| Min transaction fee | 1,000 μAlgo |

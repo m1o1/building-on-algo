@@ -22,13 +22,14 @@ downstream contracts can use before trusting a pool.
 
 The finished project lives in `projects/chapter6/amm-factory/`.
 
-## Run It First!
+## Run It First
 
-The finished project creates a factory, asks it to create a pool for two test
-ASAs, verifies the pool, performs a normal liquidity/swap workflow, rejects a
-duplicate pair, and rejects a fake pool that was deployed directly by a user.
-
-Run the workflow once:
+The finished project for this chapter is in `projects/chapter6/amm-factory/`. It
+creates a factory, asks the factory to create a pool for two test ASAs, verifies
+that the pool is the canonical one for that pair, runs an ordinary liquidity and
+swap workflow against it, and then proves the two failure cases: a duplicate
+pair is rejected, and a pool that a user deployed directly does not pass
+verification.
 
 ```bash
 cd projects/chapter6/amm-factory
@@ -36,15 +37,11 @@ algokit project bootstrap all
 algokit project run build
 algokit localnet start
 poetry run python -m scripts.run_amm_factory
-```
-
-Then run the tests:
-
-```bash
 algokit project run test
 ```
 
-{{tbl:factory-run-it-first}} lists the output checkpoints to compare against the workflow output.
+{{tbl:factory-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
 Table: Output checkpoints for the AMM factory workflow {#tbl:factory-run-it-first}
 
@@ -53,7 +50,7 @@ Table: Output checkpoints for the AMM factory workflow {#tbl:factory-run-it-firs
 | Factory app ID and address | The factory app account can send inner transactions |
 | Factory-created pool app ID | The pool was created by the factory, not by the user directly |
 | LP token ID | The child pool created its LP token during bootstrap |
-| Registered pool accepted | `verify_pool` returned true for the factory-created pool |
+| Registered pool accepted | Verification returned true for the factory-created pool |
 | Initial LP minted | The pool accepted its first matched liquidity deposits |
 | Swap output | The factory-created pool still behaves like an AMM |
 | Later LP minted | A second LP added liquidity after prices moved |
@@ -61,399 +58,13 @@ Table: Output checkpoints for the AMM factory workflow {#tbl:factory-run-it-firs
 | Duplicate pool rejected | The pair registry prevented a second canonical pool |
 | Fake pool rejected | A directly deployed pool did not pass provenance checks |
 
-This chapter is a guided tour of the finished factory project rather than a
+This chapter is a guided tour of that finished project rather than a
 line-by-line scaffold. As you trace it, keep three ideas in view:
 
 - the factory pays for and creates the child app
 - the registry decides which pool is canonical for a pair
 - verification combines registry state, app creator, and child global state
 
-The runnable script uses helpers to keep the file short while you iterate, but
-the important setup and contract calls are shown here explicitly.
-
-The workflow connects to LocalNet, creates three throwaway accounts, and funds
-them from the LocalNet dispenser:
-
-```python
-algorand = AlgorandClient.default_localnet()
-algorand.set_suggested_params_cache_timeout(0)
-
-dispenser = algorand.account.localnet_dispenser()
-admin = algorand.account.random()
-trader = algorand.account.random()
-second_lp = algorand.account.random()
-
-for account in (admin, trader, second_lp):
-    algorand.send.payment(
-        PaymentParams(
-            sender=dispenser.address,
-            signer=dispenser.signer,
-            receiver=account.address,
-            amount=AlgoAmount.from_micro_algo(10_000_000),
-        )
-    )
-```
-
-The factory is deployed like any other typed-client contract:
-
-```python
-factory_factory = amm_factory_client.AmmFactoryFactory(
-    algorand,
-    default_sender=admin.address,
-    default_signer=admin.signer,
-)
-factory, create_result = factory_factory.send.create.bare()
-```
-
-The demo creates two ASAs and sorts them. This is the same canonical-ordering
-rule used by the {{ch:amm}} pool:
-
-```python
-created_a = algorand.send.asset_create(
-    AssetCreateParams(
-        sender=admin.address,
-        signer=admin.signer,
-        total=1_000_000_000_000,
-        decimals=6,
-        asset_name="Factory A",
-        unit_name="FCTA",
-        default_frozen=False,
-    )
-)
-created_b = algorand.send.asset_create(
-    AssetCreateParams(
-        sender=admin.address,
-        signer=admin.signer,
-        total=1_000_000_000_000,
-        decimals=6,
-        asset_name="Factory B",
-        unit_name="FCTB",
-        default_frozen=False,
-    )
-)
-token_a = created_a.asset_id
-token_b = created_b.asset_id
-if token_a > token_b:
-    token_a, token_b = token_b, token_a
-```
-
-The factory stores two boxes for the pair: one mapping the pair to the pool app
-ID, and one mapping the pair to the LP token ID. Because boxes must be declared
-on the transaction, the client constructs the exact box names:
-
-```python
-pair_key = token_a.to_bytes(8, "big") + token_b.to_bytes(8, "big")
-pool_box = b"p_" + pair_key
-lp_box = b"l_" + pair_key
-```
-
-Creating a pool is a single outer app call with one grouped payment. The payment
-funds the factory account so it can pay the new child application's creation
-MBR, create the registry boxes, and send bootstrap funding to the child pool:
-
-```python
-seed_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=admin.address,
-        receiver=factory.app_address,
-        amount=AlgoAmount.from_micro_algo(1_500_000),
-    )
-)
-created = factory.send.create_pool(
-    amm_factory_client.CreatePoolArgs(
-        seed_payment=TransactionWithSigner(seed_txn, admin.signer),
-        asset_a=token_a,
-        asset_b=token_b,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(7_000),
-        asset_references=[token_a, token_b],
-        box_references=[pool_box, lp_box],
-    ),
-)
-pool_id, lp_token = created.abi_return
-```
-
-That one outer call pays for several inner transactions: the factory creates the
-pool app, pays the pool app account, calls the pool's `bootstrap` method, and
-the child pool creates its LP token and opts into both pool assets. The chapter
-code sets every inner transaction fee to zero, so the outer app call must
-provide enough pooled fee.
-
-Once the factory has registered the pool, downstream callers can ask the factory
-whether an app is the canonical pool for a pair:
-
-```python
-canonical = factory.send.verify_pool(
-    amm_factory_client.VerifyPoolArgs(
-        candidate_pool=pool_id,
-        asset_a=token_a,
-        asset_b=token_b,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        app_references=[pool_id],
-        asset_references=[token_a, token_b],
-        box_references=[pool_box, lp_box],
-    ),
-).abi_return
-assert canonical is True
-```
-
-The `app_references` entry lets the factory inspect the candidate pool's app
-parameters and global state. The `box_references` entries let it read the
-factory-owned registry boxes.
-
-The rest of the workflow uses the factory-created pool like the {{ch:amm}} pool:
-users opt into the LP token, add initial liquidity, swap, add later liquidity,
-and remove liquidity. The opt-in loop is just ordinary asset opt-in calls:
-
-```python
-for account in (admin, trader, second_lp):
-    for asset_id in (token_a, token_b, lp_token):
-        algorand.send.asset_opt_in(
-            AssetOptInParams(
-                sender=account.address,
-                signer=account.signer,
-                asset_id=asset_id,
-            ),
-            send_params=SendParams(suppress_log=True),
-        )
-```
-
-The factory changes where the pool comes from, not how the pool prices swaps.
-The workflow instantiates the pool client by using the app ID returned by the
-factory:
-
-```python
-pool = factory_pool_client.FactoryPoolClient(
-    algorand=algorand,
-    app_id=pool_id,
-    default_sender=admin.address,
-    default_signer=admin.signer,
-)
-```
-
-Initial liquidity is two grouped asset transfers plus the pool app call:
-
-```python
-initial_a = 10_000 * MICRO_UNITS
-initial_b = 10_000 * MICRO_UNITS
-deposit_a_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=initial_a,
-    )
-)
-deposit_b_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=pool.app_address,
-        asset_id=token_b,
-        amount=initial_b,
-    )
-)
-initial_lp = pool.send.add_initial_liquidity(
-    factory_pool_client.AddInitialLiquidityArgs(
-        deposit_a=TransactionWithSigner(deposit_a_txn, admin.signer),
-        deposit_b=TransactionWithSigner(deposit_b_txn, admin.signer),
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-```
-
-A swap is one grouped asset transfer plus the pool app call. The caller chooses
-`min_output` off-chain to express slippage tolerance:
-
-```python
-swap_input = 100 * MICRO_UNITS
-input_with_fee = swap_input * 997
-expected_output = (input_with_fee * initial_b) // (
-    initial_a * 1000 + input_with_fee
-)
-algorand.send.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=trader.address,
-        asset_id=token_a,
-        amount=1_000 * MICRO_UNITS,
-    )
-)
-swap_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=trader.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=swap_input,
-    )
-)
-swap_output = pool.send.swap(
-    factory_pool_client.SwapArgs(
-        input_txn=TransactionWithSigner(swap_txn, trader.signer),
-        min_output=expected_output * 99 // 100,
-    ),
-    params=CommonAppCallParams(
-        sender=trader.address,
-        signer=trader.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b],
-    ),
-).abi_return
-```
-
-After the swap, the second LP adds roughly proportional liquidity at the new
-reserve ratio:
-
-```python
-reserve_a_after_swap = initial_a + swap_input
-reserve_b_after_swap = initial_b - swap_output
-later_a = 1_000 * MICRO_UNITS
-later_b = later_a * reserve_b_after_swap // reserve_a_after_swap
-algorand.send.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=second_lp.address,
-        asset_id=token_a,
-        amount=later_a,
-    )
-)
-algorand.send.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=second_lp.address,
-        asset_id=token_b,
-        amount=later_b,
-    )
-)
-later_a_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=later_a,
-    )
-)
-later_b_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=token_b,
-        amount=later_b,
-    )
-)
-later_lp = pool.send.add_liquidity(
-    factory_pool_client.AddLiquidityArgs(
-        deposit_a=TransactionWithSigner(later_a_txn, second_lp.signer),
-        deposit_b=TransactionWithSigner(later_b_txn, second_lp.signer),
-    ),
-    params=CommonAppCallParams(
-        sender=second_lp.address,
-        signer=second_lp.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-```
-
-Then the same LP burns part of that position and receives both pool assets:
-
-```python
-burn_lp = later_lp // 2
-burn_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=lp_token,
-        amount=burn_lp,
-    )
-)
-removed_a, removed_b = pool.send.remove_liquidity(
-    factory_pool_client.RemoveLiquidityArgs(
-        lp_deposit=TransactionWithSigner(burn_txn, second_lp.signer),
-        min_a=1,
-        min_b=1,
-    ),
-    params=CommonAppCallParams(
-        sender=second_lp.address,
-        signer=second_lp.signer,
-        static_fee=AlgoAmount.from_micro_algo(3_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-```
-
-Finally, the workflow proves the failure cases:
-
-```python
-try:
-    duplicate_seed_txn = algorand.create_transaction.payment(
-        PaymentParams(
-            sender=admin.address,
-            receiver=factory.app_address,
-            amount=AlgoAmount.from_micro_algo(1_500_000),
-        )
-    )
-    factory.send.create_pool(
-        amm_factory_client.CreatePoolArgs(
-            seed_payment=TransactionWithSigner(duplicate_seed_txn, admin.signer),
-            asset_a=token_a,
-            asset_b=token_b,
-        ),
-        params=CommonAppCallParams(
-            sender=admin.address,
-            signer=admin.signer,
-            static_fee=AlgoAmount.from_micro_algo(7_000),
-            asset_references=[token_a, token_b],
-            box_references=[pool_box, lp_box],
-        ),
-    )
-except Exception:
-    print("Duplicate pool rejected")
-```
-
-And a directly deployed pool is not canonical:
-
-```python
-fake_factory = factory_pool_client.FactoryPoolFactory(
-    algorand,
-    default_sender=admin.address,
-    default_signer=admin.signer,
-)
-fake_pool, _ = fake_factory.send.create.bare()
-
-fake_canonical = factory.send.verify_pool(
-    amm_factory_client.VerifyPoolArgs(
-        candidate_pool=fake_pool.app_id,
-        asset_a=token_a,
-        asset_b=token_b,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        app_references=[fake_pool.app_id],
-        asset_references=[token_a, token_b],
-        box_references=[pool_box, lp_box],
-    ),
-).abi_return
-assert fake_canonical is False
-```
-
-The important security lesson is subtle: a pool claiming "my factory is app
-123" is not enough. A malicious clone can store the same global-state value.
-The factory's own registry has to be part of the answer.
 
 ## From One Pool to a Protocol
 
@@ -723,6 +334,148 @@ self.lp_tokens[key] = lp_token_id
 return pool_app.id, lp_token_id
 ```
 
+### Driving the Factory from a Client
+
+The contract code above is only half of the picture. The caller has to name
+every box and asset the factory will touch, because the AVM refuses to read a
+resource the transaction did not declare. What follows is the client side of
+the same `create_pool` call, taken from `scripts/run_amm_factory.py`; imports
+and repeated funding boilerplate stay in the project.
+
+The workflow connects to LocalNet, creates three throwaway accounts, and funds
+them from the LocalNet dispenser:
+
+```python
+algorand = AlgorandClient.default_localnet()
+algorand.set_suggested_params_cache_timeout(0)
+
+dispenser = algorand.account.localnet_dispenser()
+admin = algorand.account.random()
+trader = algorand.account.random()
+second_lp = algorand.account.random()
+
+for account in (admin, trader, second_lp):
+    algorand.send.payment(
+        PaymentParams(
+            sender=dispenser.address,
+            signer=dispenser.signer,
+            receiver=account.address,
+            amount=AlgoAmount.from_micro_algo(10_000_000),
+        )
+    )
+```
+
+The factory is deployed like any other typed-client contract:
+
+```python
+factory_factory = amm_factory_client.AmmFactoryFactory(
+    algorand,
+    default_sender=admin.address,
+    default_signer=admin.signer,
+)
+factory, create_result = factory_factory.send.create.bare()
+```
+
+The demo creates two ASAs and sorts them. This is the same canonical-ordering
+rule used by the {{ch:amm}} pool:
+
+```python
+created_a = algorand.send.asset_create(
+    AssetCreateParams(
+        sender=admin.address,
+        signer=admin.signer,
+        total=1_000_000_000_000,
+        decimals=6,
+        asset_name="Factory A",
+        unit_name="FCTA",
+        default_frozen=False,
+    )
+)
+created_b = algorand.send.asset_create(
+    AssetCreateParams(
+        sender=admin.address,
+        signer=admin.signer,
+        total=1_000_000_000_000,
+        decimals=6,
+        asset_name="Factory B",
+        unit_name="FCTB",
+        default_frozen=False,
+    )
+)
+token_a = created_a.asset_id
+token_b = created_b.asset_id
+if token_a > token_b:
+    token_a, token_b = token_b, token_a
+```
+
+The factory stores two boxes for the pair: one mapping the pair to the pool app
+ID, and one mapping the pair to the LP token ID. Because boxes must be declared
+on the transaction, the client constructs the exact box names:
+
+```python
+pair_key = token_a.to_bytes(8, "big") + token_b.to_bytes(8, "big")
+pool_box = b"p_" + pair_key
+lp_box = b"l_" + pair_key
+```
+
+Creating a pool is a single outer app call with one grouped payment. The payment
+funds the factory account so it can pay the new child application's creation
+MBR, create the registry boxes, and send bootstrap funding to the child pool:
+
+```python
+seed_txn = algorand.create_transaction.payment(
+    PaymentParams(
+        sender=admin.address,
+        receiver=factory.app_address,
+        amount=AlgoAmount.from_micro_algo(1_500_000),
+    )
+)
+created = factory.send.create_pool(
+    amm_factory_client.CreatePoolArgs(
+        seed_payment=TransactionWithSigner(seed_txn, admin.signer),
+        asset_a=token_a,
+        asset_b=token_b,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        static_fee=AlgoAmount.from_micro_algo(7_000),
+        asset_references=[token_a, token_b],
+        box_references=[pool_box, lp_box],
+    ),
+)
+pool_id, lp_token = created.abi_return
+```
+
+That one outer call pays for several inner transactions: the factory creates the
+pool app, pays the pool app account, calls the pool's `bootstrap` method, and
+the child pool creates its LP token and opts into both pool assets. The chapter
+code sets every inner transaction fee to zero, so the outer app call must
+provide enough pooled fee.
+
+Past that point the workflow does nothing new. Users opt into the LP token, add
+initial liquidity, swap, add liquidity again at the moved ratio, and remove
+liquidity --- exactly as they did in {{ch:amm}}, in the same order, with the same
+grouped-transaction shapes, because it **is** the same contract. The only
+difference is where the client gets the app ID:
+
+```python
+pool = factory_pool_client.FactoryPoolClient(
+    algorand=algorand,
+    app_id=pool_id,
+    default_sender=admin.address,
+    default_signer=admin.signer,
+)
+```
+
+In {{ch:amm}} that app ID came back from a deployment the user performed. Here it
+came back from `create_pool`. The factory changes where a pool comes from and
+who vouches for it; it does not change how the pool prices a swap. If you want
+to re-read those calls, they are in {{ch:amm}} --- and in
+`projects/chapter6/amm-factory/scripts/run_amm_factory.py`, which runs them
+against the factory-created pool.
+
+
 ## Verifying a Pool
 
 The factory exposes simple lookups:
@@ -797,6 +550,36 @@ from an AMM factory: not merely "this app looks like a pool," but "the factory
 that owns the registry says this is the canonical pool for this pair, and the
 pool's own state agrees."
 
+
+### Calling Verification from a Client
+
+The client side of `verify_pool` is short, and every line of it is a resource
+declaration. Any downstream caller --- a farm, a router, a frontend --- asks the
+factory this same question before it trusts an app ID:
+
+```python
+canonical = factory.send.verify_pool(
+    amm_factory_client.VerifyPoolArgs(
+        candidate_pool=pool_id,
+        asset_a=token_a,
+        asset_b=token_b,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        app_references=[pool_id],
+        asset_references=[token_a, token_b],
+        box_references=[pool_box, lp_box],
+    ),
+).abi_return
+assert canonical is True
+```
+
+The `app_references` entry lets the factory inspect the candidate pool's app
+parameters and global state. The `box_references` entries let it read the
+factory-owned registry boxes.
+
+
 ## Why Not Trust the Child Alone?
 
 It is tempting to give the pool a global `factory_app_id` and stop there:
@@ -813,6 +596,10 @@ tricked by a clone.
 The factory registry is harder to fake because only the factory application can
 write its own boxes. A malicious pool can claim anything in its own state; it
 cannot make the real factory map `(asset_a, asset_b)` to the malicious app ID.
+
+::: {.gotcha #child-state-is-not-authoritative topic="Cross-contract calls" title="A contract's own global state is not evidence about its parent"}
+Reading `factory_app_id` out of a pool and comparing it to the factory you trust proves only that the pool *claims* that parent. Global state is writable by its own application and by nothing else, which cuts both ways: nobody can forge the real factory's state, and anybody can forge a claim about it. Verification has to run in the direction where the trusted party is the writer --- ask the factory whether it created this pool, never ask the pool who created it. The same asymmetry governs every cross-contract trust decision in this book.
+:::
 
 {{fig:provenance-trust-graph}} draws both claims side by side and marks which
 arrows an attacker can forge. Every arrow that originates inside the caller is
@@ -837,6 +624,67 @@ Table: Provenance checks used by `verify_pool` {#tbl:factory-provenance-checks}
 
 No single check carries the whole security argument. Together, they form a
 useful provenance proof for this book's AMM architecture.
+
+The workflow closes by proving the two failure cases this design exists to
+prevent. First, a second pool for the same pair is refused:
+
+```python
+try:
+    duplicate_seed_txn = algorand.create_transaction.payment(
+        PaymentParams(
+            sender=admin.address,
+            receiver=factory.app_address,
+            amount=AlgoAmount.from_micro_algo(1_500_000),
+        )
+    )
+    factory.send.create_pool(
+        amm_factory_client.CreatePoolArgs(
+            seed_payment=TransactionWithSigner(duplicate_seed_txn, admin.signer),
+            asset_a=token_a,
+            asset_b=token_b,
+        ),
+        params=CommonAppCallParams(
+            sender=admin.address,
+            signer=admin.signer,
+            static_fee=AlgoAmount.from_micro_algo(7_000),
+            asset_references=[token_a, token_b],
+            box_references=[pool_box, lp_box],
+        ),
+    )
+except Exception:
+    print("Duplicate pool rejected")
+```
+
+And a directly deployed pool is not canonical:
+
+```python
+fake_factory = factory_pool_client.FactoryPoolFactory(
+    algorand,
+    default_sender=admin.address,
+    default_signer=admin.signer,
+)
+fake_pool, _ = fake_factory.send.create.bare()
+
+fake_canonical = factory.send.verify_pool(
+    amm_factory_client.VerifyPoolArgs(
+        candidate_pool=fake_pool.app_id,
+        asset_a=token_a,
+        asset_b=token_b,
+    ),
+    params=CommonAppCallParams(
+        sender=admin.address,
+        signer=admin.signer,
+        app_references=[fake_pool.app_id],
+        asset_references=[token_a, token_b],
+        box_references=[pool_box, lp_box],
+    ),
+).abi_return
+assert fake_canonical is False
+```
+
+Both refusals come from the same place. The registry, not the pool, is the
+authority on which app is canonical for a pair --- so a second pool cannot claim
+the slot, and a pool nobody registered cannot claim to be in it.
 
 ## Testing the Factory
 

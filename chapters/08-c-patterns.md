@@ -19,6 +19,10 @@ There are several approaches to solving this, each with different tradeoffs. Bef
 
 Algorand validates fees at the **group level**, not the individual transaction level. If a group of 3 transactions requires 3 × 1,000 = 3,000 microAlgos total, one transaction can pay 3,000 and the other two can pay 0. The protocol only checks that the sum of fees across the group meets the sum of minimums.
 
+::: {.gotcha #never-hardcode-min-fee topic="Compilation, tooling, and shipping" title="The minimum fee is a consensus parameter, not a constant"}
+1,000 microAlgos is the minimum fee *today*. It is a consensus parameter, which means it can change at a protocol upgrade, and client code that multiplies a hard-coded 1,000 by a group size will underpay the whole group the moment it does. Read it from `suggested_params()` and scale that. Inside a contract you have no such option --- a fee cap like `assert Txn.fee <= UInt64(10_000)` has to use a constant --- but that is a safety bound rather than a computed fee, and choosing it generously costs nothing.
+:::
+
 ```python
 # Client-side: one transaction overpays to cover the group
 import algokit_utils
@@ -194,7 +198,15 @@ def deposit(
 
 The `gtxn.AssetTransferTransaction` and `gtxn.PaymentTransaction` parameter types in Algorand Python are powerful --- they give you type-safe access to the grouped transaction's fields and the ABI router validates the transaction type automatically. But **you must still validate receiver, amount, and asset ID yourself**. The type check doesn't verify the *contents*, only the *type*. (See [Transaction Types](https://dev.algorand.co/concepts/transactions/types/) for field definitions.)
 
+::: {.gotcha #gtxn-args-do-not-bound-the-group topic="Atomic groups" title="A type-checked group argument says nothing about the rest of the group"}
+`gtxn.PaymentTransaction` pins the type and the position of the transaction you named. It places no bound at all on what else rides in the group. An attacker is free to append transactions after yours --- a second app call to the same method, a close-out, a rekey of an account they control --- and each one is validated on its own terms. If your method's correctness depends on being the only call in the group, or on the group ending where you think it does, say so: `assert Global.group_size == UInt64(2)`. The assertion costs two opcodes and closes an entire class of restructuring attack.
+:::
+
 **Why not just have the contract pull assets directly?** Because Algorand's security model requires the asset holder to sign the transfer. The contract cannot unilaterally debit a user's account (unless the user previously granted approval via a delegated LogicSig, which is rare). This "push" model --- user pushes assets, then tells the contract what to do --- is fundamental to Algorand's design.
+
+::: {.gotcha #group-state-is-visible-within-the-group topic="Atomic groups" title="Transactions in a group see each other's state changes as they execute"}
+Atomicity is about the *commit*, not about isolation. The transactions in a group execute in order against a single shared, copy-on-write view of the ledger, so the second app call in a group reads the state the first one wrote --- the group's changes land in the ledger together only if every transaction succeeds. This is what makes fund-then-call work at all. It is also why "nobody can observe an intermediate state" is the wrong mental model: a contract you call in the same group absolutely can, and a design that assumes otherwise is assuming a guarantee the protocol never made.
+:::
 
 {{ch:testing}}'s `initialize`, every `deposit_tokens`/`create_schedule` call in Chapters {{chn:token-vesting}}-{{chn:nfts}}, and `add_liquidity` in {{ch:amm}} follow this pattern.
 
@@ -238,6 +250,10 @@ Both the vesting contract ({{ch:token-vesting}}) and the AMM pool ({{ch:amm}}) u
 *Before reading on, consider: when a user action requires the contract to create a new box (increasing its MBR), who should pay for it? The user (who benefits from the data), the admin (who deployed the contract), or the contract itself (from its reserves)? What are the tradeoffs of each approach?*
 
 When a user's action requires the contract to allocate new storage (creating a box, opting into an asset), someone must fund the MBR increase. The clean pattern is to require the user to send the MBR payment as part of the atomic group:
+
+::: {.gotcha #funder-must-be-the-credited-account topic="Authorization" title="Assert that the funding transaction's sender is the account being credited"}
+The pattern below reads a payment from the group and credits `Txn.sender`. Those are two different accounts unless you say they are the same one. Left unasserted, anyone can build a group that pairs *somebody else's* pending payment with their own app call and take the position it paid for --- the payment is valid, the app call is valid, and the contract cheerfully credits the wrong party. Whenever a grouped transfer funds something that is booked to `Txn.sender`, assert `payment_txn.sender == Txn.sender`. If you genuinely want third-party sponsorship, model the beneficiary as an explicit method argument rather than leaving it implied.
+:::
 
 ```python
 # In __init__ --- declare the prefix explicitly so the MBR

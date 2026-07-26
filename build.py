@@ -520,6 +520,223 @@ def resolve_book(book: Book) -> Book:
 
 
 # ---------------------------------------------------------------------------
+# Gotchas: marked once where they bite, harvested into one appendix
+# ---------------------------------------------------------------------------
+#
+# A gotcha belongs twice in a book and can only be written once. It belongs in
+# the chapter, at the exact paragraph where a reader is about to make the
+# mistake, because that is where the warning has any chance of landing. And it
+# belongs in a single list, because six months later the reader remembers that
+# the book warned them about *something* to do with box names and has no idea
+# which chapter it was in.
+#
+# Writing it twice is how the two copies drift. So it is written once, in the
+# chapter, as a callout carrying two extra attributes:
+#
+#     ::: {.gotcha #box-prefix-mbr topic="Box storage" title="A BoxMap key prefix counts toward the box name length"}
+#     ...
+#     :::
+#
+# The opening line is one line however long it gets; both renderers and the
+# harvester read it line-wise.
+#
+# and `python3 build.py gotchas` collects every one of them into
+# chapters/A3-gotchas.md, grouped by topic, each entry pointing back at the
+# chapter it came from. The generated file is committed for the same reason
+# figures/out/ is: someone who only wants to build the book should not have to
+# run a generation step first. validate.py check 14 fails if it has drifted.
+#
+# The id is not rendered anywhere. It exists so that a gotcha keeps a stable
+# identity when it moves between chapters, and so that check 14 can name the
+# duplicate when two of them collide.
+
+# The topic vocabulary is closed, and deliberately short. An open vocabulary
+# produces "Boxes", "Box storage" and "Box Storage" as three separate headings
+# in the appendix within a month.
+GOTCHA_TOPICS = [
+    "Global and local state",
+    "Box storage",
+    "Arithmetic and time",
+    "Inner transactions",
+    "ASAs",
+    "Atomic groups",
+    "Authorization",
+    "Resource references, MBR, and budget",
+    "Cross-contract calls",
+    "Pricing math",
+    "LogicSigs",
+    "Cryptography",
+    "Testing and simulation",
+    "Compilation, tooling, and shipping",
+]
+
+GOTCHA_APPENDIX_FILE = "A3-gotchas.md"
+GOTCHA_OPEN_RE = re.compile(r"^::: \{\.gotcha\b(?P<attrs>[^}]*)\}[ \t]*$")
+GOTCHA_ATTR_RE = re.compile(
+    r'#(?P<id>[a-z0-9][a-z0-9-]*)|(?P<key>[a-z]+)="(?P<val>[^"]*)"'
+)
+
+
+@dataclass
+class Gotcha:
+    ident: str
+    topic: str
+    title: str
+    body: str
+    source_slug: str   # the chapter or appendix it was marked in
+    where: str         # "chapters/04-p-nfts.md:212", for error messages
+
+
+def _manifest_raw(manifest: Path = MANIFEST) -> dict:
+    """book.yaml as a plain dict, without the existence checks load_book does.
+
+    The harvester runs *before* load_book can, because load_book insists every
+    file it names exists and the file this produces may not yet.
+    """
+    return _load_yaml(manifest)
+
+
+def _source_files(doc: dict) -> list[tuple[str, str]]:
+    """(filename, slug) for every non-generated entry, in reading order."""
+    out: list[tuple[str, str]] = []
+    for raw in doc.get("front", []) or []:
+        out.append((raw["file"], raw["slug"]))
+    for part in doc.get("parts", []) or []:
+        for raw in part.get("chapters", []) or []:
+            out.append((raw["file"], raw["slug"]))
+    for raw in (doc.get("appendices") or {}).get("files", []) or []:
+        if not raw.get("generated"):
+            out.append((raw["file"], raw["slug"]))
+    for raw in doc.get("back", []) or []:
+        out.append((raw["file"], raw["slug"]))
+    return out
+
+
+def harvest_gotchas(manifest: Path = MANIFEST) -> list[Gotcha]:
+    """Every {.gotcha} callout in the book, in reading order."""
+    doc = _manifest_raw(manifest)
+    found: list[Gotcha] = []
+    seen: dict[str, str] = {}
+
+    for name, slug in _source_files(doc):
+        path = CHAPTERS_DIR / name
+        if not path.exists():
+            raise SystemExit(f"book.yaml references a missing file: chapters/{name}")
+        lines = path.read_text(encoding="utf-8").split("\n")
+        i = 0
+        while i < len(lines):
+            match = GOTCHA_OPEN_RE.match(lines[i])
+            if not match:
+                i += 1
+                continue
+            where = f"chapters/{name}:{i + 1}"
+            attrs: dict[str, str] = {}
+            ident = ""
+            for attr in GOTCHA_ATTR_RE.finditer(match.group("attrs")):
+                if attr.group("id"):
+                    ident = attr.group("id")
+                else:
+                    attrs[attr.group("key")] = attr.group("val")
+            # Collect the body up to the closing marker, respecting fences so a
+            # ::: inside a code sample cannot end the callout early.
+            body: list[str] = []
+            i += 1
+            in_fence = False
+            while i < len(lines):
+                line = lines[i]
+                if line.strip().startswith("```"):
+                    in_fence = not in_fence
+                elif not in_fence and line.strip() == ":::":
+                    break
+                body.append(line)
+                i += 1
+            else:
+                raise SystemExit(f"{where}: gotcha callout is never closed")
+            i += 1
+
+            missing = [k for k in ("topic", "title") if not attrs.get(k)]
+            if not ident:
+                raise SystemExit(f"{where}: gotcha has no #id")
+            if missing:
+                raise SystemExit(
+                    f"{where}: gotcha #{ident} is missing "
+                    + " and ".join(f'{k}="…"' for k in missing)
+                )
+            if attrs["topic"] not in GOTCHA_TOPICS:
+                raise SystemExit(
+                    f'{where}: gotcha #{ident} has topic "{attrs["topic"]}", which is '
+                    f"not one of: {', '.join(GOTCHA_TOPICS)}"
+                )
+            if ident in seen:
+                raise SystemExit(
+                    f"{where}: duplicate gotcha id #{ident}, first seen at {seen[ident]}"
+                )
+            seen[ident] = where
+            found.append(
+                Gotcha(
+                    ident=ident,
+                    topic=attrs["topic"],
+                    title=attrs["title"],
+                    body="\n".join(body).strip("\n"),
+                    source_slug=slug,
+                    where=where,
+                )
+            )
+    return found
+
+
+def render_gotchas_appendix(gotchas: list[Gotcha]) -> str:
+    """The Markdown source of Appendix C, ready to be written to chapters/."""
+    by_topic: dict[str, list[Gotcha]] = {}
+    for g in gotchas:
+        by_topic.setdefault(g.topic, []).append(g)
+
+    out: list[str] = [
+        "<!-- GENERATED FILE. Do not edit.",
+        "     Every entry below is a ::: {.gotcha} callout somewhere in",
+        "     chapters/. Edit it there and run `python3 build.py gotchas`.",
+        "     scripts/validate.py check 14 fails if this file has drifted. -->",
+        "",
+        "\\newpage",
+        "",
+        "# Gotchas by Topic",
+        "",
+        "Every mistake the book stops to warn you about, in one place. Each entry "
+        "appears in full where it can actually save you --- in the chapter, at the "
+        "paragraph where you are about to make it --- and is repeated here because "
+        "six months from now you will remember that the book warned you about "
+        "something to do with box names and not which chapter it was in.",
+        "",
+        "The pointer after each entry names the chapter it is drawn from; go there "
+        "for the surrounding code.",
+        "",
+    ]
+    for topic in GOTCHA_TOPICS:
+        entries = by_topic.get(topic)
+        if not entries:
+            continue
+        out.append(f"## {topic}")
+        out.append("")
+        for g in entries:
+            out.append(f"### {g.title}")
+            out.append("")
+            out.append(g.body)
+            out.append("")
+            out.append(f"*From {{{{ch:{g.source_slug}}}}}.*")
+            out.append("")
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def write_gotchas_appendix(manifest: Path = MANIFEST) -> Path:
+    """Regenerate chapters/A3-gotchas.md. Idempotent; safe to call every build."""
+    target = CHAPTERS_DIR / GOTCHA_APPENDIX_FILE
+    text = render_gotchas_appendix(harvest_gotchas(manifest))
+    if not target.exists() or target.read_text(encoding="utf-8") != text:
+        target.write_text(text, encoding="utf-8")
+    return target
+
+
+# ---------------------------------------------------------------------------
 # Figures: render once, commit the output
 # ---------------------------------------------------------------------------
 #
@@ -790,7 +1007,10 @@ CALLOUT_LABEL = {
     "check": "Check your understanding",
     "tryit": "Try it yourself",
 }
-CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)\}\s*$")
+# A callout may carry pandoc attributes after its class -- .gotcha always does,
+# because the gotcha appendix is generated from them. Everything after the class
+# is metadata for the harvester and is not rendered by either renderer.
+CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)(?:\s[^}]*)?\}\s*$")
 
 
 FIGURE_IMG_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<src>figures/[a-z0-9-]+\.svg)\)$")
@@ -1017,6 +1237,7 @@ def _build_changelog() -> str | None:
 
 def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
     """Build the mdBook HTML site from chapter sources."""
+    write_gotchas_appendix()
     book = resolve_book(load_book())
     chapter_files = book.files
     if not chapter_files:
@@ -1162,6 +1383,7 @@ def build_pdf() -> None:
         print(f"Error: {metadata} not found.", file=sys.stderr)
         sys.exit(1)
 
+    write_gotchas_appendix()
     book = resolve_book(load_book())
     chapter_files = book.files
     if not chapter_files:
@@ -1215,6 +1437,7 @@ def build_concat() -> None:
         print(f"Error: {metadata} not found.", file=sys.stderr)
         sys.exit(1)
 
+    write_gotchas_appendix()
     chapter_files = resolve_book(load_book()).files
     if not chapter_files:
         print("Error: no chapter files found in chapters/", file=sys.stderr)
@@ -1250,6 +1473,8 @@ def main() -> None:
     fg = sub.add_parser("figures", help="Render figures/src/ to committed SVG + PDF")
     fg.add_argument("--force", action="store_true", help="Re-render even if unchanged")
 
+    sub.add_parser("gotchas", help="Regenerate the gotcha appendix from {.gotcha} callouts")
+
     args = parser.parse_args()
 
     if args.command == "mdbook":
@@ -1258,6 +1483,10 @@ def main() -> None:
         build_pdf()
     elif args.command == "figures":
         render_figures(force=args.force)
+    elif args.command == "gotchas":
+        target = write_gotchas_appendix()
+        count = len(harvest_gotchas())
+        print(f"Gotchas: {count} harvested -> {target.relative_to(ROOT)}")
     elif args.command == "all":
         build_mdbook()
         build_pdf()

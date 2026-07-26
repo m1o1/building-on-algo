@@ -500,11 +500,15 @@ CALLOUT_CLASSES = {
     "note", "tip", "warning", "gotcha", "setup",
     "spec", "version", "check", "tryit",
 }
-CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)\}$")
+# A callout may carry pandoc attributes after its class. .gotcha always does --
+# an id, a topic, and a title -- because the gotcha appendix is generated from
+# them (build.py harvest_gotchas). Everything after the class is metadata for
+# the harvester; neither renderer prints it.
+CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)(?:\s[^}]*)?\}$")
 CALLOUT_ANY_OPEN_RE = re.compile(r"^:::\s*\S")
 
 COOKBOOK_RETIRED = False
-COOKBOOK_FILE = "A1-cookbook.md"
+COOKBOOK_FILE = "A4-cookbook.md"
 
 
 @dataclass
@@ -852,6 +856,31 @@ def check_structure(strict: bool = False) -> None:
                 Problem(13, "error", wheres[0],
                         f"{{{{include-fig:{slug}}}}} names a figure that is not in "
                         f"figures/index.yaml")
+            )
+
+    # -- check 14: the generated gotcha appendix has not drifted -------------
+    # chapters/A3-gotchas.md is derived from every ::: {.gotcha} callout in the
+    # book, and it is committed rather than built on demand, for the same
+    # reason figures/out/ is: someone who only wants to render the book should
+    # not have to run a generation step first. Committed derived output goes
+    # stale unless something notices, so this is the something. It also
+    # surfaces every hard failure the harvester raises -- unknown topic,
+    # missing title, duplicate id -- as one error rather than a traceback.
+    try:
+        sys.path.insert(0, str(ROOT))
+        import build as _build  # noqa: PLC0415
+
+        expected = _build.render_gotchas_appendix(_build.harvest_gotchas())
+    except SystemExit as exc:
+        problems.append(Problem(14, "error", "chapters/", str(exc)))
+    else:
+        target = CHAPTERS_DIR / _build.GOTCHA_APPENDIX_FILE
+        actual = target.read_text(encoding="utf-8") if target.exists() else None
+        if actual != expected:
+            problems.append(
+                Problem(14, "error", f"chapters/{_build.GOTCHA_APPENDIX_FILE}",
+                        "generated gotcha appendix has drifted from its sources; "
+                        "run `python3 build.py gotchas`")
             )
 
     errors = [p for p in problems if p.severity == "error"]

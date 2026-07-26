@@ -18,144 +18,52 @@ Algorand Python also provides `algorand-python-testing`, a unit testing library 
 
 By the end of this chapter, you will have a working test suite and the testing patterns you will use for every contract in this book.
 
-## Run It First!
+## Run It First
 
-The completed integration-test project for this chapter is in
+The finished integration-test project for this chapter is in
 `projects/chapter2/simple-vesting/`. It preserves the deliberately simplified
-contract from the chapter, including the limitations that the "Tests That Fail"
-section turns into {{ch:token-vesting}}'s production requirements.
-
-::: {.note}
-The shipped reference project refactors the chapter's inline code
-onto the generated typed client (`SimpleVestingClient`), with the helper
-functions moved into `scripts/localnet_helpers.py`. The behavior is
-identical --- the refactor just makes the project more maintainable --- so if
-you diff the project against the listings in this chapter, expect different
-plumbing, not different logic.
-:::
-
-Before running it, make three predictions: why the pre-cliff claim returns `0`,
-why the contract account must opt into the ASA before the deposit, and which
-limitations the test suite documents.
-
-From the repository root, prepare the project and start LocalNet:
+contract this chapter builds --- one beneficiary, plain `UInt64` arithmetic, no
+revocation --- including the limitations that the "Tests That Fail" section
+turns into {{ch:token-vesting}}'s production requirements. Before you run it,
+make three predictions: why the pre-cliff claim returns `0`, why the contract
+account must opt into the ASA before the deposit, and which limitations the test
+suite documents.
 
 ```bash
 cd projects/chapter2/simple-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-```
-
-Run the workflow once:
-
-```bash
 poetry run python -m scripts.run_simple_vesting
-```
-
-Then run the pytest suite:
-
-```bash
 algokit project run test
 ```
 
-Now trace what the workflow just did. These are excerpts from the workflow file,
-not a standalone script; imports and repeated setup stay in the project. For
-now, follow the sender, receiver, asset ID, amount, and method name.
+{{tbl:testing-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
-- **Deploy:** `factory.send.create.bare(...)` creates the app and app address.
-- **Create ASA:** `asset_create(...)` gives the vesting contract a token to hold.
-- **Fund accounts:** `payment(...)` covers minimum balance and fees.
-- **Opt in:** `asset_opt_in(...)` lets an account receive the ASA.
+Table: Output checkpoints for the simple vesting workflow {#tbl:testing-run-it-first}
 
-The most important transaction group is the deposit-plus-initialize call. The
-ASA transfer is created first, wrapped in `TransactionWithSigner`, then passed
-as an ABI argument:
+| Output checkpoint | What to watch for |
+|-------------------|-------------------|
+| App ID and app address | The deployed contract gets an account of its own, and that account is what holds the vested ASA |
+| Asset ID | The workflow creates its own test ASA instead of assuming one exists |
+| Opt-in confirmation | The app account opts into the ASA *before* the deposit; an account cannot receive an asset it has not opted into |
+| Deposit-plus-initialize group | The ASA transfer and the `initialize` call travel as one atomic group, so a schedule can never be recorded without the tokens behind it |
+| Pre-cliff claim: `0` | Elapsed time is below the cliff, so the linear formula yields nothing --- and the call still succeeds |
+| Final claim: the full amount | After the helper advances LocalNet's block timestamp past the vesting duration, the beneficiary receives everything |
+| Test suite passes | The suite reruns those behaviors as tests and adds three static known-gap checks: overflow-prone arithmetic, one-beneficiary global state, and no revoke method |
 
-```python
-algorand.send.payment(
-    algokit_utils.PaymentParams(
-        sender=admin.address,
-        receiver=app_client.app_address,
-        amount=algokit_utils.AlgoAmount.from_micro_algo(300_000),
-    )
-)
-app_client.send.opt_in_to_asset(
-    OptInToAssetArgs(asset=token_id),
-    params=algokit_utils.CommonAppCallParams(
-        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
-    ),
-)
+::: {.note}
+The shipped project refactors the chapter's inline code onto the generated typed
+client (`SimpleVestingClient`), with the helpers moved into
+`scripts/localnet_helpers.py`. The behavior is identical, so if you diff the
+project against the listings in this chapter, expect different plumbing, not
+different logic.
+:::
 
-deposit_txn = algorand.create_transaction.asset_transfer(
-    algokit_utils.AssetTransferParams(
-        sender=admin.address,
-        receiver=app_client.app_address,
-        asset_id=token_id,
-        amount=total,
-    )
-)
-app_client.send.initialize(
-    InitializeArgs(
-        asset=token_id,
-        beneficiary=beneficiary.address,
-        total_amount=total,
-        cliff_duration=cliff,
-        vesting_duration=vesting,
-        deposit_txn=TransactionWithSigner(
-            deposit_txn,
-            algorand.account.get_signer(admin.address),
-        ),
-    )
-)
-```
-
-The pytest suite is expected to pass. It reruns those behaviors as tests and
-includes static known-gap checks for three intentionally limited production
-properties: overflow-prone arithmetic, one-beneficiary global state, and no
-revoke method. The fourth gap, rounding across multiple claims, is discussed
-later in the step-by-step "Tests That Fail" section.
-
-The pre-cliff and final claims use the same method call; the difference is that
-between them the workflow calls its `advance_time` helper, which expands to a
-sleep plus a tiny transaction so LocalNet produces a later block timestamp:
-
-```python
-before_cliff = app_client.send.claim(
-    params=algokit_utils.CommonAppCallParams(
-        sender=beneficiary.address,
-        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
-    )
-)
-time.sleep(vesting + 1)
-algorand.send.payment(
-    algokit_utils.PaymentParams(
-        sender=admin.address,
-        receiver=admin.address,
-        amount=algokit_utils.AlgoAmount.from_micro_algo(0),
-    )
-)
-final_claim = app_client.send.claim(
-    params=algokit_utils.CommonAppCallParams(
-        sender=beneficiary.address,
-        static_fee=algokit_utils.AlgoAmount.from_micro_algo(2_000),
-    )
-)
-```
-
-Keep `scripts/run_simple_vesting.py` around for repeated development runs. The
-preceding excerpts are the parts to understand before reading the full test
-suite.
-
-Without Docker or LocalNet, you can still build the contract and run the static
-known-gap checks:
-
-```bash
-cd projects/chapter2/simple-vesting
-algokit project bootstrap all
-algokit project run build
-algokit project run test-static
-```
+Without Docker or LocalNet, `algokit project run test-static` still builds the
+contract and runs the static known-gap checks. Keep the project open as the
+answer key while you work through the rest of the chapter.
 
 
 ## The Simplified Vesting Contract
@@ -921,6 +829,10 @@ The preceding tests use `pytest.raises(Exception)` to verify that unauthorized c
 Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. When the simulated transaction would have been rejected, algokit-utils raises a `LogicError` carrying the contract's own assert message. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
 
 {{fig:simulate-trace}} annotates what comes back when a simulated call is rejected. The single most important thing on that page is at the top: the HTTP request itself *succeeded*. A rejected simulation is a `200 OK` whose body reports the failure, which is why a test that asserts on the status code will pass no matter what the contract does. The information you want --- which assertion fired, and where --- is in `failure-message` and `failed-at`.
+
+::: {.gotcha #simulate-replaced-dryrun topic="Testing and simulation" title="simulate replaced dryrun; dryrun is gone from the node entirely"}
+Older material, blog posts, and a good deal of surviving example code reach for the `dryrun` endpoint for exactly this job. It has been removed from go-algorand --- not deprecated, removed --- and any SDK call to it now fails against a current node. `simulate` is the replacement and it is strictly better: it runs the real program against real ledger state, honours the group, and can be asked for opcode-level traces. If you find yourself reading documentation that mentions `dryrun`, treat everything around it as dated by several protocol versions.
+:::
 
 {{include-fig:simulate-trace}}
 

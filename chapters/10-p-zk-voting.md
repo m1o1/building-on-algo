@@ -442,7 +442,7 @@ The `reveal_vote` method completes the commit-reveal cycle. The voter provides t
         return self.tallies[arc4.UInt64(choice)]
 ```
 
-::: {.warning}
+::: {.gotcha #mimc-exceeds-one-call-budget topic="Cryptography" title="One mimc hash costs more than an application call's entire budget"}
 **`reveal_vote` cannot fit in a single app call's opcode budget.** The `mimc` opcode costs 10 + 550 per 32-byte block, so hashing the 64-byte `choice || randomness` input costs 1,110 budget units --- well beyond the 700-unit budget of one application call. The `ensure_budget(UInt64(1200), OpUpFeeSource.GroupCredit)` call at the top of the method solves this on-chain: the contract issues no-op inner app calls that each add 700 units to the pooled budget, with their fees paid from the group's pooled fee credit (so the caller simply overpays the outer transaction fee). Without it, every reveal fails with a "dynamic cost budget exceeded" error. This is the same opcode budget management pattern as {{ch:patterns}}'s Pattern 9.
 :::
 
@@ -460,7 +460,7 @@ A related consequence of the phase design concerns voters who drop out midway.
 
 MBR planning starts even earlier than the commit phase --- at deployment.
 
-::: {.warning}
+::: {.gotcha #fund-app-before-box-creation topic="Box storage" title="A method that creates boxes fails unless the app account is funded first"}
 **Fund the app account before calling `initialize`.** The `initialize` method creates tally boxes (one per choice). Each tally box costs `2,500 + 400 * (10 + 8) = 9,700 microAlgos` in MBR. For 3 choices, the app account needs at least `3 * 9,700 = 29,100 microAlgos` plus its base MBR of `100,000 microAlgos` before `initialize` is called. Send a payment to the app's address before the `initialize` call, or you will see a "balance below minimum" error.
 :::
 

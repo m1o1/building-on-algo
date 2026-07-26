@@ -22,13 +22,14 @@ A production farm could add the {{ch:amm-factory}} factory check before it accep
 pool. This chapter leaves that out deliberately so the accumulator, lock-up,
 and reward-conservation ideas stay in the foreground.
 
-## Run It First!
+## Run It First
 
-The finished version of this chapter lives in `projects/chapter7/lp-farming/`.
-It depends on the finished AMM project in `projects/chapter5/constant-product-amm/`
-because the farm binds itself to the LP token reported by the configured AMM.
-
-Build both generated clients before running the workflow:
+The finished project for this chapter is in `projects/chapter7/lp-farming/`. It
+depends on the finished AMM in `projects/chapter5/constant-product-amm/`,
+because the farm binds itself to the LP token that the configured AMM reports
+--- so both generated clients have to exist before the workflow will run. Before
+running it, predict which line binds the farm to the AMM's LP token, which line
+funds the stake box MBR, and why the workflow advances LocalNet time twice.
 
 ```bash
 cd projects/chapter5/constant-product-amm
@@ -39,20 +40,12 @@ cd ../../chapter7/lp-farming
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-```
-
-The finished project keeps the runnable workflow in `scripts/run_lp_farming.py`.
-Before running it, predict which line binds the farm to the AMM's reported LP
-token, which line funds the stake box MBR, and why the workflow advances
-LocalNet time twice.
-
-Run the workflow once:
-
-```bash
 poetry run python -m scripts.run_lp_farming
+algokit project run test
 ```
 
-{{tbl:farming-run-it-first}} lists the output checkpoints to compare against the workflow output.
+{{tbl:farming-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
 Table: Output checkpoints for the LP farming workflow {#tbl:farming-run-it-first}
 
@@ -60,201 +53,24 @@ Table: Output checkpoints for the LP farming workflow {#tbl:farming-run-it-first
 |-------------------|-------------------|
 | AMM app ID | The farm has a concrete application to read during initialization |
 | LP token ID | The AMM reported the ASA that represents pool shares |
-| Farm initialized | The staking contract opted into the required assets |
-| Claimed rewards > 0 | The accumulator produced claimable rewards after time advanced |
-| Final unstake message | The unstake path returned LP tokens and refunded box MBR |
+| Farm initialized | The staking contract opted into the required assets, using an `app_references` entry to read the AMM's global state |
+| Stake box funded | Staking pays an exact 32,100 microAlgo box MBR alongside the LP-token transfer |
+| Claimed rewards above zero | The accumulator produced claimable rewards once time advanced |
+| Lock extended | The lock lengthens without unstaking the position |
+| Final unstake message | The unstake path returned LP tokens and refunded the box MBR |
 
-Run the tests from the {{ch:yield-farming}} project:
+LocalNet defaults to developer mode, so the workflow moves past the long lock
+period with the official timestamp-offset endpoint, then resets the offset to
+`0` in a `finally` block so later tests do not inherit the simulated jump.
+Without Docker or Podman the integration tests skip and the workflow script
+stops with a LocalNet message; `algokit project run test-static` still verifies
+that both contracts compile and that their source carries the security patterns
+this chapter teaches.
 
-```bash
-algokit project run test
-```
-
-Now trace what the workflow just did. These are excerpts from the workflow file,
-not a standalone script; imports, generated-client loading, and repeated account
-funding boilerplate remain in the project.
-
-- **Create assets:** `asset_create(...)` creates pool and reward ASAs.
-- **Bootstrap AMM:** `pool.send.bootstrap(...)` creates the LP token.
-- **Fund farm:** `payment(...)` covers farm opt-ins and later fees.
-- **Stake:** `PaymentParams` plus `AssetTransferParams` funds the box and moves
-  LP tokens.
-
-The farm binds itself to the AMM during initialization. The `app_references`
-entry is what lets the contract read the configured AMM's global state:
-
-```python
-farm_factory = farm_client.LpFarmFactory(
-    algorand,
-    default_sender=admin.address,
-    default_signer=admin.signer,
-)
-farm, farm_create = farm_factory.send.create.bare()
-algorand.send.payment(
-    PaymentParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=farm.app_address,
-        amount=AlgoAmount.from_micro_algo(1_000_000),
-    )
-)
-farm.send.initialize(
-    farm_client.InitializeArgs(
-        lp_token=lp_token,
-        reward_token=reward_token,
-        amm_app=pool.app_id,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(3_000),
-        asset_references=[lp_token, reward_token],
-        app_references=[pool.app_id],
-    ),
-)
-```
-
-Reward deposit and stake are the two key grouped-transaction calls. The reward
-ASA transfer is signed by the admin. The stake call includes both the LP-token
-transfer and the exact 32,100 microAlgos box MBR payment:
-
-```python
-reward_deposit = 58_400
-reward_duration = 100
-stake_box_mbr = 32_100
-reward_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=farm.app_address,
-        asset_id=reward_token,
-        amount=reward_deposit,
-    )
-)
-farm.send.deposit_rewards(
-    farm_client.DepositRewardsArgs(
-        reward_txn=TransactionWithSigner(reward_txn, admin.signer),
-        duration_seconds=reward_duration,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(1_000),
-        asset_references=[reward_token],
-    ),
-)
-
-stake_box = b"s_" + decode_address(farmer.address)
-mbr_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=farmer.address,
-        receiver=farm.app_address,
-        amount=AlgoAmount.from_micro_algo(stake_box_mbr),
-    )
-)
-lp_stake_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=farmer.address,
-        receiver=farm.app_address,
-        asset_id=lp_token,
-        amount=lp_to_stake,
-    )
-)
-farm.send.stake(
-    farm_client.StakeArgs(
-        mbr_payment=TransactionWithSigner(mbr_txn, farmer.signer),
-        lp_txn=TransactionWithSigner(lp_stake_txn, farmer.signer),
-        lock_days=30,
-    ),
-    params=CommonAppCallParams(
-        sender=farmer.address,
-        signer=farmer.signer,
-        static_fee=AlgoAmount.from_micro_algo(1_000),
-        asset_references=[lp_token],
-        box_references=[stake_box],
-    ),
-)
-```
-
-The workflow advances LocalNet developer-mode time, claims, extends the lock,
-advances beyond the unlock time, and unstakes. The runnable script resets the
-timestamp offset back to `0` in a `finally` block so later LocalNet tests do not
-inherit the simulated time jump:
-
-```python
-algorand.client.algod.set_timestamp_offset(10)
-algorand.send.payment(
-    PaymentParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=admin.address,
-        amount=AlgoAmount.from_micro_algo(0),
-    )
-)
-claim = farm.send.claim(
-    params=CommonAppCallParams(
-        sender=farmer.address,
-        signer=farmer.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[reward_token],
-        box_references=[stake_box],
-    )
-)
-farm.send.extend_lock(
-    farm_client.ExtendLockArgs(new_lock_days=365),
-    params=CommonAppCallParams(
-        sender=farmer.address,
-        signer=farmer.signer,
-        box_references=[stake_box],
-    ),
-)
-algorand.client.algod.set_timestamp_offset(366 * 86400)
-algorand.send.payment(
-    PaymentParams(
-        sender=admin.address,
-        signer=admin.signer,
-        receiver=admin.address,
-        amount=AlgoAmount.from_micro_algo(0),
-    )
-)
-farm.send.unstake(
-    params=CommonAppCallParams(
-        sender=farmer.address,
-        signer=farmer.signer,
-        static_fee=AlgoAmount.from_micro_algo(4_000),
-        asset_references=[lp_token, reward_token],
-        box_references=[stake_box],
-    )
-)
-algorand.client.algod.set_timestamp_offset(0)
-```
-
-Without Docker or Podman-backed LocalNet, the integration tests skip and the
-workflow script stops with a LocalNet message. The build and static tests still
-verify that the contract compiles and that the source contains the security
-patterns this chapter teaches. LocalNet defaults to developer mode; the workflow
-uses the official timestamp-offset endpoint to move past long lock periods.
-
-For the static path only:
-
-```bash
-cd ../../chapter5/constant-product-amm
-algokit project bootstrap all
-algokit project run build
-
-cd ../../chapter7/lp-farming
-algokit project bootstrap all
-algokit project run build
-algokit project run test-static
-```
-
-Use `scripts/run_lp_farming.py` as an iteration shortcut after you understand
-the AMM setup, account funding, farm initialization, reward deposit, staking,
-claiming, and unstaking sequence.
-
-Follow this finished-project runbook first, then build the chapter in a
-separate scratch project with the `algokit init` commands below. Treat
-`projects/chapter7/lp-farming/` as the answer key: compare its contract,
-workflow script, and tests against your scratch project when something differs.
+Follow this runbook first, then build the chapter in a separate scratch project
+with the `algokit init` commands below. Treat `projects/chapter7/lp-farming/` as
+the answer key: compare its contract, workflow script, and tests against your
+scratch project whenever something differs.
 
 
 ## A Simplified Staking Contract
@@ -506,7 +322,7 @@ Where:
 
 The `min(now, reward_end)` clamping ensures rewards stop accumulating after the reward period ends.
 
-::: {.warning}
+::: {.gotcha #accumulator-zero-divisor topic="Pricing math" title="Updating the accumulator with zero stake divides by zero"}
 The zero-balance guard is critical. If `total_staked` is zero, the update must be skipped entirely --- dividing by zero panics the AVM, and accumulating rewards when nobody is staked would create tokens from nowhere. Always check `total_staked > 0` before updating the accumulator.
 :::
 
@@ -594,7 +410,7 @@ Bob: $200 \times (13{,}333{,}333{,}333 - 10{,}000{,}000{,}000) / 10^9 = 666$ tok
 
 Total distributed: $1{,}333 + 666 = 1{,}999$ tokens. Total available: $10 \times 200 = 2{,}000$ tokens. The 1-token difference is rounding dust from integer division --- always in the contract's favor. The production contract tracks only the distributable portion in `rewards_remaining`; dust stays in the contract outside that pool. Here the dust is a single token, but its magnitude depends on how the staked total compares to `rate * delta_t * PRECISION`; the accumulator-precision warning later in this chapter derives the bound past which "dust" grows into whole stranded intervals.
 
-::: {.warning}
+::: {.gotcha #rounding-favors-the-contract topic="Pricing math" title="Distribution must never exceed rate times elapsed time"}
 The total rewards distributed must never exceed `reward_rate * elapsed_time`. Rounding in `op.divmodw` floors toward zero, ensuring the contract always retains dust. If you ever observe total distributions exceeding the reward pool, you have a bug. This is the single most important property to verify in your tests.
 :::
 
@@ -686,7 +502,11 @@ assert lp_id == self.lp_token_id.value, "LP token mismatch"
 
 The `get_ex_uint64` opcode returns a tuple of `(value, exists)`. Always check `exists` --- if the key does not exist in the target app's global state, `value` is zero, and silently using zero as a valid value is a common bug.
 
-::: {.warning}
+::: {.gotcha #inner-txn-ceilings topic="Inner transactions" title="Inner transactions have three separate ceilings, and one of them is depth"}
+An application call may issue at most 16 inner transactions, a group may contain at most 256 across all of its calls, and the call chain may descend at most 8 applications deep --- the eighth contract cannot call another. A loop that emits one inner transfer per position works beautifully for twelve positions and fails at seventeen with an error naming none of this. Each inner application call also adds 700 units to the pooled opcode budget when it is submitted, which is a gift, not a cost. And no inner transactions may be issued from a ClearState program at all, so a clear-state path can never return anything to the user.
+:::
+
+::: {.gotcha #foreign-app-slots topic="Cross-contract calls" title="A cross-contract read spends one of the transaction's reference slots"}
 The foreign apps array has a maximum of 8 entries per transaction (shared across the group since AVM v9). Each cross-contract read consumes one slot. If your transaction already references several apps, you may not have room for the AMM reference. Plan your foreign reference budget carefully when designing multi-contract interactions.
 :::
 
@@ -1085,7 +905,7 @@ This is the accumulator update, called at the top of every state-changing method
 
 The two-stage wide arithmetic is straightforward. First, `rate * delta_t` is computed as a plain `UInt64` product, but only after checking the same bounds enforced by `deposit_rewards`. The `mulw` then multiplies this intermediate result by `PRECISION` ($10^9$) to produce a 128-bit value, and `divmodw` divides by `total` to yield the 64-bit increment. The `q_hi == 0` and accumulator-capacity assertions make accumulator overflow fail loudly instead of corrupting reward accounting.
 
-::: {.warning}
+::: {.gotcha #precision-floors-to-zero topic="Pricing math" title="Enough stake floors the per-token increment to zero and rewards stall"}
 `PRECISION = 10^9` also sets a *usability bound* on the other side. Each update computes $increment = \lfloor rate \times \Delta t \times 10^9 / \text{total\_effective} \rfloor$, so whenever `total_effective` exceeds $rate \times \Delta t \times 10^9$, the increment floors to zero --- yet `last_update_time` still advances, so that interval's rewards are permanently stranded. With very large stakes relative to the reward rate, most of a schedule's rewards can strand this way. Conservation still holds --- the contract never overpays, and unstreamed rewards simply stay in `rewards_remaining` --- but stakers receive less than the advertised rate. Production systems shrink the loss to negligible by using $10^{18}$-scale precision (with `BigUInt` arithmetic) or by carrying the division remainder forward between updates.
 :::
 

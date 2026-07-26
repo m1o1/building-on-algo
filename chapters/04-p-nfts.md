@@ -16,230 +16,54 @@ We will rebuild the vesting contract from {{ch:token-vesting}} with these change
 - **`revoke`** adds clawback of the NFT, NFT destruction, and unvested token return --- a multi-step inner transaction sequence not needed in {{ch:token-vesting}}.
 - **`create_schedule`** mints an NFT via inner transaction, stores the returned NFT asset ID inside the schedule, and returns it to the caller.
 
-## Run It First!
+## Run It First
 
-The finished {{ch:nfts}} project lives in `projects/chapter4/nft-vesting/`. Run it before
-reading the implementation details so you can see the full transferability loop working
-on LocalNet:
+The finished project for this chapter is in `projects/chapter4/nft-vesting/`.
+Run it before reading the implementation so you can watch the full
+transferability loop work: the contract mints an NFT that stands for a vesting
+schedule, delivers it to the beneficiary, and then honors claims from whoever
+holds that NFT --- including a buyer who acquired it with an ordinary asset
+transfer and never touched a contract-specific method.
 
 ```bash
 cd projects/chapter4/nft-vesting
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-```
-
-The finished project keeps the runnable workflow in `scripts/run_nft_vesting.py`.
-Run it once:
-
-```bash
 poetry run python -m scripts.run_nft_vesting
-```
-
-Then run the tests:
-
-```bash
 algokit project run test
 ```
 
-Now trace what the workflow just did. These are excerpts from the workflow file,
-not a standalone script; imports, generated-client setup, and repeated account
-funding boilerplate remain in the project.
+{{tbl:nft-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
-- **Create vesting ASA:** `asset_create(...)` gives the app tokens to vest.
-- **Deposit tokens:** `AssetTransferParams` inside `TransactionWithSigner`
-  groups the ASA transfer with the app call.
-- **Create schedule:** `PaymentParams` for MBR plus `create_schedule` funds the
-  box and inner-created NFT.
-- **Transfer ownership:** `asset_transfer(...)` moves claim rights with the NFT.
+Table: Output checkpoints for the NFT vesting workflow {#tbl:nft-run-it-first}
 
-Schedule creation is the new pattern. It pays the combined MBR for the schedule
-box and the inner-created NFT, then records the returned NFT asset ID:
+| Output checkpoint | What to watch for |
+|-------------------|-------------------|
+| Vesting ASA ID | The workflow creates the token that will be vested, then deposits it into the app |
+| Schedule box and NFT ID | `create_schedule` pays 26,100 microAlgos of box MBR plus 100,000 for the inner-created NFT, and returns the new asset ID |
+| NFT minted before delivery | Nobody can opt into an asset ID that does not exist yet, so minting has to come first |
+| Beneficiary's claim succeeds | Claim rights follow the NFT, and the beneficiary is holding it |
+| NFT transferred to the buyer | Ownership moves with a plain asset transfer; the contract has no transfer method of its own |
+| Beneficiary can no longer claim | The contract checks the *current* holder, not the original recipient |
+| Buyer's claim succeeds | The buyer collects the remaining vested tokens with no migration step |
+| Second schedule revoked | Revocation settles vested tokens, returns the unvested remainder to the admin, destroys the NFT, and leaves the box ready for cleanup |
+| Test suite passes | The suite reruns each path against LocalNet |
 
-```python
-schedule_id = 1
-schedule_box = b"v_" + struct.pack(">Q", schedule_id)
-schedule_mbr = 26_100 + 100_000
-mbr_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=admin.address,
-        receiver=app_address,
-        amount=AlgoAmount.from_micro_algo(schedule_mbr),
-    )
-)
-result = app_client.send.create_schedule(
-    CreateScheduleArgs(
-        schedule_id=schedule_id,
-        total_amount=1_000_000,
-        cliff_duration=1,
-        vesting_duration=20,
-        nft_url=b"ipfs://chapter4-local#arc3",
-        metadata_hash=b"\0" * 32,
-        mbr_payment=TransactionWithSigner(
-            mbr_txn,
-            algorand.account.get_signer(admin.address),
-        ),
-    ),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        box_references=[schedule_box],
-    ),
-)
-nft_id = result.abi_return
-```
+Without Docker or Podman, `algokit project run test-static` still compiles the
+contract and checks the source for the properties this chapter teaches:
+schedules keyed by `schedule_id`, deposited tokens reserved before schedules are
+created, exact MBR payments, contract-controlled manager and clawback addresses
+on the minted NFT, holder-checked claims, clawback-and-destroy revocation, and
+inner-transaction fee pooling.
 
-Before delivery and claim, the beneficiary opts into both assets they may
-receive: the vesting ASA and the newly minted NFT. The workflow advances time
-before calling `claim`, because the contract rejects zero-claim calls.
+The finished project calls the generated typed client
+(`app_client.send.create_schedule(...)`); the shorter walkthrough later in the
+chapter uses method-name calls such as `method="create_schedule"`. They are the
+same ABI calls --- the typed wrappers simply move each method's arguments into
+generated argument classes.
 
-```python
-algorand.send.asset_opt_in(
-    AssetOptInParams(sender=beneficiary.address, asset_id=asset_id)
-)
-algorand.send.asset_opt_in(
-    AssetOptInParams(sender=beneficiary.address, asset_id=nft_id)
-)
-app_client.send.deliver_nft(
-    DeliverNftArgs(
-        schedule_id=schedule_id,
-        nft_asset=nft_id,
-        beneficiary=beneficiary.address,
-    ),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[nft_id],
-        account_references=[beneficiary.address],
-        box_references=[schedule_box],
-    ),
-)
-time.sleep(4)
-algorand.send.payment(
-    PaymentParams(
-        sender=dispenser.address,
-        receiver=dispenser.address,
-        amount=AlgoAmount.from_micro_algo(0),
-    )
-)
-beneficiary_claim = app_client.send.claim(
-    ClaimArgs(schedule_id=schedule_id, nft_asset=nft_id),
-    params=CommonAppCallParams(
-        sender=beneficiary.address,
-        signer=algorand.account.get_signer(beneficiary.address),
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[asset_id, nft_id],
-        box_references=[schedule_box],
-    ),
-)
-```
-
-Ownership transfer is just a normal ASA transfer. The buyer must opt into the
-vesting ASA and the NFT before receiving them, then the next `claim` checks that
-the buyer is the current NFT holder:
-
-```python
-algorand.send.asset_opt_in(
-    AssetOptInParams(sender=buyer.address, asset_id=asset_id)
-)
-algorand.send.asset_opt_in(
-    AssetOptInParams(sender=buyer.address, asset_id=nft_id)
-)
-algorand.send.asset_transfer(
-    AssetTransferParams(
-        sender=beneficiary.address,
-        signer=algorand.account.get_signer(beneficiary.address),
-        receiver=buyer.address,
-        asset_id=nft_id,
-        amount=1,
-    )
-)
-time.sleep(20)
-algorand.send.payment(
-    PaymentParams(
-        sender=dispenser.address,
-        receiver=dispenser.address,
-        amount=AlgoAmount.from_micro_algo(0),
-    )
-)
-buyer_claim = app_client.send.claim(
-    ClaimArgs(schedule_id=schedule_id, nft_asset=nft_id),
-    params=CommonAppCallParams(
-        sender=buyer.address,
-        signer=algorand.account.get_signer(buyer.address),
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[asset_id, nft_id],
-        box_references=[schedule_box],
-    ),
-)
-```
-
-After creating and delivering a second schedule the same way,
-`revoke_nft_id` is the NFT returned by that second `create_schedule` call.
-Revocation uses the schedule box, the vesting ASA, the NFT, and the current
-holder account:
-
-```python
-revoke_schedule_id = 2
-revoke_box = b"v_" + struct.pack(">Q", revoke_schedule_id)
-claimable = app_client.send.get_claimable(
-    GetClaimableArgs(schedule_id=revoke_schedule_id),
-    params=CommonAppCallParams(box_references=[revoke_box]),
-)
-revoked = app_client.send.revoke(
-    RevokeArgs(
-        schedule_id=revoke_schedule_id,
-        nft_asset=revoke_nft_id,
-        current_holder=beneficiary.address,
-    ),
-    params=CommonAppCallParams(
-        static_fee=AlgoAmount.from_micro_algo(5_000),
-        asset_references=[asset_id, revoke_nft_id],
-        account_references=[beneficiary.address],
-        box_references=[revoke_box],
-    ),
-)
-```
-
-As it runs, watch for these checkpoints:
-
-- The NFT is minted before it is delivered, because the beneficiary cannot opt into an
-  asset ID that does not exist yet.
-- The beneficiary can claim while they hold the NFT.
-- After the NFT transfer, the beneficiary no longer has claim rights.
-- The buyer can claim the remaining vested tokens without any contract-specific transfer
-  method.
-- Revocation settles vested tokens, returns unvested tokens to the admin, destroys the
-  NFT, and leaves the schedule ready for cleanup.
-
-If Docker or Podman is not available, you can still verify the contract compiles and run
-the static source checks:
-
-```bash
-cd projects/chapter4/nft-vesting
-algokit project bootstrap all
-algokit project run build
-algokit project run test-static
-```
-
-Those static source checks are sanity checks, not a substitute for LocalNet behavior
-tests. They confirm that the expected source patterns are present:
-
-- schedules are keyed by `schedule_id`
-- deposited tokens are reserved before schedules are created
-- MBR payments are exact
-- the minted NFT has contract-controlled manager and clawback addresses
-- claims require the current NFT holder
-- revocation claws back and destroys the NFT
-- inner transactions use fee pooling
-
-The full workflow script and LocalNet tests provide the behavioral confirmation.
-
-Use `scripts/run_nft_vesting.py` as an iteration shortcut after you understand
-the account funding, opt-in, deployment, and user-action sequence.
-
-The finished project uses generated typed client wrappers such as
-`app_client.send.create_schedule(...)`. Later in the chapter, the shorter walkthrough
-uses method-name calls such as `method="create_schedule"`. They are the same ABI calls;
-the typed wrappers simply move each method's arguments into generated argument classes.
 
 ## What Is an NFT on Algorand?
 
@@ -569,7 +393,7 @@ When creating an ASA, four special addresses control what can be done with it af
 - **reserve** --- informational only, no protocol authority. We set it to zero.
 - **freeze** --- can freeze/unfreeze individual holdings. We set this to zero so the NFT is always freely transferable. Setting it to zero is permanent --- once zero, it can never be changed back.
 
-::: {.warning}
+::: {.gotcha #clawback-is-custody topic="ASAs" title="A contract-held clawback address is custody, and it is visible on-chain"}
 Setting `clawback` to the contract address means the contract can take the NFT from anyone at any time. This is necessary for revocation, but it means the NFT is not fully "sovereign" --- holders should understand that the vesting contract retains authority over it. This is visible on-chain and should be communicated clearly in your application's UI.
 :::
 
@@ -820,7 +644,7 @@ The contract needs to know who currently holds the NFT so it can clawback from t
 
 The `current_holder` must also be included in the transaction's `accounts` foreign array on the client side. This is the same resource reference pattern you saw with box references in {{ch:token-vesting}}.
 
-::: {.warning}
+::: {.gotcha #revocation-needs-holder-optin topic="ASAs" title="An inner transfer to a holder who never opted in reverts the whole call"}
 Known limitation: the settlement step sends vesting tokens to `current_holder`. If the NFT was transferred to someone who has not opted into the vesting token, the inner asset transfer will fail and the entire revocation transaction reverts. This means a holder who refuses to opt into the vesting token can effectively block revocation. In production, you would address this by checking the holder's opt-in status before attempting settlement: if they are not opted in, skip the vested token transfer and instead store the unclaimed amount for later retrieval via a separate `withdraw_settled` method. We omit this for clarity, but Exercise 7 asks you to design the solution. A related edge case: revoking while the contract itself still holds the NFT (before delivery) with `claimable > 0` would send the settlement from the contract to itself, stranding those tokens --- one more reason revocation should only happen after checking who the holder is, or before the cliff when nothing has vested.
 :::
 

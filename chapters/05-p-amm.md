@@ -12,255 +12,54 @@ An AMM is a smart contract that holds reserves of two tokens and allows anyone t
 
 By the end of this chapter you will have a working AMM pool contract with creation, bootstrapping, swapping, liquidity provision, liquidity withdrawal, and comprehensive security hardening. Each section builds on the previous one, and new Algorand concepts are introduced only when the AMM requires them.
 
-## Run It First!
+## Run It First
 
-The finished project for this chapter lives in `projects/chapter5/constant-product-amm/`. Before reading the implementation, run the complete workflow once:
+The finished project for this chapter is in
+`projects/chapter5/constant-product-amm/`. Run the complete workflow once before
+reading the implementation: it bootstraps a pool over two test ASAs, seeds it
+with liquidity, executes a swap, adds and removes liquidity at the new ratio,
+and prints every intermediate amount. Before you run it, predict why the two
+asset IDs are sorted, why a swap needs a `min_output`, and why later liquidity
+deposits mint LP tokens from the *current* reserve ratio rather than the
+original one.
 
 ```bash
 cd projects/chapter5/constant-product-amm
 algokit project bootstrap all
 algokit project run build
 algokit localnet start
-```
-
-The finished project keeps the runnable workflow in
-`scripts/run_constant_product_amm.py`. Before running it, predict why the asset
-IDs are sorted, why swaps need a `min_output`, and why later liquidity deposits
-mint LP tokens from the current reserve ratio.
-
-Run the workflow once:
-
-```bash
 poetry run python -m scripts.run_constant_product_amm
-```
-
-Then run the tests:
-
-```bash
 algokit project run test
 ```
 
-Now trace what the workflow just did. These are excerpts from the workflow file,
-not a standalone script; imports, generated-client setup, and repeated account
-funding boilerplate remain in the project.
+{{tbl:amm-run-it-first}} lists the output checkpoints to compare against the
+workflow output.
 
-- **Fund users:** `payment(...)` gives test accounts spendable Algo.
-- **Create ASAs:** `asset_create(...)` creates the pool assets.
-- **Opt in:** `asset_opt_in(...)` lets users receive assets and LP tokens.
-- **Transfer assets:** `asset_transfer(...)` moves pool assets between users and
-  the app.
+Table: Output checkpoints for the constant-product AMM workflow {#tbl:amm-run-it-first}
 
-Asset IDs are sorted before bootstrap so every caller agrees on `asset_a` and
-`asset_b`:
+| Output checkpoint | What to watch for |
+|-------------------|-------------------|
+| Sorted asset IDs | The lower ID always becomes `asset_a`, so every caller agrees on which side is which |
+| LP token ID | The pool created its own ASA during bootstrap and opted into both trading assets |
+| Initial LP minted | The first deposits set the price; there is nothing to price them against yet |
+| Swap output: roughly 98--99 Token B for 100 Token A | The 0.3% fee and the price impact are both visible. Amounts print in base units, so an output near `98,000,000` at 6 decimals is about 98 whole tokens |
+| Second LP minted | A later deposit mints from the post-swap reserve ratio, not the original one |
+| Two withdrawn amounts | Burning LP tokens returns a proportional share of *both* assets |
+| Test suite passes | If pytest reports skipped LocalNet tests, you have verified compilation and static properties only |
 
-```python
-token_a = created_a.asset_id
-token_b = created_b.asset_id
-if token_a > token_b:
-    token_a, token_b = token_b, token_a
-```
+The finished contract also contains the optional TWAP oracle from the end of
+this chapter; the workflow above exercises the core AMM only, so ignore the TWAP
+methods until you reach that section. Without Docker or Podman,
+`algokit project run test-static` still compiles the contract and checks its
+source for the security properties this chapter teaches.
 
-Bootstrap uses a real payment transaction as an ABI argument. That is the same
-grouped-transaction pattern you saw in the vesting chapters:
+Keep the project nearby as you work. Its purpose is not to replace the
+step-by-step build; it is the answer key you can compile, run, and compare
+against whenever a snippet feels abstract. We now rebuild that same workflow in
+the same order: scaffold the project, define pool state, bootstrap the LP token,
+add the first liquidity, execute swaps, add and remove later liquidity, add the
+optional TWAP oracle, and finish with tests.
 
-```python
-factory = amm_client.ConstantProductPoolFactory(
-    algorand,
-    default_sender=admin.address,
-    default_signer=admin.signer,
-)
-pool, create_result = factory.send.create.bare()
-seed_txn = algorand.create_transaction.payment(
-    PaymentParams(
-        sender=admin.address,
-        receiver=pool.app_address,
-        amount=AlgoAmount.from_micro_algo(500_000),
-    )
-)
-bootstrap = pool.send.bootstrap(
-    amm_client.BootstrapArgs(
-        seed_payment=TransactionWithSigner(seed_txn, admin.signer),
-        asset_a=token_a,
-        asset_b=token_b,
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(4_000),
-        asset_references=[token_a, token_b],
-    ),
-)
-lp_token = bootstrap.abi_return
-```
-
-The first liquidity deposit uses two ASA transfers into the pool. The app call
-receives both transactions as signed ABI arguments and mints LP tokens:
-
-```python
-initial_a = 10_000 * MICRO_UNITS
-initial_b = 10_000 * MICRO_UNITS
-deposit_a_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=initial_a,
-    )
-)
-deposit_b_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=admin.address,
-        receiver=pool.app_address,
-        asset_id=token_b,
-        amount=initial_b,
-    )
-)
-initial_lp = pool.send.add_initial_liquidity(
-    amm_client.AddInitialLiquidityArgs(
-        deposit_a=TransactionWithSigner(deposit_a_txn, admin.signer),
-        deposit_b=TransactionWithSigner(deposit_b_txn, admin.signer),
-    ),
-    params=CommonAppCallParams(
-        sender=admin.address,
-        signer=admin.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-```
-
-The swap quote is calculated off-chain and then enforced on-chain with
-`min_output`. The `99 // 100` margin allows this demo to tolerate tiny rounding
-differences while still rejecting bad prices:
-
-```python
-swap_input = 100 * MICRO_UNITS
-input_with_fee = swap_input * 997
-expected_output = (
-    input_with_fee * initial_b
-) // (initial_a * 1000 + input_with_fee)
-swap_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=trader.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=swap_input,
-    )
-)
-swap_output = pool.send.swap(
-    amm_client.SwapArgs(
-        input_txn=TransactionWithSigner(swap_txn, trader.signer),
-        min_output=expected_output * 99 // 100,
-    ),
-    params=CommonAppCallParams(
-        sender=trader.address,
-        signer=trader.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b],
-    ),
-).abi_return
-```
-
-Later deposits and withdrawals repeat the same shape: send the ASA or LP token
-into the pool as a `TransactionWithSigner`, then include the assets the app will
-read or transfer in `asset_references`.
-
-```python
-second_a_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=token_a,
-        amount=1_000 * MICRO_UNITS,
-    )
-)
-second_b_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=token_b,
-        amount=1_000 * MICRO_UNITS,
-    )
-)
-second_lp_minted = pool.send.add_liquidity(
-    amm_client.AddLiquidityArgs(
-        deposit_a=TransactionWithSigner(second_a_txn, second_lp.signer),
-        deposit_b=TransactionWithSigner(second_b_txn, second_lp.signer),
-    ),
-    params=CommonAppCallParams(
-        sender=second_lp.address,
-        signer=second_lp.signer,
-        static_fee=AlgoAmount.from_micro_algo(2_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-
-lp_burn_txn = algorand.create_transaction.asset_transfer(
-    AssetTransferParams(
-        sender=second_lp.address,
-        receiver=pool.app_address,
-        asset_id=lp_token,
-        amount=second_lp_minted // 2,
-    )
-)
-withdrawn = pool.send.remove_liquidity(
-    amm_client.RemoveLiquidityArgs(
-        lp_deposit=TransactionWithSigner(lp_burn_txn, second_lp.signer),
-        min_a=1,
-        min_b=1,
-    ),
-    params=CommonAppCallParams(
-        sender=second_lp.address,
-        signer=second_lp.signer,
-        static_fee=AlgoAmount.from_micro_algo(3_000),
-        asset_references=[token_a, token_b, lp_token],
-    ),
-).abi_return
-```
-
-Watch for these checkpoints:
-
-- **Bootstrap:** LP token ID printed; the pool created its own ASA and opted
-  into both trading assets.
-
-- **Initial liquidity:** initial LP minted; the first deposits set the price
-  and mint LP tokens.
-
-- **Swap:** roughly 98--99 Token B for 100 Token A; fee and price impact are
-  applied. Amounts are printed in base units, so an output near `98,000,000`
-  with 6 decimals means about `98` whole tokens.
-
-- **Second LP deposit:** second LP minted; later deposits mint tokens from the
-  current reserve ratio.
-
-- **Withdrawal:** two withdrawn asset amounts; burning LP tokens returns a
-  proportional share of both assets.
-
-The finished contract also contains the optional TWAP oracle from the end of this chapter. The workflow above exercises the core AMM. Ignore the TWAP methods until you reach that section.
-
-If Docker or Podman is not available, `algokit localnet start` will fail. You
-can still run the static path:
-
-```bash
-cd projects/chapter5/constant-product-amm
-algokit project bootstrap all
-algokit project run build
-algokit project run test-static
-```
-
-Those static tests keep checking the contract source for the security properties
-this chapter teaches.
-
-If pytest reports skipped LocalNet tests, you have checked compilation and static properties only. Start LocalNet later to verify the actual pool workflow.
-
-Use `scripts/run_constant_product_amm.py` as an iteration shortcut. The
-preceding excerpts are the teaching path.
-
-Keep this finished project nearby as you work through the chapter. Its purpose
-is not to replace the step-by-step build; it is the answer key you can compile,
-run, and compare against whenever a snippet in the chapter feels abstract.
-
-Now we will rebuild that same workflow in the same order: scaffold the project, define pool state, bootstrap the LP token, add the first liquidity, execute swaps, add and remove later liquidity, add the optional TWAP oracle, and finish with tests. Each time you complete a section, compare your project with the corresponding checkpoint above.
 
 ## Project Setup
 
@@ -295,6 +94,10 @@ Solving for $\Delta y$ (the output amount):
 $$\Delta y = \frac{\Delta x \times 997 \times y}{x \times 1000 + \Delta x \times 997}$$
 
 The $997/1000$ factor represents a 0.3\% fee --- 0.3\% of every swap's input stays in the pool, gradually increasing $k$ and thus the value of LP tokens. This fee is not distributed separately. It accumulates naturally in the reserves, meaning each LP token becomes redeemable for slightly more underlying assets over time.
+
+::: {.gotcha #uint64-overflow-panics topic="Arithmetic and time" title="UInt64 overflow fails the transaction; it does not wrap"}
+Read the swap formula again with an eye on the numerator: `delta_x * 997 * y`. With reserves in the billions of base units --- entirely ordinary for a six-decimal stablecoin --- that product passes $2^{64}$ long before anything looks large in human terms. The AVM does not wrap on overflow, it panics, so the failure mode is a swap that simply stops working once the pool gets deep enough, in production, having passed every test written against a small pool. Any multiplication whose operands are both user-scaled needs `op.mulw`, `op.divmodw`, or `BigUInt`. Test the arithmetic at the top of the range, not the middle.
+:::
 
 **Worked example.** Alice has 100 USDC and wants to swap for ALGO from a pool with reserves of 10,000 USDC ($x$) and 10,000 ALGO ($y$). Before the swap, $k = 10{,}000 \times 10{,}000 = 100{,}000{,}000$ and the spot price is $10{,}000 / 10{,}000 = 1.0$ ALGO per USDC. Plugging into the formula:
 
@@ -635,7 +438,7 @@ The sender-binding checks are not redundant. The ABI router verifies that `depos
 What relationship does the typed transaction argument prove, and what relationship does it *not* prove?
 :::
 
-::: {.warning}
+::: {.gotcha #lp-token-optin-first topic="ASAs" title="The caller must opt into the LP token before the pool can send it"}
 The caller must have already opted into the LP token before calling this method. If they have not, the inner `AssetTransfer` sending LP tokens will fail, and the entire atomic group rolls back --- the pool receives no tokens and no state changes. This is the "lazy opt-in" pattern: the contract does not check the opt-in explicitly; the protocol enforces it automatically. Client code must perform a zero-amount self-transfer of the LP token before calling `add_initial_liquidity`.
 :::
 
@@ -1199,7 +1002,7 @@ The `readonly=True` flag means this method can be called via `simulate` without 
 
 The method returns a `UInt64`, which means the TWAP result must fit in 64 bits. This is a deliberate design choice --- `UInt64` is easier for callers to work with than a variable-length `BigUInt` --- but it requires a bounds check.
 
-::: {.warning}
+::: {.gotcha #btoi-needs-eight-bytes topic="Arithmetic and time" title="op.btoi fails on a BigUInt wider than eight bytes"}
 The `op.btoi` call accepts a byte array of 0--8 bytes and interprets it as a big-endian unsigned integer. A `BigUInt` that exceeds $2^{64} - 1$ would produce more than 8 bytes, causing `btoi` to fail at runtime. The `assert twap < BigUInt(2**64)` guard ensures the TWAP result fits in 64-bit range before the conversion. With `TWAP_PRECISION = 10^9` and typical asset prices, this bound is safe for years of accumulation. If you use a higher precision scale factor or expect extreme price ratios, return a `BigUInt` instead of converting to `UInt64`.
 :::
 
@@ -1236,7 +1039,7 @@ def get_price_from_amm(
     return price
 ```
 
-::: {.warning}
+::: {.gotcha #spot-price-is-manipulable topic="Pricing math" title="Never price against spot: a single atomic group can move it"}
 The preceding spot price example is shown for educational purposes. In production, always use the TWAP. External contracts can read the cumulative price accumulators from the pool's global state, store periodic snapshots, and compute the TWAP over their desired window.
 :::
 
