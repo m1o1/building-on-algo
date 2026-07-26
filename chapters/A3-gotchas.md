@@ -141,6 +141,18 @@ Atomicity is about the *commit*, not about isolation. The transactions in a grou
 
 ## Authorization
 
+### The application address has no private key and can never be a sender
+
+`Global.current_application_address` is the account derived from the application ID. It holds the contract's Algo and assets, it is the sender of every inner transaction the contract emits, and *no private key exists for it*. It can therefore never be `Txn.sender` on a top-level call, so a guard of the form `assert Txn.sender == Global.current_application_address` is not merely wrong but unsatisfiable --- and if it guards `DeleteApplication`, the application is undeletable forever. `Global.creator_address` is the account that created the application, is fixed at creation, and is a real signer. Use the creator for authorization, and the application address for balances and inner transactions.
+
+*From {{ch:mental-model}}.*
+
+### There is no private method: every abimethod is a public entry point
+
+Nothing about `@arc4.abimethod` makes a method internal, and nothing about naming it `_helper` or omitting it from your client hides it. The router dispatches on a selector computed from the method signature, and anybody who can read your app spec --- or hash a signature they guessed --- can call it. A method is protected only by the assertions inside it. Before you ship, list every `abimethod` and name the check that stops the wrong caller; if a method has no such check, either it is genuinely public or you have a hole.
+
+*From {{ch:mental-model}}.*
+
 ### Assert that the funding transaction's sender is the account being credited
 
 The pattern below reads a payment from the group and credits `Txn.sender`. Those are two different accounts unless you say they are the same one. Left unasserted, anyone can build a group that pairs *somebody else's* pending payment with their own app call and take the position it paid for --- the payment is valid, the app call is valid, and the contract cheerfully credits the wrong party. Whenever a grouped transfer funds something that is booked to `Txn.sender`, assert `payment_txn.sender == Txn.sender`. If you genuinely want third-party sponsorship, model the beneficiary as an explicit method argument rather than leaving it implied.
@@ -148,6 +160,12 @@ The pattern below reads a payment from the group and credits `Txn.sender`. Those
 *From {{ch:patterns}}.*
 
 ## Resource references, MBR, and budget
+
+### An ABI return value is a log entry, and the log budget is smaller than the argument budget
+
+The AVM has no return channel. `return` from an `abimethod` compiles to a `log` of the four-byte prefix `0x151f7c75` followed by the ARC-4 encoding of the value. An application call may log **1,024 bytes** in total across at most 32 `log` calls, while it may carry **2,048 bytes** of arguments --- so a method that echoes or expands its input can be made to fail by a caller who does nothing more unusual than sending a large argument. Bound anything variable-length that you return, and bound it well below the ceiling so the number means something to the caller.
+
+*From {{ch:mental-model}}.*
 
 ### Opting a user in raises the user's minimum balance, not the application's
 
@@ -292,6 +310,12 @@ and prevents intermittent test failures.
 *From {{ch:token-vesting}}.*
 
 ## Compilation, tooling, and shipping
+
+### An assert with no message produces a program counter and nothing else
+
+Assertion messages do not exist on chain. The AVM aborts at a program counter; the compiler stores your message in the ARC-56 app spec under `sourceInfo.approval.sourceInfo[]`, keyed by that counter, and the client SDK maps the number back to the string. An `assert` written without a message contributes no entry at all, so there is nothing to map and your caller sees `assert failed pc=78`. This bites hardest on contracts other teams integrate against, because they may not have your source --- and it bites in production, where you are reading a failed transaction hours after the fact. Give every assertion a message, and ship the app spec alongside the contract.
+
+*From {{ch:mental-model}}.*
 
 ### The minimum fee is a consensus parameter, not a constant
 

@@ -14,7 +14,7 @@ flowchart TB
     subgraph writes[" What it can produce "]
         direction LR
         W["Staged state writes"]
-        I["Inner transactions<br/>up to 16 per call"]
+        I["Inner transactions<br/>up to 256, pooled per group"]
     end
 
     D{"approve?"}

@@ -25,21 +25,98 @@
 #   test     unit only. Test file, relative to examples/. Lives on disk and is
 #            not printed; only its load-bearing assertion is quoted in prose.
 #
-# Note on counts: Chapter 3 numbers twenty examples but registers twenty-four
-# entries, and the four extra entries have three different reasons.
+# Note on counts: a chapter always registers more entries than it numbers.
+# Chapter 1 numbers nine and registers eleven; Chapter 3 numbers twenty and
+# registers twenty-four. The extra entries have three different reasons.
 #   1. Slot 5 of the micro-example anatomy (§2.2) is a *wrong variant* — printed
 #      beside its example and sharing its number, but a separate file so CI
-#      compiles it. `local-balance-wrong` is Chapter 3's. Wrong variants are
-#      always `extended`, so the Core budget cannot be evaded by splitting an
-#      example in two.
-#   2. `registry-fixed` is compiled but never printed; §2.4 presents a fixed
-#      Mini-Build as a diff, not as a re-listing.
+#      compiles it. `reference-types-wrong` is Chapter 1's, `local-balance-wrong`
+#      is Chapter 3's. Wrong variants are always `extended`, so the Core budget
+#      cannot be evaded by splitting an example in two.
+#   2. `greeter-fixed` and `registry-fixed` are compiled but never printed;
+#      §2.4 presents a fixed Mini-Build as a diff, not as a re-listing.
 #   3. `unsafe-decoding` and `unsafe-decoding-wrong` are parked — see the note
 #      above them.
 # An entry that is registered but not placed is legal: check 3's orphan-number
 # rule is scoped to tbl: and fig: only.
 
 examples:
+  # -- Chapter 1, the Mini-Build ---------------------------------------------
+  # Placed before the clusters, because §2.4 shows the broken artifact first.
+  - slug: greeter-broken
+    path: ch01_mental_model/greeter_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 1
+
+  # greeter-fixed is registered so CI compiles it, and never transcluded: the
+  # fixed Mini-Build is presented as a diff. See the note on registry-fixed.
+  - slug: greeter-fixed
+    path: ch01_mental_model/greeter_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 1
+
+  # -- Chapter 1, cluster 1: A Program That Only Says No ---------------------
+  - slug: smallest-contract
+    path: ch01_mental_model/smallest_contract.py
+    tier: core
+    mode: compile
+    chapter: 1
+
+  - slug: assert-message
+    path: ch01_mental_model/assert_message.py
+    tier: core
+    mode: compile
+    chapter: 1
+
+  - slug: reference-types
+    path: ch01_mental_model/reference_types.py
+    tier: core
+    mode: compile
+    chapter: 1
+
+  - slug: reference-types-wrong
+    path: ch01_mental_model/reference_types_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 1
+
+  - slug: without-arc4contract
+    path: ch01_mental_model/without_arc4contract.py
+    tier: core
+    mode: compile
+    chapter: 1
+
+  # -- Chapter 1, cluster 2: From a Python File to a Call You Can Make -------
+  # All four are client-side programs, so all four are `script`: they are
+  # byte-compiled rather than fed to puyapy, because nothing here runs on the
+  # AVM. Three of them import a generated client that does not exist in this
+  # repository, which is exactly why `script` stops at byte-compilation.
+  - slug: compile-output
+    path: ch01_mental_model/compile_output.py
+    tier: core
+    mode: script
+    chapter: 1
+
+  - slug: algorand-client
+    path: ch01_mental_model/algorand_client.py
+    tier: core
+    mode: script
+    chapter: 1
+
+  - slug: typed-client
+    path: ch01_mental_model/typed_client.py
+    tier: core
+    mode: script
+    chapter: 1
+
+  - slug: typed-call
+    path: ch01_mental_model/typed_call.py
+    tier: core
+    mode: script
+    chapter: 1
+
   # -- Chapter 3, cluster 1: The Global Slab ---------------------------------
   - slug: state-two-tiers
     path: ch03_state/state_two_tiers.py

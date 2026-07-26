@@ -54,7 +54,7 @@ follow in a fresh project.
 
 ## Project Setup
 
-If you scaffolded `my-first-contract` in {{ch:mental-model}}, use that project. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
+If you scaffolded a project while working through {{ch:setup}}, you can reuse it. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
 
 ```bash
 algokit init -t python --name token-vesting

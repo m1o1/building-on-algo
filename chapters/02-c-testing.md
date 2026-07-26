@@ -6,7 +6,7 @@ On a blockchain, deployed code is immutable. A bug in a web application means a 
 
 Testing is not optional. It is the most important skill in this book after the mental model itself.
 
-In {{ch:mental-model}} you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You deployed a HelloAlgorand contract and called it from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
+In {{ch:mental-model}} you built the mental model --- how accounts work, how transactions execute atomically, how contracts validate rather than run continuously. You compiled a greeter, generated a typed client for it, and called a method from a script. That was the development loop: edit, compile, deploy, interact. Now we add the critical fourth leg: **test**.
 
 This chapter follows a deliberate arc. First, we build a simplified vesting contract --- small enough to read in one sitting but complex enough to need real tests. Then we write comprehensive tests against it: *positive tests* that verify correct behavior, *negative tests* that verify security checks, and simulate-based tests that construct attacks without submitting them. Most unusually, we will also write tests that deliberately fail --- those failing tests reveal exactly what the simplified contract cannot handle, and those gaps become the specification for the production contract in {{ch:token-vesting}}.
 
