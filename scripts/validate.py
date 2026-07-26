@@ -976,16 +976,28 @@ def check_structure(strict: bool = False) -> None:
                             f"use {{{{include-ex:{slug}}}}} instead")
                 )
 
-    # -- check 10: tier overrun -------------------------------------------
+    # -- check 10: tier overrun, and check 7 on example sources ------------
+    # Check 7 above scans code *fences* in chapters, which means it never sees
+    # examples/**, even though every one of those files is transcluded into the
+    # book verbatim and is printed under the same measure. Reuse the read.
     for e in examples:
         budget = TIER_LINE_BUDGET[e["tier"]]
         source = EXAMPLES_ROOT / e["path"]
-        printed = len(source.read_text(encoding="utf-8").strip("\n").split("\n"))
-        if printed > budget:
+        text = source.read_text(encoding="utf-8")
+        lines = text.strip("\n").split("\n")
+        if len(lines) > budget:
             problems.append(
                 Problem(10, "error", f"examples/{e['path']}",
-                        f"{printed} printed lines exceeds the {e['tier']} budget of {budget}")
+                        f"{len(lines)} printed lines exceeds the {e['tier']} "
+                        f"budget of {budget}")
             )
+        for offset, code_line in enumerate(lines, start=1):
+            if len(code_line) > MAX_CODE_LINE:
+                problems.append(
+                    Problem(7, "error", f"examples/{e['path']}:{offset}",
+                            f"code line is {len(code_line)} chars "
+                            f"(limit {MAX_CODE_LINE}); wrap it")
+                )
 
     # -- check 13: figures are drawn, rendered, and placed ------------------
     # The rendered SVG and PDF are committed, so a contributor without

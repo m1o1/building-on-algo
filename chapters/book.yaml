@@ -47,6 +47,10 @@ parts:
       # not from the filenames, which is exactly what the manifest is for.
       # Phase 5 renumbers the files once the full concept sequence lands.
       - {file: 03-c-state.md,           slug: state,           kind: concept}
+      # Phase 5a, the third on-ramp chapter. State that grows without a
+      # ceiling, which is the question 03-c-state.md forward-references twice
+      # and deliberately does not answer.
+      - {file: 04-c-boxes.md,           slug: boxes,           kind: concept}
       - {file: 03-p-token-vesting.md,   slug: token-vesting,   kind: project,
          code: projects/chapter3/token-vesting}
       - {file: 04-p-nfts.md,            slug: nfts,            kind: project,

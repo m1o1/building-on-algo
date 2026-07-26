@@ -31,6 +31,12 @@ Any global number that a close-out handler decrements --- member counts, active-
 
 *From {{ch:state}}.*
 
+### Returning False from the clear state program does not keep the account attached
+
+The clear state program's return value decides only whether its own logic is credited, not whether the account detaches. The local slab is deleted and the account's minimum balance released either way --- and the same is true if the program errors or runs out of budget, which is the whole point of the guarantee: a user must never be able to be held to an application by a contract that refuses to let go. Anything you were planning to enforce on the way out belongs in `CloseOut`, which a contract *can* reject, and anything a user could lose by skipping `CloseOut` must not have been stored in their slab in the first place.
+
+*From {{ch:state}}.*
+
 ### The state schema is fixed at creation and can never be widened
 
 The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch --- a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
@@ -44,6 +50,18 @@ Users can delete their local state at any time via ClearState, and the protocol 
 *From {{ch:token-vesting}}.*
 
 ## Box storage
+
+### Two BoxMaps with variable-length keys can name the same box
+
+A `BoxMap` box name is nothing but `key_prefix + encode(key)`, so a map with prefix `b"a"` and key `b"bc"` names the same box as a map with prefix `b"ab"` and key `b"c"`. The second write silently overwrites the first and no tool warns you, because concatenation cannot tell where you meant the seam to be. Fixed-width keys --- `Account`, `UInt64`, a fixed-size struct, a `FixedArray` --- are immune, since every name in the family is the same length. With `Bytes`, `String`, or dynamic array keys, give every map a prefix of the same length or include a separator that cannot occur in a key.
+
+*From {{ch:boxes}}.*
+
+### Box.splice never changes a box's size
+
+`splice(start, length, value)` looks like a list insertion and is not one: after removing and inserting, it forces the result back to the box's original size. Inserting eight bytes pushes eight bytes off the end; removing eight appends eight zero bytes. `resize` is the only operation that changes a box's size, and it is also the only one that changes the minimum balance --- so if you want an insertion that grows the box, `resize` first and `splice` second.
+
+*From {{ch:boxes}}.*
 
 ### A BoxMap key prefix counts toward the box name length
 
@@ -184,6 +202,24 @@ Eight `arc4.Bool` values in a row occupy one byte. Put any non-bool field betwee
 An application opt-in costs the *opting account* 100,000 microAlgos plus 28,500 per declared local uint and 50,000 per declared local byte slot. Declaring a generous local schema you never fill is therefore a tax you levy on every one of your users, forever, and the failure mode when they cannot pay it is a balance error that never mentions your application.
 
 *From {{ch:state}}.*
+
+### Writing a box can make a contract that worked yesterday stop working today
+
+Creating or growing a box raises the *application account's* minimum balance by 400 microAlgos per byte, plus 2,500 for each new box --- and nothing about that shows up in the source, in a compiler warning, or in a test. The contract keeps working until the account's balance meets a floor that has been rising underneath it, and then every call that writes a box fails at once, with an error about an account rather than about a box: `account <address> balance <n> below min <m> (<k> assets)`. That is not a `LogicError` and it will not be caught by anything asserting on your messages, because the check happens after your program has already run and returned success --- there is no assertion of yours left to fire. A contract whose storage grows with usage needs either a funding plan that grows with it or a pre-flight check like {{ex:app-mbr-floor}} that refuses in a sentence a caller can act on. Deleting or shrinking a box gives the whole charge back, which is the only thing in this chapter that makes the floor go down.
+
+*From {{ch:boxes}}.*
+
+### A box is charged at its full size, however few bytes you touch
+
+Each box reference grants 2,048 bytes of I/O budget, and that allowance is checked as **two separate budgets that are never added together**. The *read* budget is charged before your program runs, as the sum of the full current sizes of every referenced box that exists --- even one you never intended to read. The *write* budget is charged as the full size of each box written, once per box, with `box_resize` charging the full **new** size. Neither charges the bytes you touched: `extract`, `replace`, and `.length` all cost the same as `.value`, because the charge happened before and around them. Both budgets pool across the whole transaction group, and references need not be distinct --- duplicate and empty references each grant another 2,048 bytes, which is the fix. algokit-utils pads up to eight references for you by default, so a budget failure that padding can cover will not appear until the call is assembled by something that does not pad: another contract, a hand-built transaction, a different SDK.
+
+*From {{ch:boxes}}.*
+
+### A loop bounded by a runtime value has a ceiling you did not choose
+
+`while index < count` over box entries compiles cleanly, because `count` is a runtime value and the compiler has no opinion about it. What stops it is the box-reference cap or the 700-unit opcode budget, and in practice the reference cap arrives first, because the cap --- eight on the legacy foreign arrays, sixteen on the v41 `Access` list --- is a much lower ceiling than 700 units of arithmetic. Both arrive as a failed transaction in production rather than as an error at build time. Marking the method `readonly=True` buys you a delay and not a reprieve: the tooling simulates it with a 320,000-unit opcode budget, so the loop that dies on chain at entry 30 may run to entry 8,000 in your tests and then die anyway. Bound the loop by a constant the contract chose and let the caller page.
+
+*From {{ch:boxes}}.*
 
 ### Opcode budget and fees pool over different transactions
 
@@ -365,7 +401,7 @@ Returning `Bytes` from an ABI method gives the method a `byte[]` return type, an
 
 *From {{ch:setup}}.*
 
-### `algokit compile py` is not `algokit project run build`
+### Compiling a contract is not the same command as building a project
 
 `algokit compile py` and `algokit project run build` are not interchangeable. `compile py` compiles a standalone file and drops its artifacts wherever you point it; `project run build` runs the whole pipeline defined in `.algokit.toml`, which also places artifacts in the location the template's scripts expect and generates the typed client. Use `compile py` and your deploy script will fail to find the app spec at the path every example in this book assumes.
 

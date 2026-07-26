@@ -147,7 +147,7 @@ algokit project run build
 
 This should produce files in `smart_contracts/artifacts/hello_world/`: a `.approval.teal` file, a `.clear.teal` file, an `.arc56.json` application specification, and a generated typed client (`_client.py`). The artifacts are placed in a subdirectory matching the contract directory name. If compilation succeeds without errors, your environment is ready.
 
-::: {.gotcha #compile-py-vs-project-build topic="Compilation, tooling, and shipping" title="`algokit compile py` is not `algokit project run build`"}
+::: {.gotcha #compile-py-vs-project-build topic="Compilation, tooling, and shipping" title="Compiling a contract is not the same command as building a project"}
 `algokit compile py` and `algokit project run build` are not interchangeable. `compile py` compiles a standalone file and drops its artifacts wherever you point it; `project run build` runs the whole pipeline defined in `.algokit.toml`, which also places artifacts in the location the template's scripts expect and generates the typed client. Use `compile py` and your deploy script will fail to find the app spec at the path every example in this book assumes.
 :::
 

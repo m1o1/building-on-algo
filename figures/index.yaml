@@ -111,6 +111,12 @@ figures:
       builds on it but stands alone.
     source: src/book-map.mmd
 
+  - slug: mbr-rising-floor
+    caption: >-
+      A contract that works today and fails tomorrow with no change to its code.
+      The contract stops working on the record where the two lines cross.
+    source: src/mbr-rising-floor.svg
+
   - slug: packed-box-layout
     caption: >-
       The same twenty-four bytes stored two ways, priced both times. Splitting a

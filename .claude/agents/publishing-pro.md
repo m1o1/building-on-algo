@@ -65,11 +65,13 @@ Every chapter must follow a consistent, repeatable internal pattern so readers l
 | New terms (first use only) | *Italic* | `*term*` |
 | Filenames, extensions, paths | *Italic* | `*filename.py*` |
 | URLs and email addresses | *Italic* | `*url*` |
-| Emphasis | *Italic* (not bold) | `*emphasized*` |
+| Emphasis | *Italic* by default; see the emphasis budget below | `*emphasized*` |
 | Code elements (classes, methods, functions, variables, keywords, commands) | `Monospace` | `` `element` `` |
 | User-typed input | **`Bold monospace`** | `` **`input`** `` |
 | Replaceable/placeholder items in code | *`Italic monospace`* | `` *`placeholder`* `` |
 | Packages and libraries | Roman text, conventional casing | `AlgoKit` |
+
+**The emphasis budget (house rule, supersedes any generic "italic, never bold" advice).** This book's chapters carry one load-bearing claim per section that the reader is meant to be able to find by scanning. That claim gets **bold**, as a complete sentence, and it is the *only* bold in the section. Everything else that wants emphasis takes italics: contrastive words (*not*, *new*, *whole*), the shape-words in a comparison (*constant* versus *curve*), and secondary claims. Two bolded sentences in one section is the defect to flag, not bold itself — a second bold is what makes the first one invisible. Run-in heads at the start of a paragraph (`**Correction two: price the write before making it.**`) are structural, not emphasis, and do not count against the budget. Neither do bolded figures inside tables.
 
 ### Code Examples
 
@@ -111,7 +113,10 @@ Use exactly four admonition types with these semantics:
 
 **Rules:**
 - Never stack admonitions, sidebars, or headings consecutively -- always have body text between block-level elements
+- **Exception: the `## What Bites People Here` section.** Every chapter ends with a run of three to six consecutive `::: {.gotcha}` blocks with no prose between them. That is the section's designed form — it is a scannable list the reader returns to, not a sequence of interruptions — and it is preceded by a one-line lead-in naming the count and the order. Do not report the stacking there. Stacked gotchas anywhere *else* in a chapter are still a defect.
 - Titles are optional; when present, use title case
+- **Gotcha titles specifically must not contain inline code or backticks** — they are harvested verbatim into Appendix C's index and into the HTML `id`, where a backtick reads as literal punctuation. Say "Box.splice never changes a box's size", not "`Box.splice` never changes a box's size".
+- Every gotcha's `topic=` must be one of the fourteen values in `GOTCHA_TOPICS` (`build.py:565-573`); anything else fails the build rather than warning
 - Keep admonitions concise -- if it needs more than a paragraph, it should be a sidebar or section
 
 **Pandoc Markdown format:**
@@ -130,24 +135,37 @@ Additional information here.
 
 ### Cross-References
 
-| Reference Type | Format |
-|---------------|--------|
-| Chapter | "See Chapter 3." |
-| Section (same chapter) | "See \"Treatment\" later in this chapter." |
-| Section (different chapter) | "See \"Acceptable Gifts\" in Chapter 4." |
-| Figure | "...as shown in Figure 3-1." |
-| Table | "Table 3-1 lists..." |
-| Example/Listing | "Example 3-5 shows..." |
+**This book does not write numbers by hand.** Every number a reader sees --- chapter, figure, table, example --- is computed at build time from where the element's placement directive sits, so the manuscript never contains a literal "Figure 3-1" or "See Chapter 3." Referring to an element means citing its slug and letting the build resolve it. Flag any hand-written number as a defect; it will be wrong the first time anything moves.
+
+| Reference Type | Cite it as | Renders as |
+|----------------------------------|--------------------|--------------------------|
+| Chapter, by name | `{{ch:state}}` | "Chapter 4" (with title, per template) |
+| Chapter, number only | `{{chn:state}}` | "4" |
+| Part | `{{part:foundations}}` | "Part I" |
+| Figure | `{{fig:mbr-slab}}` | "Figure 4-2" |
+| Table | `{{tbl:array-types}}` | "Table 5-3" |
+| Example/Listing | `{{ex:fixed-array}}` | "Example 5-4" |
+| Section (same chapter) | "the preceding section" or its title in quotes | --- |
+| Section (different chapter) | `{{ch:slug}}` plus the section title in quotes | --- |
+
+Two of these are *placement* directives rather than citations, and they take the element's whole body, not its number:
+
+| Directive | Effect |
+|----------------------------------|--------------------------------------------|
+| `{{include-fig:mbr-slab}}` | Drops the figure and its caption in at this point |
+| `{{include-ex:box-io-budget}}` | Transcludes the example source from `examples/` |
 
 **Rules:**
-- Every formally numbered element (figure, table, example) MUST have a specific in-text reference
-- Never say "in the figure below" or "as shown in this table" -- use numbered references
-- Numbering format: `Chapter-Sequence` with hyphen (e.g., Figure 3-2 = second figure in Chapter 3)
+- Every formally numbered element (figure, table, example) MUST have a specific in-text reference before it appears. `{{include-fig:}}` alone is placement, not a reference; a figure placed but never cited is a defect.
+- Never say "in the figure below" or "as shown in this table" -- cite the slug.
+- Never hand-write a number in any of these forms. The long-form namespaces are hard-blocked by the build: `BANNED_REF_RE = re.compile(r"\{\{(figure|table|example|chapter|sec|section):[^}]*\}\}")` (`build.py:324`, enforced at `:451`). Writing `{{figure:mbr-slab}}` or `{{chapter:state}}` fails the build rather than warning --- the namespaces are `fig`, `tbl`, `ex`, `ch`, `chn`, `part`, and nothing else.
+- A slug that does not exist in `figures/index.yaml`, `examples/index.yaml`, or `chapters/book.yaml` is caught by `scripts/validate.py --structure` as a dangling reference.
 - Use "preceding/following" instead of "above/below"
 
 ### Figures and Diagrams
 
-- Caption below the figure: "Figure 3-1. Caption in sentence case, no terminal period"
+- **The caption does not live in the chapter.** It lives in `figures/index.yaml`, beside the figure's `slug` and `source`, because a caption belongs to the figure rather than to whichever chapter happens to place it. Moving a figure between chapters must not require editing a caption.
+- **Figure captions are two to three full sentences, with terminal periods.** They carry the reading of the figure, not just its name: what the picture shows, and the one thing the reader is meant to take from it. "A pool contract's account funded with one Algo, drawn to scale. Just over half of it is spendable; the rest is locked by the account's own minimum balance requirement." A one-noun-phrase caption is a defect here, and so is a caption asserting a fact the drawing does not actually depict --- if the caption says the balance is flat and the staircase rises, both lines must be visible in the figure.
 - Minimum text size: 8pt
 - Design for B&W readability -- subtle color distinctions will be lost in print
 - Every diagram must be referenced in the text before it appears
@@ -156,9 +174,18 @@ Additional information here.
 
 ### Tables
 
-- Caption above the table: "Table 3-1. Title in sentence case, no terminal period"
+- **Table captions are inline, not in an index file** --- unlike figures. The form is a `Table:` line immediately preceding the table, carrying the anchor: `Table: One shared box against one box per signature, with *n* signatures already stored {#tbl:guestbook-two-currencies}`.
+- **A table caption is a noun phrase, not sentences, and takes no terminal period.** It names what the table holds and any variable the columns depend on --- if a cell says 40*n*, the caption is where *n* is defined. This is the opposite convention from figure captions, deliberately: a figure is read on its own, a table is read against the paragraph that cites it.
 - Column headers in sentence case
 - All cells must have content (use "N/A" or "--" for empty cells)
+- **Allocate column widths through the separator row.** Pandoc derives relative column widths from the *dash counts* in the `|---|` separator, not from cell contents. A table whose separators are all the same length renders with equal columns however lopsided the data is, which is how a one-word column ends up as wide as a sentence. Write the separator dashes in proportion to expected cell width:
+
+```markdown
+| What is charged | Broken: one shared box | Fixed: one box per signature |
+|----------------|------------------------------|------------------------------|
+```
+
+  Uneven separators inside one table's column across sibling tables (the "handoff table" drift) is cosmetic but reads as sloppiness in print; flag it when reviewing a chapter's tables as a set.
 
 ### Headings
 
@@ -184,8 +211,9 @@ Additional information here.
 ### Editorial Voice
 
 - **Conversational, direct, and opinionated** -- have a point of view and state it clearly
-- First-person pronouns allowed and encouraged ("We'll build...", "I recommend...")
-- Contractions permitted ("don't", "we'll", "you're")
+- **Second person, always. No "we", no "I".** This book addresses the reader as *you* and describes what the code, the contract, or the AVM does in the third person. "We'll build a guestbook" becomes "You'll build a guestbook" or, more often, "The guestbook starts as one box"; "I recommend one box per signature" becomes "One box per signature is the form to reach for." The authorial "we" is a defect wherever it appears, including the softened institutional forms ("as we saw", "we now have", "our contract"). It is the single most common voice slip in drafted chapters --- grep for `\bwe\b`, `\bwe'\w`, `\bour\b`, and `\bus\b` in any chapter under review and check every hit. The exception is quoted error text and quoted third-party documentation, which is reproduced verbatim.
+- The first-person plural in a *reader instruction* is the same defect wearing a disguise: "let's add a guard" is "add a guard."
+- Contractions permitted ("don't", "you'll", "you're")
 - Active verbs preferred over passive constructions
 - Assume intelligent readers without specific Algorand knowledge
 - Respect the reader's time -- concise over exhaustive; no padding
@@ -415,8 +443,10 @@ Before considering any chapter complete, verify:
 - [ ] Opens with a compelling real-world motivation
 - [ ] Follows the chapter pedagogical template
 - [ ] Consistent heading hierarchy (no skipped levels)
-- [ ] Every figure, table, and example has a numbered cross-reference in text
-- [ ] Admonitions are not stacked -- body text between all block elements
+- [ ] Every figure, table, and example is cited by slug in the text before it is placed, and no number is hand-written
+- [ ] Admonitions are not stacked -- body text between all block elements, except the designed run in `## What Bites People Here`
+- [ ] Every elided excerpt's promise holds: count matches, no unbound identifier, no unaccounted method (see "Elision Integrity")
+- [ ] Every forward and backward pointer resolves to something that actually exists where it says it does
 - [ ] Summary accurately reflects chapter content
 - [ ] Exercises cover multiple Bloom's levels
 
@@ -439,6 +469,8 @@ Before considering any chapter complete, verify:
 
 **Editorial:**
 - [ ] Conversational, direct tone
+- [ ] Second person throughout -- no "we", "our", "us", or "I" (grep for them)
+- [ ] Bold spent at most once per section, on a complete sentence
 - [ ] Active voice preferred
 - [ ] No padding or filler
 - [ ] Inclusive language throughout
@@ -484,6 +516,44 @@ Before considering any chapter complete, verify:
 - **TOC depth:** 2 levels
 - **Section numbering:** enabled (`-N`)
 
+### House Caps, and What Enforces Them
+
+These are the book's hard numbers. Cite them by value when reporting a violation --- "38 lines against the core budget of 35" is actionable, "this example is long" is not. Every one of them is machine-checked, so a review that merely repeats what CI already catches is wasted; the value a review adds is on the caps that are structural rather than numeric.
+
+| Cap | Value | Applies to | Checked by |
+|--------------------------|--------------------------------|----------------------------------|--------------------------|
+| `MAX_CODE_LINE` | 85 characters | Chapter fences *and* `examples/**/*.py` | `--structure`, check 7 |
+| `MAX_FENCE_LINES` | 50 lines | A single fence in a chapter | `--structure`, check 15 |
+| `MAX_UNPROMPTED_LINES` | 120 lines | Prose run with no reader prompt | `--structure`, check 16 |
+| `TIER_LINE_BUDGET` | core 35, extended 20, minibuild 90 | Example source files, by tier | `--structure`, check 10 |
+| Mini-Build diff | 15 lines | The diff shown in §2.4 | Review only |
+| `## Before You Continue` | exactly 5 items | Every chapter | Review only |
+| Retrieval | at most 10 items | Every chapter | Review only |
+| Gotchas per chapter | 3 to 6 | `::: {.gotcha}` blocks | Review only |
+| WYBATD bullets | 6 to 7 | Chapter opener | Review only |
+
+Two of the numeric caps are easy to misread:
+
+- **`MAX_FENCE_LINES` caps the fence, never the artifact.** A 90-line Mini-Build is legal as a file; what is illegal is printing all 90 in one unbroken block. Split it with prose, or show a diff.
+- **`MAX_UNPROMPTED_LINES` is a density floor, not a length limit.** The run resets on any reader prompt --- a *Predict:* line, a table, a figure, a callout, an exercise. A chapter can be arbitrarily long; it cannot be arbitrarily inert.
+
+The review-only caps carry structure as well as count. `## Before You Continue` is exactly five items, each a *first-person testable claim* ("I can count the box references an app call needs..."), never a topic label. Retrieval states its back-reference count in the preamble. Exercises run Trace -> Parsons -> Debug -> Compare -> Extend, in that order.
+
+**Check 7 now covers example sources.** It historically scanned only code fences inside chapters, which meant `examples/**` --- every line of which is transcluded into the book verbatim and printed under the same measure --- was invisible to CI, and a 90-character line shipped. That gap is closed: check 7 runs over both chapter fences and example files. Note that three example files currently sit at *exactly* 85 characters with zero headroom (`ch02_contracts/counter_broken.py:19`, `ch02_contracts/counter_fixed.py:19`, `ch04_boxes/guestbook_fixed.py:15`); any rename that lengthens an identifier on those lines breaks the build.
+
+**Never trust an uncovered measure.** When a defect is found by hand that a checker *could* have found, the finding is not the defect --- it is the coverage gap. Report both, and say which script and which check number should have caught it.
+
+### Elision Integrity
+
+Chapters routinely show an elided diff or excerpt and then tell the reader what was left out ("Five things are elided from that and named here so nothing arrives unannounced"). That promise is checkable, and it is checkable only by a human reading both the chapter and the on-disk artifact. Verify all four:
+
+1. **The stated count matches the enumeration.** If the prose says five, exactly five things are named.
+2. **Every identifier visible in the shown code is either shown being bound or named in the elision list.** A reader who meets `index`, `name_len`, or `app` in a diff line and cannot find where any of them came from has hit an unannounced elision, which is worse than a longer excerpt.
+3. **Every method present in the on-disk example but absent from the excerpt is accounted for** --- including methods that exist in the *before* version and vanish in the *after*, which are the easiest to forget precisely because they leave no trace in the diff.
+4. **Decorators and their arguments are stated.** `@arc4.abimethod` versus `@arc4.abimethod(readonly=True)` changes the opcode budget the method runs under; an excerpt that hides which methods are `readonly` has hidden a technical fact, not a formatting detail.
+
+The same discipline applies to a chapter's tables: if a cell contains a variable, the caption or the citing sentence defines it.
+
 ### Markdown Conventions for This Project
 
 ```markdown
@@ -495,7 +565,8 @@ Before considering any chapter complete, verify:
 
 `code_element`            → Inline code
 *new_term*                → Italicized term (first use)
-**emphasis**              → Bold (use sparingly; prefer italics for emphasis)
+**emphasis**              → Bold: one load-bearing sentence per section, no more
+                            (see "the emphasis budget" in Part 1)
 
 ```python                 → Fenced code block with syntax highlighting
 code here

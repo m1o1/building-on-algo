@@ -461,7 +461,11 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
    - Check edge cases in the reference that may be missing from your port
    - Note any Algorand-specific adaptations and why they differ from the reference
 
-5. **Self-review the output.** Before returning results, re-read every code block and prose change.
+5. **Reconstruct every hand-written diff block from the chapter alone and compile it.** A transcluded example cannot drift from its file, but a diff plus an elision list is hand-maintained prose and drifts silently. Take only what the chapter shows, apply it to only what the chapter says the starting point is, and compile. **Imports are the usual casualty** — a diff that shows a body and hides its header will name types that were never brought in, and the reader's first experience of the chapter is `Name "BoxMap" is not defined`. If the reconstruction needs anything the chapter did not state, that is an unannounced elision and a blocking defect, not a nitpick.
+
+6. **Compile every example and treat WARNINGS as findings, not noise.** `tests/` asserts nothing about warnings, so a clean test run is not evidence of a clean compile. `expression result is ignored` in particular marks a discarded return value — on `Box.create` that is a silent overwrite of live data wearing the costume of a style nit. Read the compiler's full output for every file the chapter ships, and either fix the warning or state in prose why the code earns it.
+
+7. **Self-review the output.** Before returning results, re-read every code block and prose change.
 
 ### When to Compile-Test
 
@@ -548,6 +552,49 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
   - `readonly=True` is a promise to callers, not a rule the compiler or AVM enforces. A readonly method that writes state compiles, and its writes commit if it is ever submitted as a real transaction.
 - **`create="allow"` methods are matched ABOVE the `txn ApplicationID` branch** in the generated router — the ID check is deleted, not replaced. A `Txn.sender == Global.creator_address` guard inside such a method passes at app ID 0, because the caller creating the app IS its creator. This is visible in the ARC-56 spec without reading TEAL: the method is the only one with a non-empty list on BOTH `create` and `call`.
 - ARC-56 is the client's only source of truth: selector signature, `readonly`, `defaultValue`, and the create/call action lists all come from the spec, not from introspecting the program.
+
+### Box storage, I/O budget, and array types (verified against go-algorand source and puyapy 5.9.0 / algorand-python 3.5.1, 2026-07-26)
+
+**The two-budget model. A box reference grants 2,048 bytes (consensus v41; `config/consensus.go:1518`, raised from 1,024 at `:1414` in v36). That allowance is checked as TWO INDEPENDENT budgets that are NEVER summed:**
+
+- **Read budget** (`ledger/eval/eval.go:1276-1345`): charged ONCE, BEFORE the program runs, as the sum of the FULL CURRENT SIZES of every referenced box *that exists* — whether or not the program reads a byte of it. Non-existent boxes are `continue`d (`eval.go:1314-1316`), so a box being created costs nothing on read. Error: `read budget exceeded (N > M)`.
+- **Write budget** (`data/transactions/logic/box.go:214-264` — NOT `ledger/eval/box.go`, which is a different file; cite the `logic` path): `BoxWriteOperation` adds `writeSize` (the box's full size) only `if !dirty` — once per box. `BoxResizeOperation` subtracts the old length if already dirty and adds the full NEW size. `BoxDeleteOperation` (`box.go:250-254`) subtracts and clears dirty, so a delete refunds ONLY IF the same group already wrote that box. Full error format (`box.go:261-262`): `"write budget exceeded (%d > %d) while %s box %#x"` — the box name is in hex, and the `%s` verb is exactly one of `creating`, `writing`, `resizing`, `accessing`. Quoting the error with any other verb ("while putting box", "while updating box") is a fabricated transcript.
+- **BOTH budgets sum across boxes AND across the whole transaction group.** `cx.available.dirtyBytes` is a single running counter (`ledger/eval/resources.go:67-68`, "maintains a running count of bytes that count against write budget"), incremented at `box.go:239` and `box.go:248` and checked in aggregate at `box.go:260`. Do NOT claim the write budget is per-box or does not sum — that was a book error caught in review.
+- A read-modify-write of one box therefore does NOT cost double: 1,500 read + 1,500 write on a 1,500-byte box fits on a single reference, because the larger of the two is what must fit.
+- **The write budget counts CONTENTS ONLY; the box name is excluded.** MBR is the opposite — `2,500 + 400 × (name_len + data_len)` charges for the name. The two formulas differ in exactly that term, and mixing them up inflates every budget calculation by `400 × name_len` worth of reasoning. Read budget is likewise contents-only (`eval.go` sums the box's stored size).
+
+**Why `box_extract` / `box_replace` exist.** It is a REACH limit, not a budget optimization: `maxStringSize = 4096` / `MaxAVMBytesSize` (`data/transactions/logic/eval.go:50-51`). `box_get`/`box_put` cannot touch a box over 4,096 bytes at all, failing with `<op> produced a too big (N) byte-array`. Their second benefit is opcode cost constant in box size. Neither reduces either I/O budget. 32,768 ÷ 2,048 = 16 = exactly the v41 `Access` cap, deliberately.
+
+**Duplicate and empty box references DO stack** (`eval.go:1277-1287`): `bumps` intentionally counts duplicates, and `if !rr.Box.Empty() || rr.Empty() { bumps++ }` means an *empty* reference also grants 2,048. `cx.ioBudget = MulSaturate(bumps, BytesPerBoxReference)`.
+
+**algokit-utils auto-pads the I/O budget.** `populate_app_call_resources` reads `extra_box_refs` back from simulate (`algokit_utils/transactions/transaction_composer.py:1189-1191`) and appends that many empty `BoxReference(0, b"")` entries, capped by `MAX_APP_CALL_FOREIGN_REFERENCES = 8` (line 83). 8 × 2,048 = 16,384. It pads by what the simulation said it was short by — NOT a fixed top-up to eight. Consequence: a budget failure invisible under a default client returns the moment the call is assembled by another contract, a hand-built transaction, or a different SDK.
+
+**Readonly gets 320,000 opcode units on the tooling path**: `MAX_SIMULATE_OPCODE_BUDGET = 20_000 * 16` (`app_client.py:98`), passed as `extra_opcode_budget=` at `app_client.py:1211` in the `is_read_only_call` branch. On chain `MaxAppProgramCost = 700`. 320,000 / 700 = 457×.
+
+**Reference caps:** legacy `boxes` plus foreign arrays ≤ 8 combined (`MaxAppTotalTxnReferences`); v41 unified `Access` list ≤ 16 (`MaxAppAccess`). A transaction uses ONE path or the other, never both — and which one is chosen by whatever assembles the transaction, not by the contract.
+
+**MBR guards must be written as an addition.** `assert app.balance - app.min_balance >= cost` is an underflow bug, not a funding check: an unfunded app has `balance = 0` against `min_balance = 100_000`, and UInt64 subtraction aborts with `- would result negative` instead of your message. Always `assert app.balance >= app.min_balance + cost`.
+
+**MBR failures are not `LogicError`s, and the program DOES run first.** The error is `ledgercore.MinBalanceError` (`ledger/ledgercore/error.go:66-76`), full format `account %v balance %d below min %d (%d assets)` — note the trailing asset count — surfaced from `TransactionPool.Remember`. CORRECTION to earlier guidance: it is NOT true that "the transaction never reaches your program." `ledger/eval/eval.go` calls `applyTransaction` (which runs the approval program) at ~line 1281 and `eval.checkMinBalance(cow)` at ~line 1317. The program runs to completion and returns success; the floor is checked afterwards, which is why no assertion of yours can fire.
+
+**Box MBR** is `2,500 + 400 × (name_len + data_len)` µAlgo, charged to the APPLICATION account. (Global-schema MBR follows the creator; local-schema MBR follows the opting-in account.)
+
+**`Box[T].value = ...` is NOT lowered to a bare `box_put`.** PuyaPy emits `box_get … box_del … box_put` — read, delete, write fresh. This is why assigning a LARGER value to an existing box succeeds, charging the full new size against the write budget, rather than failing with `attempt to box_put wrong size` as a naive reading of the opcode would predict. The `box_del` also means the sequence hits the delete refund path, so the accounting is "old size out, new size in," not "new size in." **Verify this class of claim by reading the generated `.approval.teal`, never by reasoning about the Python.** Any statement of the form "this Python line becomes this opcode" is a claim about the compiler's lowering and requires the TEAL as evidence.
+
+**Error transcripts in this book are PYTHON transcripts, and two of them are routinely written wrong.**
+
+- **`URLTokenBaseHTTPError` is a JavaScript class** (js-algorand-sdk). It does not exist in Python and must never appear in a `>>>` transcript. **Wrong form:** `URLTokenBaseHTTPError: TransactionPool.Remember: ...`. **Right form:** `AlgodHTTPError: TransactionPool.Remember: ...` — the type is `algosdk.error.AlgodHTTPError`. This is the wrapper an MBR failure arrives in, so it shows up wherever box funding is discussed.
+- **`algokit_utils.LogicError.__str__` does NOT render as `LogicError: <message>`.** The real rendering is `Txn {id} had error '{message}' at PC {pc}[ and Source Line {n}]:` followed by a TEAL trace. A transcript showing the bare message has invented a format the reader will never see; either print the real thing (trace elided with an explicit `... N lines of TEAL trace ...` marker) or quote `.message` and say that is what is being quoted. Additionally, `config.debug = True` changes the raised TYPE — `transaction_composer.py:1313-1357` re-raises a bare `Exception(f"Transaction failed: {e}")`, so `except LogicError:` silently stops catching under debug config.
+
+**PuyaPy array semantics — FIVE array types, not four** (`algopy-stubs/_native.pyi` lines 11, 40, 75, 125, 176): `ImmutableFixedArray`, `FixedArray`, `ImmutableArray`, `ReferenceArray`, `Array`.
+
+- `Array` / `FixedArray`: assignment requires `.copy()`; mutable; both are storable. `FixedArray` is the only one that makes a `BoxMap` key of FIXED name length (so the map can be priced in advance).
+- `ReferenceArray`: aliases; mutable; NOT storable (`type is not suitable for storage`); cannot hold dynamic elements (`reference arrays can't have dynamic elements`).
+- `ImmutableArray`: aliases safely, has NO `.copy()`, and **CAN be both a `BoxMap` key and a `Box` value** — `BoxMap(ImmutableArray[UInt64], UInt64, key_prefix=b"i")` and `Box(ImmutableArray[UInt64])` both compile under puyapy 5.9.0. It is `BytesBacked` (`algopy-stubs/_native.pyi:125-131`). Do NOT claim it is "value only"; that was a book error caught by compile probe.
+- A dynamic `Array` IS a legal `BoxMap` key and compiles silently — the trap is that every entry's name is a different length, so the map cannot be priced and it re-enters the variable-length-key collision family.
+- `Array.freeze() -> ImmutableArray`; `FixedArray.freeze() -> ImmutableFixedArray`. `.full()` exists only on the fixed variants. `ImmutableArray`'s constructor takes an ITERABLE, not varargs.
+
+**`scratch_slots=` is a RESERVATION, not a requirement** (`_contract.pyi:61-68`). Puya spends scratch slots for `ReferenceArray` automatically; `scratch_slots=` marks slots OFF LIMITS to Puya so you can use them yourself (e.g. `op.gload_uint64`). Never tell a reader they must declare it to use `ReferenceArray`.
 
 ---
 

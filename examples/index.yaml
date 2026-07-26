@@ -422,3 +422,186 @@ examples:
     tier: minibuild
     mode: compile
     chapter: 3
+
+  # -- Chapter 4, cluster 1: One Box, and What It Costs ----------------------
+  - slug: box-declare
+    path: ch04_boxes/box_declare.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: box-maybe
+    path: ch04_boxes/box_maybe.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: box-delete
+    path: ch04_boxes/box_delete.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: app-mbr-floor
+    path: ch04_boxes/app_mbr_floor.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: box-mbr-math
+    path: ch04_boxes/box_mbr_math.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  # -- Chapter 4, cluster 2: Many Boxes, and What They're Named --------------
+  - slug: boxmap-declare
+    path: ch04_boxes/boxmap_declare.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: boxmap-key-bytes
+    path: ch04_boxes/boxmap_key_bytes.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: boxmap-prefix-collision
+    path: ch04_boxes/boxmap_prefix_collision.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: boxmap-composite-key
+    path: ch04_boxes/boxmap_composite_key.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  # -- Chapter 4, cluster 3: What a Transaction Must Declare -----------------
+  # Both script-mode examples are byte-compiled, not executed: algokit-utils is
+  # deliberately not a dependency of this repo (see pyproject.toml), because
+  # running them needs a LocalNet and a deployed app, which CI does not have.
+  - slug: box-refs-auto
+    path: ch04_boxes/box_refs_auto.py
+    tier: extended
+    mode: script
+    chapter: 4
+
+  - slug: box-io-budget
+    path: ch04_boxes/box_io_budget.py
+    tier: extended
+    mode: script
+    chapter: 4
+
+  # -- Chapter 4, cluster 4: Bytes, Not Values ------------------------------
+  - slug: box-raw-sized
+    path: ch04_boxes/box_raw_sized.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: boxmap-box-handle
+    path: ch04_boxes/boxmap_box_handle.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: box-length
+    path: ch04_boxes/box_length.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: box-replace
+    path: ch04_boxes/box_replace.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: box-extract
+    path: ch04_boxes/box_extract.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: sized-types
+    path: ch04_boxes/sized_types.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  # -- Chapter 4, cluster 5: Changing a Box's Size ---------------------------
+  - slug: box-resize
+    path: ch04_boxes/box_resize.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: box-splice
+    path: ch04_boxes/box_splice.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: box-list-append
+    path: ch04_boxes/box_list_append.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  - slug: boxmap-scan-cost
+    path: ch04_boxes/boxmap_scan_cost.py
+    tier: core
+    mode: compile
+    chapter: 4
+
+  # The danger-17 wrong variant. It COMPILES -- that is the whole point: the
+  # resource-reference cap kills it at run time, not the type checker, so mode
+  # is compile and not compile-fail.
+  - slug: unbounded-scan-wrong
+    path: ch04_boxes/unbounded_scan_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  # -- Chapter 4, cluster 6: Values You Can Put in a Box --------------------
+  - slug: array-value-semantics
+    path: ch04_boxes/array_value_semantics.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: reference-array
+    path: ch04_boxes/reference_array.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: immutable-array-freeze
+    path: ch04_boxes/immutable_array_freeze.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  - slug: fixed-array
+    path: ch04_boxes/fixed_array.py
+    tier: extended
+    mode: compile
+    chapter: 4
+
+  # -- Chapter 4, the Mini-Build --------------------------------------------
+  - slug: guestbook-broken
+    path: ch04_boxes/guestbook_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 4
+
+  # Same arrangement as registry-fixed above: compiled by CI, never
+  # transcluded, because §2.4 presents the fixed Mini-Build as a diff.
+  - slug: guestbook-fixed
+    path: ch04_boxes/guestbook_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 4
