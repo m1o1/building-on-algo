@@ -1,0 +1,22 @@
+%% Why a caller cannot simply ask a pool what it is. Solid arrows are trusted
+%% because the factory created the thing at the other end and recorded it; the
+%% dashed arrow is the claim an attacker gets to make for free.
+flowchart TB
+    F["Factory<br/>the only contract you trust by ID"]
+    R[("Registry box<br/>asset pair → pool app ID")]
+    P["Real pool<br/>created by the factory"]
+    K["Fake pool<br/>anyone can deploy one<br/>and answer any question you ask it"]
+    C["Consumer contract<br/>about to swap"]
+
+    F ==>|creates| P
+    F ==>|records| R
+    C ==>|"reads the pair,<br/>gets one app ID"| R
+    C ==>|"calls the ID<br/>the registry gave it"| P
+    K -.->|"'I am the USDC/ALGO pool.'<br/>Believe it and you are done."| C
+
+    classDef trusted fill:#e0e0e0,stroke:#333333,stroke-width:2px,color:#111111
+    classDef store fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef hostile fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 5 3
+    class F,P trusted
+    class R,C store
+    class K hostile

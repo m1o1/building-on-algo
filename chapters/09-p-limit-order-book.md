@@ -57,6 +57,10 @@ The `@logicsig` decorator tells the PuyaPy compiler to produce a smart signature
 
 ### The Two Modes: Contract Account vs Delegated Signature
 
+A LogicSig can be used in exactly two ways, and they differ in where the authority comes from. {{fig:logicsig-modes}} puts them side by side; read it before the code below, because almost every LogicSig bug is really a confusion about which of these two pictures you are in.
+
+{{include-fig:logicsig-modes}}
+
 **Mode 1 --- Contract account:** When no one signs the LogicSig, its program hash becomes a deterministic Algorand address: `SHA512_256("Program" || program_bytes)`. This address can hold Algos and ASAs. The program logic is the sole authority over outgoing transactions. No private key exists. This is an illustrative example, not part of the project code:
 
 ```python

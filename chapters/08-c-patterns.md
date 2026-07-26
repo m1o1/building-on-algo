@@ -11,7 +11,9 @@ On Algorand, every transaction requires a minimum [fee](https://dev.algorand.co/
 
 **Concrete scenario.** Alice has 500 USDC (as an ASA) but zero Algo. She cannot execute a single swap because she cannot pay the transaction fee. A relayer can solve this by covering her fees: the relayer sends a zero-amount self-payment with a fee of 4,000 microAlgos (covering all group transactions plus inner transactions), while Alice's asset transfer and app call each set their fee to 0. The following approaches show different ways to implement this.
 
-There are several approaches to solving this, each with different tradeoffs.
+There are several approaches to solving this, each with different tradeoffs. Before choosing between them it helps to see what is actually being moved around. {{fig:who-pays}} draws four versions of the same call on one fee axis. Nothing in it reduces the total: fees are owed per transaction, inner transactions included, and every approach below is a decision about *whose* balance the total comes out of.
+
+{{include-fig:who-pays}}
 
 ### Approach A: Fee Pooling Within the Group (Most Common)
 

@@ -40,6 +40,10 @@ The book is structured around ten progressively complex chapters, each built inc
 
 - **{{ch:zk-voting}} --- Project 4: Private Governance Voting with Zero-Knowledge Proofs.** Pushing the AVM to its limits with a private governance voting system using zero-knowledge proofs, elliptic curve operations (BN254), and the MiMC hash. Also covers Algorand's Falcon-based post-quantum security roadmap.
 
+{{fig:book-map}} shows how those chapters depend on one another. A solid arrow means you will be lost without the earlier chapter; a dashed one means the later chapter builds on it but stands on its own. If you are here for one specific thing, follow the solid arrows backwards from it and read only those.
+
+{{include-fig:book-map}}
+
 The chapters are also deliberately scaffolded. Chapters {{chn:testing}} through {{chn:yield-farming}} are full worked projects: every listing is complete, and you can type along from start to finish. {{ch:patterns}} shifts to a patterns reference that consolidates what the projects taught. Chapters {{chn:limit-order-book}} and {{chn:zk-voting}} are guided outlines --- the core contracts are complete and compilable, but helper functions and integration layers are deliberately left for you to implement, because by that point you have built everything they require. The training wheels come off gradually, on purpose.
 
 Two appendices provide lasting reference value: the **Algorand Smart Contract Cookbook** contains 50+ standalone code examples organized by topic, and the **Consolidated Gotchas Cheat Sheet** catalogs the most common mistakes and how to avoid them.

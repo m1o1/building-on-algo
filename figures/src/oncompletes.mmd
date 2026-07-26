@@ -1,0 +1,26 @@
+%% The six OnCompletes, drawn as what they do to the application rather than as a
+%% list of names. Two of the transitions are the ones that bite: ClearState runs
+%% the clear program and takes effect even if that program rejects, and
+%% DeleteApplication frees global state whether or not anyone was still opted in.
+%% .
+%% Drawn as a flowchart rather than stateDiagram-v2 on purpose: with htmlLabels
+%% off, the state renderer floats transition labels into whatever whitespace it
+%% can find, and six two-line labels end up nowhere near their own arrows. A
+%% flowchart pins each label to the midpoint of the edge it belongs to.
+flowchart TB
+    C["Created · app ID assigned<br/>global state allocated"]
+    N["Live · caller not opted in<br/>every ordinary NoOp method call lands here"]
+    O["Live · caller opted in<br/>local state allocated, caller pays the MBR"]
+    X["Deleted · global state freed<br/>local state stranded"]
+
+    C -->|"create"| N
+    N -->|"OptIn"| O
+    O -->|"CloseOut<br/>may be refused"| N
+    O -->|"ClearState<br/>never refused"| N
+    N -->|"UpdateApplication<br/>programs replaced, state kept"| C
+    O -->|"DeleteApplication"| X
+
+    classDef step fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef gone fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class C,N,O step
+    class X gone

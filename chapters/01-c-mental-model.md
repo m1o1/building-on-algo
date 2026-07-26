@@ -38,6 +38,10 @@ When a user submits a transaction that calls your smart contract, the *Algorand 
 
 This means your contract code is a set of validation rules, not a running process. State changes happen as side effects of successful validation. This is fundamentally different from the model used by some other blockchains, where contracts are called imperatively and can modify state directly during execution. On Algorand, the transaction *is* the input, and your contract decides whether to accept it. (See [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/overview/).)
 
+{{fig:notional-machine}} is the whole machine in one picture: everything a contract is allowed to look at, everything it is allowed to stage, and the single approve-or-reject decision that stands between the two. Keep it in mind as you read the rest of this chapter --- every limitation described below follows from it.
+
+{{include-fig:notional-machine}}
+
 ## Two Programs per Contract
 
 Every Algorand smart contract consists of two programs written in *TEAL* (Transaction Execution Approval Language), the AVM's low-level assembly language, which is assembled into the bytecode the AVM executes. You will never write TEAL directly --- PuyaPy compiles your Python code to TEAL automatically --- but the term appears throughout Algorand documentation, so it is worth knowing. (See [Applications](https://dev.algorand.co/concepts/smart-contracts/apps/) and the [AVM reference](https://dev.algorand.co/concepts/smart-contracts/avm/).)
@@ -45,6 +49,10 @@ Every Algorand smart contract consists of two programs written in *TEAL* (Transa
 **The *approval program*** handles all normal operations: creation, method calls, opt-ins, close-outs, updates, and deletes. When someone calls your contract, the approval program runs. This is where all your business logic lives.
 
 **The *clear state program*** runs when a user wants to forcibly remove their local state from your application. The critical property: **the user's local state is always cleared regardless of whether the clear state program approves or rejects**. This is a deliberate protocol-level guarantee that users can always exit an application. The security implications of this design are significant --- we will explore them in {{ch:token-vesting}} when choosing between local state and box storage for financial data.
+
+Which of the two programs runs, and what the AVM does afterward, is decided by a field on the transaction called its *OnComplete*. {{fig:oncompletes}} shows all six of them as the lifecycle they describe. Note where ClearState sits: it is the one transition your contract has no power to refuse.
+
+{{include-fig:oncompletes}}
 
 ## The Account Model
 
@@ -60,6 +68,10 @@ Every account must maintain a minimum balance of Algos to exist on the chain. Th
 - Each box created by the application: +2,500 + 400 × (name_length + data_size) microAlgos, where name_length and data_size are in bytes. (Only application accounts can create boxes --- see [Smart Contract Accounts](#smart-contract-accounts) below.)
 
 If a transaction would cause an account's balance to drop below its MBR, the transaction fails. This is one of the most common errors new developers encounter: "balance below minimum" after creating assets or boxes without sufficient funding. (See [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) for the full MBR schedule.)
+
+The arithmetic above is easy to nod along to and hard to feel. {{fig:mbr-slab}} draws it to scale for a contract account holding two assets and one box: the balance an explorer reports, and the sliver of it the contract can actually spend. A minimum balance is not a fee. Nothing is deducted --- the floor simply rises, and the Algo above it is all you have.
+
+{{include-fig:mbr-slab}}
 
 ### The Opt-In Requirement
 
@@ -104,6 +116,10 @@ Table: On-chain storage options compared {#tbl:storage-options}
 
 A practical rule of thumb: use **global state** for contract-wide configuration, **local state** only for data that does not matter if the user erases it, and **box storage** for anything involving money or obligations. (See the official storage guides: [Global](https://dev.algorand.co/concepts/smart-contracts/storage/global/), [Local](https://dev.algorand.co/concepts/smart-contracts/storage/local/), [Box](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
 
+The table compares the three tiers; {{fig:storage-decision-tree}} turns that comparison into the order you should actually ask the questions in. Start at the top and take the first branch that applies --- the questions are arranged so that the cheapest mistakes to recover from are the ones you make last.
+
+{{include-fig:storage-decision-tree}}
+
 **Worked example.** Suppose you are building a vesting contract that opts into 2 ASAs and stores vesting schedules for 10 beneficiaries in boxes (each with a 10-byte name and 40-byte value). The application account's MBR would be: 100,000 (account base) + 2 × 100,000 (ASA opt-ins) + 10 × (2,500 + 400 × 50) (boxes, where 50 = 10 name + 40 data) = 525,000 microAlgo, or about 0.53 Algo. You must fund the contract with at least this much Algo before creating the boxes, or the transactions will fail.
 
 ## Transactions and Atomicity
@@ -128,6 +144,10 @@ Up to 16 transactions can be bundled into an [atomic group](https://dev.algorand
 
 Atomic groups are coordinated off-chain: the client constructs all transactions, assigns them a common group ID (a hash computed from the IDs of the member transactions --- each computed with the group field zeroed --- calculated before the group field is set), and submits the bundle. The protocol validates and executes the group atomically.
 
+"All or nothing" is easy to say and easy to under-estimate. {{fig:atomic-group}} runs the same four transactions twice: once where every one of them passes, and once where the third is rejected. Notice that the first two transactions in the failing run are not undone, because they were never applied in the first place --- the ledger only ever sees the finished group.
+
+{{include-fig:atomic-group}}
+
 ### Fees
 
 The minimum [transaction fee](https://dev.algorand.co/concepts/transactions/fees/) is **1,000 microAlgos (0.001 Algo)** per transaction. Fees are validated at the group level: the sum of all fees in a group must meet the sum of all minimum fees. This enables *fee pooling* --- one transaction can overpay to cover others in the group.
@@ -137,6 +157,10 @@ The minimum [transaction fee](https://dev.algorand.co/concepts/transactions/fees
 So far we have described transactions submitted by users (off-chain). Smart contracts can also issue [inner transactions](https://dev.algorand.co/concepts/smart-contracts/inner-txn/) --- transactions sent from within contract code during execution. When your contract needs to send Algos, transfer an ASA, or call another contract, it does so by emitting an inner transaction. Inner transactions execute atomically within the outer transaction: if the outer transaction fails, all inner transactions are rolled back too.
 
 The distinction from atomic groups is important: atomic groups are assembled *off-chain* by a client and submitted as a bundle, while inner transactions are created *on-chain* by contract logic during execution. A contract can issue up to 256 inner transactions per group. We will use inner transactions extensively starting in {{ch:token-vesting}}.
+
+This is the point where a contract stops being a validator and becomes a participant. {{fig:contract-as-sender}} traces a single call through to the two transfers it emits: the caller signs one transaction, and the transfers the contract sends carry no signature at all, because the contract's own address authorises them.
+
+{{include-fig:contract-as-sender}}
 
 ## What You Cannot Do
 
@@ -396,6 +420,10 @@ print(result.abi_return)  # "Hello, World"
 ```
 
 Typed clients catch errors earlier and make your code more readable. The projects in this book use the generic client for clarity (so you can see exactly what is happening), but in production code, typed clients are preferred. If you are integrating with a third-party contract, you can generate a typed client from their published app spec using `algokit generate client`.
+
+Underneath both clients, an ABI call is just an application call with a particular byte layout in its argument array. {{fig:abi-call-wire}} lays one out byte by byte. It is worth a minute of study now, because every "invalid argument" error you will ever debug is really a disagreement about this picture.
+
+{{include-fig:abi-call-wire}}
 
 ## Summary
 

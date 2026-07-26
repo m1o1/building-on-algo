@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" width="880" height="640" font-family="DejaVu Sans, sans-serif">
+  <!-- Why a farm stores one accumulator instead of a per-staker balance. The
+       accumulator's slope is the whole idea: it rises fast while one account is
+       alone in the pool and slowly once three more join, and the difference
+       between a staker's snapshot and the current value is that staker's share,
+       computed in one subtraction no matter how many people came and went. -->
+  <style>
+    text { fill: #111111; }
+    .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
+    .rpt   { stroke: #333333; stroke-width: 2.5; fill: none; }
+    .ev    { stroke: #999999; stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+    .gd    { stroke: #bbbbbb; stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+    .dot   { fill: #333333; }
+    .alice { fill: #e0e0e0; stroke: #333333; stroke-width: 1.5; }
+    .bob   { fill: #f5f5f5; stroke: #333333; stroke-width: 1.5; stroke-dasharray: 5 3; }
+    .bart  { font-size: 12.5px; }
+    .lab   { font-size: 12px; fill: #333333; }
+    .labb  { font-size: 12.5px; font-weight: bold; }
+    .ev t  { font-size: 11px; }
+    .evl   { font-size: 11.5px; fill: #333333; }
+    .evb   { font-size: 12px; font-weight: bold; }
+    .panel { fill: #fafafa; stroke: #888888; stroke-width: 1; }
+    .p     { font-size: 12.5px; }
+    .pb    { font-size: 12.5px; font-weight: bold; }
+    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 12px; }
+  </style>
+
+  <text class="labb" x="110" y="46">reward_per_token, accumulated</text>
+
+  <!-- event lines -->
+  <line class="ev" x1="110" y1="56" x2="110" y2="452"/>
+  <line class="ev" x1="450" y1="56" x2="450" y2="452"/>
+  <line class="ev" x1="790" y1="56" x2="790" y2="452"/>
+
+  <!-- baseline -->
+  <line class="ax" x1="110" y1="300" x2="800" y2="300"/>
+
+  <!-- guides to the right-hand readings -->
+  <line class="gd" x1="450" y1="140" x2="790" y2="140"/>
+
+  <!-- the accumulator: steep while Alice is alone, shallow once Bob is in -->
+  <path class="rpt" d="M 110 300 L 450 140 L 790 100"/>
+  <circle class="dot" cx="110" cy="300" r="5"/>
+  <circle class="dot" cx="450" cy="140" r="5"/>
+  <circle class="dot" cx="790" cy="100" r="5"/>
+
+  <text class="lab" x="800" y="104">rpt = 25</text>
+  <text class="lab" x="800" y="144">rpt = 20</text>
+  <text class="lab" x="800" y="304">rpt = 0</text>
+
+  <!-- Above the rising segment, not beside it: the line runs diagonally through
+       this band, so anything placed level with its midpoint gets struck through. -->
+  <text class="lab" x="212" y="196" text-anchor="middle">steep: 100 tokens</text>
+  <text class="lab" x="212" y="212" text-anchor="middle">share every round</text>
+  <text class="lab" x="620" y="176" text-anchor="middle">shallow: 400 tokens</text>
+  <text class="lab" x="620" y="192" text-anchor="middle">share the same round</text>
+
+  <!-- stakers -->
+  <rect class="alice" x="110" y="358" width="680" height="34"/>
+  <text class="bart" x="124" y="380">Alice stakes 100 &#8212; snapshot taken at rpt = 0</text>
+  <rect class="bob" x="450" y="404" width="340" height="34"/>
+  <text class="bart" x="464" y="426">Bob stakes 300 &#8212; snapshot taken at rpt = 20</text>
+
+  <!-- the round axis -->
+  <text class="evb" x="110" y="474" text-anchor="middle">round 1,000</text>
+  <text class="evb" x="450" y="474" text-anchor="middle">round 3,000</text>
+  <text class="evb" x="790" y="474" text-anchor="middle">round 5,000</text>
+  <text class="evl" x="110" y="492" text-anchor="middle">Alice stakes</text>
+  <text class="evl" x="450" y="492" text-anchor="middle">Bob stakes</text>
+  <text class="evl" x="790" y="492" text-anchor="middle">both exit</text>
+
+  <!-- the arithmetic -->
+  <rect class="panel" x="20" y="508" width="840" height="112"/>
+  <text class="p"  x="36" y="532">The pool pays 1 token per round, split among whoever is staked at that moment.</text>
+  <text class="p"  x="36" y="556">rounds 1,000&#8211;3,000: only Alice is in, so rpt climbs 2,000 &#247; 100 = 20.  Then 400 are staked, so the</text>
+  <text class="p"  x="36" y="576">same 2,000 tokens move it only 2,000 &#247; 400 = 5 further.  rpt ends at 25.</text>
+  <text class="pb" x="36" y="604">Alice: 100 &#215; (25 &#8722; 0) = 2,500.   Bob: 300 &#215; (25 &#8722; 20) = 1,500.   Total 4,000 &#8212; every round paid once.</text>
+</svg>

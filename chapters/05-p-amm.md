@@ -302,6 +302,10 @@ $$\Delta y = \frac{100 \times 997 \times 10{,}000}{10{,}000 \times 1{,}000 + 100
 
 Alice sends 100 USDC and receives 98.71 ALGO --- not 100, because of the 0.3% fee (0.3 USDC stays in the pool) and *price impact* (each marginal unit of USDC she adds makes ALGO slightly more expensive). After the swap, reserves are 10,100 USDC and 9,901.29 ALGO, giving a new spot price of $9{,}901.29 / 10{,}100 \approx 0.98$ ALGO per USDC. The product $k$ increased slightly (to $\approx 100{,}003{,}029$) because the fee was retained. A larger trade --- say 1,000 USDC --- would move the price much more (receiving only about 906 ALGO, a 9.3% price impact), which is why AMMs work best for trades that are small relative to the pool's reserves.
 
+{{fig:constant-product-curve}} plots a larger swap against a smaller pool, where the effect is impossible to miss. The pool does not quote you a price and then honour it; it quotes the slope of the curve at the point you start from, and then you walk down the curve as you trade. The gap between the two is slippage, and it is a property of the size of your order relative to the reserves --- not a fee anyone charges you.
+
+{{include-fig:constant-product-curve}}
+
 For initial liquidity, the number of LP tokens minted equals:
 
 $$LP_{\text{initial}} = \sqrt{\Delta x \times \Delta y} - \text{MINIMUM\_LIQUIDITY}$$

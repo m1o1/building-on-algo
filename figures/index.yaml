@@ -1,0 +1,124 @@
+# Building on Algorand — figure index
+#
+# One entry per figure. Three fields, and deliberately no more:
+#
+#   slug     required, unique. What prose cites as {{fig:slug}} and places as
+#            {{include-fig:slug}}. Never change one once it ships.
+#   caption  required. The sentence that follows the figure on the page. It
+#            lives here rather than in the chapter because a caption belongs to
+#            the figure, not to whichever chapter happens to place it — move
+#            the figure and the caption moves with it.
+#   source   required. Path relative to figures/, to the drawing this was
+#            rendered from. figures/out/<slug>.svg and .pdf are derived and
+#            committed; `python3 build.py figures` regenerates them.
+#
+# What is NOT here, on purpose: the figure's number and the chapter it lands
+# in. Both are computed at build time from where the placement directive sits,
+# so a figure can move between chapters without any edit to this file.
+
+version: 1
+
+figures:
+  - slug: notional-machine
+    caption: >-
+      What the AVM lets a contract see and what it lets a contract do. Everything
+      on the left is readable; everything on the right is staged, and only
+      committed if the program approves.
+    source: src/notional-machine.mmd
+
+  - slug: atomic-group
+    caption: >-
+      The same four transactions, twice. One rejection anywhere in a group
+      discards every transaction in it — there is no partial application.
+    source: src/atomic-group.mmd
+
+  - slug: storage-decision-tree
+    caption: >-
+      Where does this data go? Three questions, asked in the order that costs
+      least to answer wrong.
+    source: src/storage-decision-tree.svg
+
+  - slug: mbr-slab
+    caption: >-
+      A pool contract's account funded with one Algo, drawn to scale. Just over
+      half of it is spendable; the rest is locked by the account's own minimum
+      balance requirement.
+    source: src/mbr-slab.svg
+
+  - slug: contract-as-sender
+    caption: >-
+      A contract has an account of its own, and it can send. The caller signs
+      one transaction; the inner transfers are signed by nobody.
+    source: src/contract-as-sender.mmd
+
+  - slug: simulate-trace
+    caption: >-
+      A failed simulate response, annotated. The HTTP call succeeded — the
+      failure is reported in the body, which is why a test that asserts on the
+      status code can never fail.
+    source: src/simulate-trace.svg
+
+  - slug: oncompletes
+    caption: >-
+      The six OnCompletes, as the lifecycle they actually describe. ClearState
+      is the one transition a contract cannot refuse.
+    source: src/oncompletes.mmd
+
+  - slug: who-pays
+    caption: >-
+      Four versions of the same call on one fee axis. Setting an inner
+      transaction's fee to zero does not remove the cost; it moves it.
+    source: src/who-pays.svg
+
+  - slug: constant-product-curve
+    caption: >-
+      One swap against a constant product pool. The gap between what the curve
+      pays and what the quoted price implied is slippage, and it grows with the
+      size of the trade.
+    source: src/constant-product-curve.svg
+
+  - slug: reward-accumulator
+    caption: >-
+      Two stakers and one accumulator. The slope changes when the staked total
+      changes, and each staker's share is the difference between the current
+      value and the snapshot taken when they joined.
+    source: src/reward-accumulator.svg
+
+  - slug: abi-call-wire
+    caption: >-
+      An ABI call, byte by byte: the method selector, the arguments, and the
+      return value behind its four-byte log prefix.
+    source: src/abi-call-wire.svg
+
+  - slug: logicsig-modes
+    caption: >-
+      The two ways a logic signature is used. A contract account's address is
+      the hash of its program; a delegated signature carries an account's
+      authority instead.
+    source: src/logicsig-modes.mmd
+
+  - slug: book-map
+    caption: >-
+      How the chapters depend on each other. A solid arrow means you will be
+      lost without the earlier chapter; a dashed one means the later chapter
+      builds on it but stands alone.
+    source: src/book-map.mmd
+
+  - slug: packed-box-layout
+    caption: >-
+      The same twenty-four bytes stored two ways, priced both times. Splitting a
+      struct across three boxes pays for the account address three times over.
+    source: src/packed-box-layout.svg
+
+  - slug: provenance-trust-graph
+    caption: >-
+      Why a factory cannot take a child contract's word for anything. Only the
+      application ID the factory itself recorded proves the caller is one of its
+      own.
+    source: src/provenance-trust-graph.mmd
+
+  - slug: group-commit
+    caption: >-
+      State writes are staged, not applied. The whole group approves or the
+      ledger keeps none of it.
+    source: src/group-commit.mmd

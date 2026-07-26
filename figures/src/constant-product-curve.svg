@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 700" width="780" height="700" font-family="DejaVu Sans, sans-serif">
+  <!-- Generated from the arithmetic, not drawn by eye. k = 1,000,000; the pool sits at
+       (1,000, 1,000); the trader sends 250 in and takes 200 out, where a fixed
+       price would have paid 250. The 50-unit gap is the whole lesson, so the
+       window is cropped tight enough that the gap is legible. -->
+  <style>
+    text { fill: #111111; }
+    .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
+    .curve { stroke: #333333; stroke-width: 2.5; fill: none; }
+    .tan   { stroke: #333333; stroke-width: 1.5; fill: none; stroke-dasharray: 6 4; }
+    .gd    { stroke: #bbbbbb; stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+    .move  { stroke: #333333; stroke-width: 1.8; fill: none; }
+    .dot   { fill: #333333; }
+    .odot  { fill: #ffffff; stroke: #333333; stroke-width: 1.8; }
+    .lab   { font-size: 12.5px; }
+    .labb  { font-size: 13px; font-weight: bold; }
+    .tick  { font-size: 11px; fill: #333333; }
+    .axt   { font-size: 12.5px; font-style: italic; fill: #333333; }
+    .note  { font-size: 12.5px; }
+    .gap   { stroke: #333333; stroke-width: 1.5; fill: none; }
+    .panel { fill: #fafafa; stroke: #888888; stroke-width: 1; }
+    .k     { font-size: 15px; font-weight: bold; }
+  </style>
+
+  <!-- axes -->
+  <path class="ax" d="M 110 66 L 110 560 L 652 560"/>
+  <text class="axt" x="370" y="610" text-anchor="middle">reserve of asset A held by the pool</text>
+  <text class="axt" x="26" y="320" transform="rotate(-90 26 320)" text-anchor="middle">reserve of asset B</text>
+
+  <!-- ticks -->
+  <text class="tick" x="240.0" y="578" text-anchor="middle">1,000</text>
+  <text class="tick" x="402.5" y="578" text-anchor="middle">1,250</text>
+  <text class="tick" x="565.0" y="578" text-anchor="middle">1,500</text>
+  <text class="tick" x="102" y="244.0" text-anchor="end">1,000</text>
+  <text class="tick" x="102" y="404.0" text-anchor="end">800</text>
+  <text class="tick" x="102" y="444.0" text-anchor="end">750</text>
+
+  <!-- guides -->
+  <path class="gd" d="M 110 240.00 L 240.00 240.00 L 240.00 560"/>
+  <path class="gd" d="M 110 400.00 L 402.50 400.00 L 402.50 560"/>
+  <path class="gd" d="M 110 440.00 L 402.50 440.00"/>
+
+  <!-- the tangent: the price the pool quotes at that instant -->
+  <path class="tan" d="M 188.00 176.00 L 454.50 504.00"/>
+  <!-- The label hangs off the tangent's lower end, where the dashed line is
+       clearly separate from the curve. Near the tangency point the two are
+       within a pixel of each other and a label there points at both. -->
+  <path class="gd" d="M 455.00 505.00 L 468.00 519.00"/>
+  <text class="lab" x="472.0" y="524.0">the quoted price</text>
+
+  <!-- the curve -->
+  <path class="curve" d="M 142.50 98.82 L 145.75 104.33 L 149.00 109.77 L 152.25 115.14 L 155.50 120.46 L 158.75 125.71 L 162.00 130.91 L 165.25 136.05 L 168.50 141.12 L 171.75 146.15 L 175.00 151.11 L 178.25 156.02 L 181.50 160.88 L 184.75 165.68 L 188.00 170.43 L 191.25 175.14 L 194.50 179.78 L 197.75 184.39 L 201.00 188.94 L 204.25 193.44 L 207.50 197.89 L 210.75 202.30 L 214.00 206.67 L 217.25 210.98 L 220.50 215.26 L 223.75 219.49 L 227.00 223.67 L 230.25 227.82 L 233.50 231.92 L 236.75 235.98 L 240.00 240.00 L 243.25 243.98 L 246.50 247.92 L 249.75 251.82 L 253.00 255.69 L 256.25 259.51 L 259.50 263.30 L 262.75 267.05 L 266.00 270.77 L 269.25 274.45 L 272.50 278.10 L 275.75 281.71 L 279.00 285.28 L 282.25 288.83 L 285.50 292.34 L 288.75 295.81 L 292.00 299.26 L 295.25 302.67 L 298.50 306.06 L 301.75 309.41 L 305.00 312.73 L 308.25 316.02 L 311.50 319.28 L 314.75 322.51 L 318.00 325.71 L 321.25 328.89 L 324.50 332.04 L 327.75 335.15 L 331.00 338.25 L 334.25 341.31 L 337.50 344.35 L 340.75 347.36 L 344.00 350.34 L 347.25 353.30 L 350.50 356.24 L 353.75 359.15 L 357.00 362.03 L 360.25 364.89 L 363.50 367.73 L 366.75 370.54 L 370.00 373.33 L 373.25 376.10 L 376.50 378.84 L 379.75 381.56 L 383.00 384.26 L 386.25 386.94 L 389.50 389.59 L 392.75 392.23 L 396.00 394.84 L 399.25 397.43 L 402.50 400.00 L 405.75 402.55 L 409.00 405.08 L 412.25 407.59 L 415.50 410.08 L 418.75 412.55 L 422.00 415.00 L 425.25 417.43 L 428.50 419.84 L 431.75 422.24 L 435.00 424.62 L 438.25 426.97 L 441.50 429.31 L 444.75 431.63 L 448.00 433.94 L 451.25 436.23 L 454.50 438.50 L 457.75 440.75 L 461.00 442.99 L 464.25 445.20 L 467.50 447.41 L 470.75 449.59 L 474.00 451.76 L 477.25 453.92 L 480.50 456.06 L 483.75 458.18 L 487.00 460.29 L 490.25 462.38 L 493.50 464.46 L 496.75 466.52 L 500.00 468.57 L 503.25 470.60 L 506.50 472.62 L 509.75 474.63 L 513.00 476.62 L 516.25 478.60 L 519.50 480.56 L 522.75 482.51 L 526.00 484.44 L 529.25 486.37 L 532.50 488.28 L 535.75 490.17 L 539.00 492.05 L 542.25 493.92 L 545.50 495.78 L 548.75 497.63 L 552.00 499.46 L 555.25 501.28 L 558.50 503.09 L 561.75 504.88 L 565.00 506.67 L 568.25 508.44 L 571.50 510.20 L 574.75 511.95 L 578.00 513.68 L 581.25 515.41 L 584.50 517.12 L 587.75 518.83 L 591.00 520.52 L 594.25 522.20 L 597.50 523.87 L 600.75 525.53 L 604.00 527.18 L 607.25 528.82 L 610.50 530.45 L 613.75 532.06 L 617.00 533.67 L 620.25 535.27 L 623.50 536.86 L 626.75 538.43 L 630.00 540.00"/>
+
+  <!-- the swap, as a move along the curve -->
+  <path class="move" d="M 240.00 240.00 L 402.50 240.00"/>
+  <path class="move" d="M 402.50 240.00 L 402.50 400.00"/>
+  <circle class="dot"  cx="240.00" cy="240.00" r="5"/>
+  <circle class="dot"  cx="402.50" cy="400.00"  r="5"/>
+  <circle class="odot" cx="402.50" cy="440.00"  r="4.5"/>
+  <text class="lab" x="321.2" y="230.0" text-anchor="middle">send 250 A</text>
+  <text class="lab" x="412.5" y="320.0">receive 200 B</text>
+
+  <!-- the slippage bracket -->
+  <path class="gap" d="M 406.50 400.00 L 416.50 400.00 L 416.50 440.00 L 406.50 440.00"/>
+  <!-- The annotation sits above the bracket rather than beside it: to the right of
+       the bracket the curve is still descending through that band and would run
+       straight through the third line. -->
+  <text class="labb" x="428.5" y="356.0">50 B of slippage</text>
+  <text class="lab"  x="428.5" y="374.0">the quoted price would</text>
+  <text class="lab"  x="428.5" y="392.0">have paid you 250 B</text>
+
+  <!-- the invariant -->
+  <text class="k"   x="530" y="176" text-anchor="middle">x &#215; y = k</text>
+  <text class="lab" x="530" y="198" text-anchor="middle">k = 1,000,000</text>
+
+  <!-- the swap, in numbers -->
+  <rect class="panel" x="140" y="444" width="270" height="104"/>
+  <text class="labb" x="156" y="470">before</text>
+  <text class="lab"  x="256" y="470">1,000 A &#215; 1,000 B</text>
+  <text class="lab"  x="156" y="492">send</text>
+  <text class="lab"  x="256" y="492">250 A</text>
+  <text class="lab"  x="156" y="514">receive</text>
+  <text class="lab"  x="256" y="514">200 B</text>
+  <text class="labb" x="156" y="536">after</text>
+  <text class="lab"  x="256" y="536">1,250 A &#215; 800 B</text>
+
+  <!-- footnote -->
+  <text class="note" x="20" y="652">The dashed line is the price the pool quotes at that instant. Trade against it and you leave it immediately:</text>
+  <text class="note" x="20" y="674">the bigger your order is relative to the reserves, the further down the curve you drag yourself before you are done.</text>
+</svg>

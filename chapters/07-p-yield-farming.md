@@ -488,6 +488,10 @@ $$\text{reward} = \text{lp\_amount} \times (\text{reward\_per\_token}_{\text{now
 
 This is O(1) per operation. No iteration over stakers. No historical tracking. The global value accumulates continuously, and each user's snapshot captures "where they got on."
 
+{{fig:reward-accumulator}} follows two stakers through four thousand rounds. The accumulator's *slope* is the whole idea: it climbs steeply while one account is alone in the pool and shallowly once four times as much LP is staked, and nobody had to be told about the change. Each staker's payout is one subtraction against a line that was already being maintained for everyone.
+
+{{include-fig:reward-accumulator}}
+
 ### The Update Formula
 
 The accumulator updates on every state-changing call (stake, unstake, claim). The update adds the rewards that have accrued since the last update:

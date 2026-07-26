@@ -80,3 +80,11 @@ back:
 examples:
   root: examples
   manifest: examples/index.yaml
+
+# Figures are indexed rather than inlined for the same reason examples are: a
+# chapter places one with {{include-fig:slug}} and never names a file, so the
+# caption lives with the figure instead of with whichever chapter happens to
+# place it, and one directive can serve two renderers that need different files.
+figures:
+  root: figures
+  manifest: figures/index.yaml

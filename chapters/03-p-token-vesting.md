@@ -221,6 +221,10 @@ class VestingSchedule(arc4.Struct):
 
 Each `arc4.UInt64` occupies 8 bytes (big-endian), `arc4.Bool` occupies 1 byte, so the struct totals 41 bytes. We will use this struct throughout the contract --- for creating schedules, tracking claims, and reading vesting status. (See [Algorand Python ARC-4 guide](https://algorandfoundation.github.io/puya/lg-arc4.html) for struct encoding details.)
 
+Keeping all six fields in one struct, in one box, is a deliberate choice rather than a stylistic one. Recall the box MBR formula from {{ch:mental-model}}: 2,500 microAlgo per box, plus 400 per byte of *name and value combined*. The per-box constant and the 32-byte beneficiary address in the name are charged once per box, not once per field --- so splitting a struct across several boxes pays for the same address several times over. {{fig:packed-box-layout}} prices both layouts side by side.
+
+{{include-fig:packed-box-layout}}
+
 Notice the `arc4.UInt64` fields in the struct --- these are not the same as the plain `UInt64` you will see in the contract's `__init__` method below. Algorand Python has two parallel type systems that you will encounter throughout this book. **Native types** (`UInt64`, `Bytes`) are what the AVM operates on directly --- arithmetic, comparisons, and most function parameters use these. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`, `arc4.Struct`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic: `schedule.total_amount.as_uint64()` converts `arc4.UInt64` to `UInt64`. We will see this conversion pattern in detail when we build the `claim` method later in this chapter.
 
 
@@ -569,6 +573,10 @@ After validation, `available_tokens` increases by the amount received. Later,
 `create_schedule` will reserve from this counter before writing a new
 beneficiary schedule, which prevents the admin from promising more tokens than
 the contract actually holds.
+
+That `+=` deserves a closer look, because it is the first time in this book that a contract writes state inside a group it does not control. The write does not go to the ledger when the line runs. It goes to a copy the whole group shares, and the ledger takes that copy only if every transaction in the group approves --- as {{fig:group-commit}} shows. This is why you may reason about the deposit and the state update as one indivisible thing: if the transfer were rejected, the increment would never have existed.
+
+{{include-fig:group-commit}}
 
 You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in {{ch:limit-order-book}}), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
 

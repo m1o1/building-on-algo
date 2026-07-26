@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 740" width="900" height="740" font-family="DejaVu Sans, sans-serif">
+  <!-- The minimum balance, drawn to scale. One vertical pixel is 1,667 µA and the
+       slab is exactly 1.000000 ALGO tall, so the reader can see at a glance how
+       little of a freshly funded pool account is actually spendable. Every
+       segment is a real current figure, not an illustration. -->
+  <style>
+    text { fill: #111111; }
+    .seg   { stroke: #333333; stroke-width: 1.5; }
+    .free  { fill: #ffffff; }
+    .box   { fill: #fafafa; }
+    .lp    { fill: #eeeeee; }
+    .assetb{ fill: #e6e6e6; }
+    .asseta{ fill: #dedede; }
+    .base  { fill: #d2d2d2; }
+    .name  { font-size: 13.5px; font-weight: bold; }
+    .amt   { font-size: 12.5px; fill: #333333; }
+    .aside { font-size: 11.5px; fill: #333333; font-style: italic; }
+    .brk   { fill: none; stroke: #333333; stroke-width: 1.5; }
+    .bt    { font-size: 15px; font-weight: bold; }
+    .bs    { font-size: 12.5px; fill: #333333; }
+    .top   { font-size: 14px; font-weight: bold; }
+    .note  { font-size: 12px; fill: #333333; font-style: italic; }
+  </style>
+
+  <text class="top" x="410" y="42" text-anchor="middle">The pool contract&#8217;s account, funded with 1.000000 ALGO</text>
+
+  <!-- the slab, spendable at the top, the account's own floor at the bottom -->
+  <rect class="seg free"   x="290" y="60"  width="240" height="309"/>
+  <rect class="seg box"    x="290" y="369" width="240" height="51"/>
+  <rect class="seg lp"     x="290" y="420" width="240" height="60"/>
+  <rect class="seg assetb" x="290" y="480" width="240" height="60"/>
+  <rect class="seg asseta" x="290" y="540" width="240" height="60"/>
+  <rect class="seg base"   x="290" y="600" width="240" height="60"/>
+
+  <!-- left-hand labels -->
+  <text class="name"  x="278" y="209" text-anchor="end">Spendable</text>
+  <text class="amt"   x="278" y="228" text-anchor="end">514,300 µA</text>
+  <text class="aside" x="278" y="248" text-anchor="end">all an inner Payment can send</text>
+
+  <text class="name" x="278" y="389" text-anchor="end">One box &#8212; 200 B, 8 B name</text>
+  <text class="amt"  x="278" y="407" text-anchor="end">85,700 µA</text>
+
+  <text class="name" x="278" y="446" text-anchor="end">Created the LP token</text>
+  <text class="amt"  x="278" y="464" text-anchor="end">100,000 µA</text>
+
+  <text class="name" x="278" y="506" text-anchor="end">Opted into asset B</text>
+  <text class="amt"  x="278" y="524" text-anchor="end">100,000 µA</text>
+
+  <text class="name" x="278" y="566" text-anchor="end">Opted into asset A</text>
+  <text class="amt"  x="278" y="584" text-anchor="end">100,000 µA</text>
+
+  <text class="name" x="278" y="626" text-anchor="end">The account itself</text>
+  <text class="amt"  x="278" y="644" text-anchor="end">100,000 µA</text>
+
+  <!-- right-hand brackets -->
+  <path class="brk" d="M 542 60 L 557 60 L 557 369 L 542 369"/>
+  <text class="bt" x="571" y="206">Free.</text>
+  <text class="bs" x="571" y="228">This is the only part the</text>
+  <text class="bs" x="571" y="246">contract can move.</text>
+
+  <path class="brk" d="M 542 369 L 557 369 L 557 660 L 542 660"/>
+  <text class="bt" x="571" y="486">Locked.</text>
+  <text class="bs" x="571" y="508">485,700 µA. Still yours, still</text>
+  <text class="bs" x="571" y="526">in the balance the explorer</text>
+  <text class="bs" x="571" y="544">shows you, and not available</text>
+  <text class="bs" x="571" y="562">to spend.</text>
+  <text class="bs" x="571" y="586">Delete the box, or opt out of</text>
+  <text class="bs" x="571" y="604">an asset, and that much</text>
+  <text class="bs" x="571" y="622">unlocks again.</text>
+
+  <text class="note" x="30" y="700">A fee is spent and gone. A minimum balance is not spent at all &#8212; it raises the floor the balance may never fall below.</text>
+  <text class="note" x="30" y="720">Fund a contract for its fees and forget its floor, and the first call that would dip under it fails with &#8220;balance below min&#8221;.</text>
+</svg>

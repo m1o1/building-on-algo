@@ -50,6 +50,13 @@ header-includes:
     % is written separately from the caption body and so survives labelformat.
     \usepackage{caption}
     \captionsetup{labelformat=empty,listformat=empty}
+    % A diagram in this book is placed where the sentence that introduces it
+    % ends, and it is referred to as "the figure below" nowhere and by number
+    % everywhere -- but a figure that drifts three pages forward still breaks
+    % the reading order the chapter was written in. float's H placement pins
+    % each one exactly where the author put it.
+    \usepackage{float}
+    \floatplacement{figure}{H}
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
     % --- Callouts -------------------------------------------------------
@@ -92,6 +99,17 @@ header-includes:
     \fancyfoot[C]{\thepage}
     \renewcommand{\headrulewidth}{0.4pt}
     \setlength{\headheight}{14pt}
+    % Unnumbered headings do not set the running marks, so fancyhdr keeps
+    % showing whatever the last numbered heading left behind -- which is why
+    % every page of the Preface used to be headed LIST OF TABLES, that being
+    % the last thing before it to call \chapter. Make starred chapters and
+    % sections set the marks exactly as their numbered siblings do.
+    \makeatletter
+    \let\BOAschapter\@schapter
+    \def\@schapter#1{\BOAschapter{#1}\markboth{\MakeUppercase{#1}}{\MakeUppercase{#1}}}
+    \let\BOAssect\@ssect
+    \def\@ssect#1#2#3#4#5{\BOAssect{#1}{#2}{#3}{#4}{#5}\markright{\MakeUppercase{#5}}}
+    \makeatother
     \usepackage[titles]{tocloft}
     \setlength{\cftsecnumwidth}{3.5em}
     \setlength{\cftsubsecindent}{5em}

@@ -9,6 +9,7 @@ Usage:
     python build.py pdf               # Build PDF via pandoc + xelatex
     python build.py all               # Build both mdbook and PDF
     python build.py concat            # Reconstruct single Building-on-Algorand.md
+    python build.py figures           # Re-render figures/src/ (outputs are committed)
 
 Chapter sources live in chapters/. File prefixes control ordering:
     F*  = front matter     (Legal Notice, Preface)
@@ -28,6 +29,7 @@ Install mdbook from the official guide:
 """
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -39,6 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 CHAPTERS_DIR = ROOT / "chapters"
 SCRIPTS_DIR = ROOT / "scripts"
+FIGURES_DIR = ROOT / "figures"
 CHANGES_DIR = ROOT / "changes"
 MDBOOK_DIR = ROOT / "mdbook"
 SRC_DIR = MDBOOK_DIR / "src"
@@ -81,6 +84,7 @@ class Book:
     entries: list[Entry] = field(default_factory=list)
     examples_root: Path | None = None
     examples_manifest: Path | None = None
+    figures_manifest: Path | None = None
 
     @property
     def files(self) -> list[Path]:
@@ -173,6 +177,10 @@ def load_book(manifest: Path = MANIFEST) -> Book:
     if ex.get("manifest"):
         book.examples_manifest = ROOT / ex["manifest"]
 
+    figs = doc.get("figures") or {}
+    if figs.get("manifest"):
+        book.figures_manifest = ROOT / figs["manifest"]
+
     number_entries(book)
     _check_orphans(book)
     return book
@@ -229,6 +237,23 @@ def _check_orphans(book: Book) -> None:
 RESOLVED_DIR = BUILD_DIR / "resolved"
 INCLUDE_EX_RE = re.compile(r"^[ \t]*\{\{include-ex:([a-z0-9][a-z0-9-]*)\}\}[ \t]*$", re.MULTILINE)
 EXAMPLE_LANG = {".py": "python", ".teal": "teal", ".ts": "typescript", ".json": "json"}
+
+# Figures work the same way, and for the same reason: a chapter names a figure
+# and never a file path or an image tag, so one directive serves two renderers
+# that need different files (SVG for the HTML, PDF for LaTeX) at different
+# paths. The placement directive is deliberately distinct from the citation
+# {{fig:slug}} exactly as include-ex: is from ex:.
+INCLUDE_FIG_RE = re.compile(
+    r"^[ \t]*\{\{include-fig:([a-z0-9][a-z0-9-]*)\}\}[ \t]*$", re.MULTILINE
+)
+
+
+def load_figure_index(manifest: Path | None) -> dict[str, dict]:
+    """Map figure slug → entry from figures/index.yaml."""
+    if manifest is None or not manifest.exists():
+        return {}
+    doc = _load_yaml(manifest) or {}
+    return {e["slug"]: e for e in doc.get("figures", []) if e.get("slug")}
 
 
 def load_example_index(manifest: Path | None) -> dict[str, dict]:
@@ -301,15 +326,53 @@ BANNED_REF_RE = re.compile(r"\{\{(figure|table|example|chapter|sec|section):[^}]
 NS_LABEL = {"tbl": "Table", "fig": "Figure", "ex": "Example"}
 
 
+# Front matter has no chapter number to hang a caption on, but the Preface does
+# carry a figure — the book's dependency graph — and O'Reilly's own convention
+# for that case is a P prefix: Figure P-1. Only the Preface gets one. A figure
+# anywhere else in front or back matter is an error, because two files sharing
+# the P sequence would silently mint two Figure P-1s.
+FRONT_MATTER_LABEL = {"preface": "P"}
+
+
 def _chapter_label(entry: Entry) -> str:
-    """The number a table or figure in this file is prefixed with: 4, or A."""
+    """The number a table or figure in this file is prefixed with: 4, A, or P."""
     if entry.role == "appendix":
         return chr(ord("A") + entry.number - 1)
-    return str(entry.number)
+    if entry.role == "chapter":
+        return str(entry.number)
+    return FRONT_MATTER_LABEL.get(entry.slug, "")
 
 
-def collect_xrefs(book: Book) -> dict:
+def _anchors_in(text: str, figures: dict[str, dict], where: str) -> list[tuple]:
+    """Every numbered anchor in one file, in the order a reader meets it.
+
+    Two syntaxes mint an anchor. `Table: … {#tbl:slug}` is a caption the author
+    writes above the thing being captioned. `{{include-fig:slug}}` is a
+    placement directive whose caption lives in figures/index.yaml, because a
+    figure's caption belongs with the figure, not with whichever chapter
+    happens to place it.
+    """
+    found = []
+    for match in CAPTION_RE.finditer(text):
+        found.append(
+            (match.start(), match.group("ns"), match.group("slug"), match.group("title").strip())
+        )
+    for match in INCLUDE_FIG_RE.finditer(text):
+        slug = match.group(1)
+        entry = figures.get(slug)
+        if entry is None:
+            raise SystemExit(
+                f"{where}: {{{{include-fig:{slug}}}}} names a figure that is not "
+                f"in figures/index.yaml"
+            )
+        found.append((match.start(), "fig", slug, str(entry.get("caption", "")).strip()))
+    found.sort(key=lambda item: item[0])
+    return found
+
+
+def collect_xrefs(book: Book, figures: dict[str, dict] | None = None) -> dict:
     """Pass 1: assign a display number to every anchor in the book."""
+    figures = figures or {}
     xrefs: dict[str, dict] = {}
     parts: dict[str, str] = {}
     roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
@@ -349,19 +412,18 @@ def collect_xrefs(book: Book) -> dict:
         ordinals = {"tbl": 0, "fig": 0, "ex": 0}
         prefix = _chapter_label(entry)
         text = entry.path.read_text(encoding="utf-8")
-        for match in CAPTION_RE.finditer(text):
-            ns = match.group("ns")
-            slug = match.group("slug")
+        where = f"chapters/{entry.path.name}"
+        for _pos, ns, slug, title in _anchors_in(text, figures, where):
             key = f"{ns}:{slug}"
             if key in xrefs:
                 raise SystemExit(
-                    f"chapters/{entry.path.name}: duplicate anchor {{#{key}}}, "
+                    f"{where}: duplicate anchor {{#{key}}}, "
                     f"already declared in {xrefs[key]['file']}"
                 )
             ordinals[ns] += 1
             if not prefix:
                 raise SystemExit(
-                    f"chapters/{entry.path.name}: {{#{key}}} is in front or back "
+                    f"{where}: {{#{key}}} is in front or back "
                     f"matter, which has no chapter number to hang a caption on"
                 )
             xrefs[key] = {
@@ -370,7 +432,7 @@ def collect_xrefs(book: Book) -> dict:
                 "number": f"{prefix}-{ordinals[ns]}",
                 "file": entry.path.name,
                 "chapter": entry.number,
-                "title": match.group("title").strip(),
+                "title": title,
             }
 
     for part_id, numeral in parts.items():
@@ -383,14 +445,30 @@ def collect_xrefs(book: Book) -> dict:
     return xrefs
 
 
-def _resolve_text(text: str, xrefs: dict, where: str) -> str:
+def _resolve_text(text: str, xrefs: dict, where: str, figures: dict[str, dict] | None = None) -> str:
     """Pass 2: rewrite captions to their display form and substitute references."""
+    figures = figures or {}
     banned = BANNED_REF_RE.search(text)
     if banned:
         raise SystemExit(
             f"{where}: {banned.group(0)} is not a cross-reference namespace. "
             f"Use {{{{fig:}}}}, {{{{tbl:}}}}, {{{{ex:}}}}, {{{{ch:}}}}, {{{{chn:}}}} or {{{{part:}}}}."
         )
+
+    def _place_figure(match: re.Match) -> str:
+        # One directive becomes one Markdown image paragraph, which is the only
+        # form both renderers already understand: pandoc promotes an image alone
+        # in a paragraph to a figure and typesets the alt text as the caption,
+        # and mdbook passes it through to <img>. The path written here is the
+        # SVG at a book-root-relative location; scripts/figures.lua swaps the
+        # extension for the LaTeX pass, which needs the PDF instead.
+        slug = match.group(1)
+        info = xrefs[f"fig:{slug}"]
+        caption = f"{info['display']}. {info['title']}".rstrip(". ")
+        alt = caption.replace("[", r"\[").replace("]", r"\]")
+        return f"![{alt}](figures/{slug}.svg)"
+
+    text = INCLUDE_FIG_RE.sub(_place_figure, text)
 
     def _caption(match: re.Match) -> str:
         key = f"{match.group('ns')}:{match.group('slug')}"
@@ -419,7 +497,8 @@ def resolve_book(book: Book) -> Book:
 
     index = load_example_index(book.examples_manifest)
     examples_root = book.examples_root or (ROOT / "examples")
-    xrefs = collect_xrefs(book)
+    figures = load_figure_index(book.figures_manifest)
+    xrefs = collect_xrefs(book, figures)
     (BUILD_DIR / "xref.json").write_text(
         json.dumps(xrefs, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -427,16 +506,161 @@ def resolve_book(book: Book) -> Book:
     resolved = Book(
         examples_root=book.examples_root,
         examples_manifest=book.examples_manifest,
+        figures_manifest=book.figures_manifest,
     )
     for entry in book.entries:
         where = f"chapters/{entry.path.name}"
         text = entry.path.read_text(encoding="utf-8")
         text = transclude_examples(text, index, examples_root, where)
-        text = _resolve_text(text, xrefs, where)
+        text = _resolve_text(text, xrefs, where, figures)
         out = RESOLVED_DIR / entry.path.name
         out.write_text(text, encoding="utf-8")
         resolved.entries.append(replace(entry, path=out))
     return resolved
+
+
+# ---------------------------------------------------------------------------
+# Figures: render once, commit the output
+# ---------------------------------------------------------------------------
+#
+# Neither renderer can draw a diagram at build time. Pandoc and xelatex have no
+# idea what Mermaid is, and mdbook-mermaid draws in the browser, which produces
+# nothing a print edition can use. So the drawing happens here, ahead of time,
+# and the results are committed: a contributor with neither mermaid-cli nor
+# rsvg-convert installed can still build the whole book.
+#
+# Both kinds of source take the same road to PDF. A .mmd goes through mermaid-cli
+# to SVG; a hand-drawn .svg is copied as-is; and then ONE uniform rsvg-convert
+# pass turns every SVG into the PDF that \includegraphics wants. Letting
+# mermaid-cli write the PDF directly would be shorter and wrong: that path is a
+# Puppeteer page print, so the file arrives page-sized with margins baked in, and
+# \includegraphics scales the margins along with the drawing.
+#
+# PDF rather than PNG because graphicx cannot read SVG at all, and a PNG that
+# looks fine on screen goes soft under an 8pt caption on paper.
+
+FIG_SRC_DIR = FIGURES_DIR / "src"
+FIG_OUT_DIR = FIGURES_DIR / "out"
+FIG_HASHES = FIG_OUT_DIR / ".hashes.json"
+FIG_THEME = FIGURES_DIR / "theme.json"
+FIG_PUPPETEER = FIGURES_DIR / "puppeteer.json"
+
+
+def _digest(*paths: Path) -> str:
+    """A stable fingerprint of the inputs that determine one figure's output."""
+    h = hashlib.sha256()
+    for path in paths:
+        h.update(path.read_bytes() if path.exists() else b"")
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def _preserve_label_spaces(svg: Path) -> None:
+    """Stop librsvg eating the spaces between words in a Mermaid label.
+
+    With htmlLabels off, Mermaid splits a label one word per <tspan> and carries
+    the separator as a *leading* space on each: `<tspan>What</tspan><tspan> the
+    </tspan>`. XML's default whitespace handling strips leading whitespace, so
+    librsvg renders "Whatthe" -- and since browsers apply the same rule to the
+    same file, this is not something the mdbook edition would have caught
+    either. Declaring xml:space="preserve" on the <text> element keeps them.
+
+    Safe because mermaid-cli emits the SVG minified: the only whitespace inside
+    a <text> element is the separators we want back.
+    """
+    text = svg.read_text(encoding="utf-8")
+    patched = re.sub(r"<text(?![\w-])(?![^>]*xml:space)", '<text xml:space="preserve"', text)
+    if patched != text:
+        svg.write_text(patched, encoding="utf-8")
+
+
+def render_figures(*, force: bool = False) -> None:
+    """Render figures/src/ into the committed SVG and PDF pair in figures/out/."""
+    if not FIG_SRC_DIR.is_dir():
+        print("No figures/src/ directory; nothing to render.")
+        return
+    FIG_OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        hashes = json.loads(FIG_HASHES.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        hashes = {}
+
+    mmdc = shutil.which("mmdc")
+    rsvg = shutil.which("rsvg-convert")
+    sources = sorted([*FIG_SRC_DIR.glob("*.mmd"), *FIG_SRC_DIR.glob("*.svg")])
+    rendered = skipped = 0
+
+    for source in sources:
+        slug = source.stem
+        svg_out = FIG_OUT_DIR / f"{slug}.svg"
+        pdf_out = FIG_OUT_DIR / f"{slug}.pdf"
+        stamp = _digest(source, FIG_THEME) if source.suffix == ".mmd" else _digest(source)
+        fresh = (
+            not force
+            and hashes.get(source.name) == stamp
+            and svg_out.exists()
+            and pdf_out.exists()
+        )
+        if fresh:
+            skipped += 1
+            continue
+
+        if source.suffix == ".mmd":
+            if not mmdc:
+                # Not an error. The outputs are committed precisely so that a
+                # missing drawing toolchain cannot stop anyone building the book.
+                print(f"  warning: mermaid-cli (mmdc) not found; keeping committed {slug}.svg")
+                continue
+            cmd = ["mmdc", "-i", str(source), "-o", str(svg_out), "-c", str(FIG_THEME)]
+            if FIG_PUPPETEER.exists():
+                cmd += ["-p", str(FIG_PUPPETEER)]
+            done = subprocess.run(cmd, capture_output=True, text=True)
+            if done.returncode != 0:
+                # mermaid reports a syntax error on stdout and a stack trace on
+                # stderr; a bare CalledProcessError would show neither, and the
+                # line number is the whole diagnosis.
+                raise SystemExit(
+                    f"figures/src/{source.name}: mermaid-cli failed\n"
+                    + (done.stdout or "").strip()
+                    + "\n"
+                    + (done.stderr or "").strip().split("\n")[0]
+                )
+            _preserve_label_spaces(svg_out)
+        else:
+            shutil.copy2(source, svg_out)
+
+        if not rsvg:
+            print(f"  warning: rsvg-convert not found; keeping committed {slug}.pdf")
+            continue
+        subprocess.run(
+            ["rsvg-convert", "-f", "pdf", "-o", str(pdf_out), str(svg_out)],
+            check=True,
+            capture_output=True,
+        )
+        hashes[source.name] = stamp
+        rendered += 1
+        print(f"  {slug}: svg + pdf")
+
+    FIG_HASHES.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Figures: {rendered} rendered, {skipped} unchanged, {len(sources)} total")
+
+
+def copy_figures_for_mdbook() -> int:
+    """Place the SVGs inside the mdbook src root.
+
+    build_mdbook() empties mdbook/src/ and writes only chapters into it, so a
+    path pointing at ../figures/ would escape the book root and be dropped
+    without a word. The images have to live under src/ to survive.
+    """
+    svgs = sorted(FIG_OUT_DIR.glob("*.svg")) if FIG_OUT_DIR.is_dir() else []
+    if not svgs:
+        return 0
+    dest = SRC_DIR / "figures"
+    dest.mkdir(parents=True, exist_ok=True)
+    for svg in svgs:
+        shutil.copy2(svg, dest / svg.name)
+    return len(svgs)
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +793,9 @@ CALLOUT_LABEL = {
 CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)\}\s*$")
 
 
+FIGURE_IMG_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<src>figures/[a-z0-9-]+\.svg)\)$")
+
+
 def clean_for_mdbook(text: str) -> str:
     """Transform pandoc-flavored markdown for mdBook consumption.
 
@@ -604,6 +831,22 @@ def clean_for_mdbook(text: str) -> str:
                 r"\1**\2 \3.** \4",
                 line,
             )
+            # A figure placement, which the resolver has already turned into an
+            # image paragraph. Pandoc promotes that to a captioned figure by
+            # itself; pulldown-cmark has no such notion and would emit a bare
+            # <img> with the caption hidden in the alt text, where a sighted
+            # reader never sees it and the numbering the prose refers to
+            # vanishes. So write the <figure> element out longhand.
+            figure = FIGURE_IMG_RE.match(line)
+            if figure:
+                alt, src = figure.group(1), figure.group(2)
+                caption = alt.replace(" --- ", " — ")
+                out.append("<figure class=\"book-figure\">")
+                out.append(f'<img src="{src}" alt="{alt}" />')
+                out.append(f"<figcaption>{caption}</figcaption>")
+                out.append("</figure>")
+                continue
+
             # Pandoc em-dashes → unicode
             line = line.replace(" --- ", " — ")
 
@@ -675,6 +918,61 @@ blockquote {
     border-radius: 0 4px 4px 0;
 }
 
+/* --- Callouts -------------------------------------------------------------
+   Nine classes, and the same nine colours the PDF uses (chapters/metadata.yaml
+   defines them as \\definecolor entries for tcolorbox). Keeping the two lists
+   in step is what makes a reader who has met one Warning in the HTML edition
+   recognise the next one in print. This lives in build.py rather than in
+   mdbook/theme/custom.css because mdbook/ is generated and gitignored: every
+   build rewrites that file from this string, so this string is the source. */
+.callout {
+    --callout-color: #6b7280;
+    border-left: 4px solid var(--callout-color);
+    background: color-mix(in srgb, var(--callout-color) 5%, transparent);
+    padding: 0.85em 1.1em 0.1em;
+    margin: 1.5em 0;
+    border-radius: 0 4px 4px 0;
+}
+.callout > .callout-label {
+    color: var(--callout-color);
+    font-weight: 700;
+    font-size: 0.82em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 0 0 0.5em;
+}
+.callout > p:last-child { margin-bottom: 0.85em; }
+.callout-note    { --callout-color: #2563eb; }
+.callout-tip     { --callout-color: #059669; }
+.callout-warning { --callout-color: #dc2626; }
+.callout-gotcha  { --callout-color: #b45309; }
+.callout-setup   { --callout-color: #6b7280; }
+.callout-spec    { --callout-color: #7c3aed; }
+.callout-version { --callout-color: #0891b2; }
+.callout-check   { --callout-color: #be185d; }
+.callout-tryit   { --callout-color: #15803d; }
+
+/* --- Figures --- */
+.book-figure {
+    margin: 1.8em 0;
+    text-align: center;
+}
+.book-figure img {
+    max-width: 100%;
+    height: auto;
+    /* The diagrams are drawn in greys on white for the print edition. On a dark
+       theme that reads as a bright hole in the page, so give them a plate. */
+    background: #ffffff;
+    border-radius: 4px;
+    padding: 0.5em;
+}
+.book-figure figcaption {
+    margin-top: 0.6em;
+    font-size: 0.9em;
+    font-style: italic;
+    opacity: 0.85;
+}
+
 /* --- Tables --- */
 table {
     width: 100%;
@@ -731,6 +1029,7 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
     SRC_DIR.mkdir(parents=True, exist_ok=True)
     theme_dir = MDBOOK_DIR / "theme"
     theme_dir.mkdir(parents=True, exist_ok=True)
+    n_figs = copy_figures_for_mdbook()
 
     summary_lines = ["# Summary\n"]
 
@@ -790,7 +1089,10 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
     (MDBOOK_DIR / "book.toml").write_text(BOOK_TOML, encoding="utf-8")
     (theme_dir / "custom.css").write_text(CUSTOM_CSS, encoding="utf-8")
 
-    print(f"Prepared {len(chapter_files)} chapters in {SRC_DIR.relative_to(ROOT)}/")
+    print(
+        f"Prepared {len(chapter_files)} chapters and {n_figs} figures "
+        f"in {SRC_DIR.relative_to(ROOT)}/"
+    )
 
     # Run mdbook
     if not shutil.which("mdbook"):
@@ -882,6 +1184,11 @@ def build_pdf() -> None:
         "--pdf-engine=xelatex",
         # Div classes are invisible to pandoc's LaTeX writer without this.
         f"--lua-filter={SCRIPTS_DIR / 'callouts.lua'}",
+        # The resolved source names the SVG the HTML edition serves; graphicx
+        # cannot read SVG, so this swaps in the PDF rendered beside it.
+        f"--lua-filter={SCRIPTS_DIR / 'figures.lua'}",
+        # ...and this is what lets the swapped-in bare filename resolve.
+        f"--resource-path=.:{(FIGURES_DIR / 'out').relative_to(ROOT)}",
         # Pandoc has never had a --syntax-highlighting flag; the option is
         # --highlight-style. The typo sat here unnoticed because pandoc exits
         # 6 before doing any work, so the PDF target failed on every run.
@@ -940,12 +1247,17 @@ def main() -> None:
     sub.add_parser("all", help="Build both mdbook and PDF")
     sub.add_parser("concat", help="Reconstruct single Building-on-Algorand.md")
 
+    fg = sub.add_parser("figures", help="Render figures/src/ to committed SVG + PDF")
+    fg.add_argument("--force", action="store_true", help="Re-render even if unchanged")
+
     args = parser.parse_args()
 
     if args.command == "mdbook":
         build_mdbook(serve=args.serve, open_browser=args.open)
     elif args.command == "pdf":
         build_pdf()
+    elif args.command == "figures":
+        render_figures(force=args.force)
     elif args.command == "all":
         build_mdbook()
         build_pdf()

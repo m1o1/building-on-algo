@@ -1,0 +1,4 @@
+{
+  "_comment": "mermaid-cli drives a headless Chromium through Puppeteer. Container and CI images run as root, where Chromium's sandbox refuses to start; --no-sandbox is what makes `build.py figures` work anywhere. It is safe here because the only thing the browser ever loads is a local .mmd file this repository wrote. Set PUPPETEER_EXECUTABLE_PATH to point mermaid-cli at a Chromium you already have instead of downloading one.",
+  "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+}

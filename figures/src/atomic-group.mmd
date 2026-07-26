@@ -1,0 +1,32 @@
+%% All-or-nothing. The same three-transaction group, run twice: once where every
+%% transaction is valid, once where the last one is not. The point of the figure
+%% is that the difference between the two columns is not "two succeeded, one
+%% failed" -- it is "everything happened" versus "nothing happened".
+%% .
+%% Drawn as two disconnected chains rather than two subgraphs on purpose: a
+%% subgraph's own `direction` overrides the diagram's, and the two boxes then
+%% stack along the flow axis instead of standing side by side, which is the one
+%% arrangement that makes the comparison unreadable.
+flowchart TB
+    PH["Every transaction valid"]
+    A1["1 · Payment<br/>1 ALGO to the app"]
+    A2["2 · Asset transfer<br/>500 units in"]
+    A3["3 · App call<br/>record the deposit"]
+    AOK["Committed<br/>all three land,<br/>in the same round"]
+    PH --> A1 --> A2 --> A3 --> AOK
+
+    FH["The same group, transaction 3 rejects"]
+    B1["1 · Payment<br/>1 ALGO to the app"]
+    B2["2 · Asset transfer<br/>500 units in"]
+    B3["3 · App call<br/>assert fails"]
+    BNO["Rejected<br/>the payment never happened,<br/>the transfer never happened"]
+    FH --> B1 --> B2 --> B3 --> BNO
+
+    classDef head fill:#ffffff,stroke:#ffffff,color:#111111
+    classDef step fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef good fill:#e0e0e0,stroke:#333333,stroke-width:2px,color:#111111
+    classDef bad fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class PH,FH head
+    class A1,A2,A3,B1,B2 step
+    class AOK good
+    class B3,BNO bad

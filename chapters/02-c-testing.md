@@ -920,6 +920,10 @@ The preceding tests use `pytest.raises(Exception)` to verify that unauthorized c
 
 Algorand's *simulate* endpoint solves this. Simulate executes the full transaction logic --- including all contract assertions --- without committing state changes or charging fees. When the simulated transaction would have been rejected, algokit-utils raises a `LogicError` carrying the contract's own assert message. This lets you construct an attack, simulate it, and verify the *exact* assertion that stopped it.
 
+{{fig:simulate-trace}} annotates what comes back when a simulated call is rejected. The single most important thing on that page is at the top: the HTTP request itself *succeeded*. A rejected simulation is a `200 OK` whose body reports the failure, which is why a test that asserts on the status code will pass no matter what the contract does. The information you want --- which assertion fired, and where --- is in `failure-message` and `failed-at`.
+
+{{include-fig:simulate-trace}}
+
 ```python
     def test_simulate_unauthorized_claim(
         self, algorand, admin

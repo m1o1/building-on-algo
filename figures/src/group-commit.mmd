@@ -1,0 +1,20 @@
+%% Writes are staged, not applied. A reader who has understood atomicity for
+%% payments still tends to assume that a state write in transaction 1 is visible
+%% or durable before transaction 3 runs. It is neither: the whole group's writes
+%% land together, at the end, or not at all.
+flowchart TB
+    T1["txn 1 · App call<br/>total += 1<br/>write staged"]
+    T2["txn 2 · App call<br/>reads total<br/>sees the staged value"]
+    T3["txn 3 · App call<br/>assert fails"]
+
+    T1 --> T2 --> T3
+    T3 --> J{"every transaction<br/>approved?"}
+    J -->|yes| C["Ledger updated once.<br/>total is now 1."]
+    J -->|no| X["Ledger untouched.<br/>total is still 0 —<br/>the write in txn 1 is discarded."]
+
+    classDef staged fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef good fill:#e0e0e0,stroke:#333333,color:#111111
+    classDef bad fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class T1,T2 staged
+    class C good
+    class T3,X bad

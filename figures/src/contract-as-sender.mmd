@@ -1,0 +1,18 @@
+%% A contract is an account, and it can spend. The sequence matters more than the
+%% cast: the inner payment is submitted by the AVM during the app call, from the
+%% application's own address, and it settles before the call returns.
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant A as Application<br/>(app ID 1234)
+    participant AA as Application account<br/>(its own address)
+    participant R as Recipient
+
+    U->>A: App call: claim()
+    Note over A: fee covers the inner txn<br/>as well as this one
+    A->>A: check the caller, read state
+    A->>AA: itxn: Payment, fee 0
+    AA->>R: 5 ALGO
+    Note over AA,R: settles inside this app call,<br/>not in a later transaction
+    A-->>U: approve
+    Note over U,R: reject anywhere above and the<br/>payment is undone with everything else

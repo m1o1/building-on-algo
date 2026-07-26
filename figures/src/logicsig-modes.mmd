@@ -1,0 +1,25 @@
+%% One program, two entirely different security models. The question the figure
+%% answers is "whose money is at risk if the program is wrong?", and the answer
+%% is different on each side.
+flowchart TB
+    L["A LogicSig program<br/>compiled TEAL, no state of its own"]
+
+    L --> CA["Contract account"]
+    L --> DL["Delegated signature"]
+
+    CA --> CA1["Address = hash of the program"]
+    CA1 --> CA2["Anyone may submit a transaction<br/>the program approves"]
+    CA2 --> CA3["At risk: only what was sent<br/>to that address"]
+
+    DL --> DL1["An account signs the program once"]
+    DL1 --> DL2["Anyone holding the signature may submit<br/>a transaction the program approves"]
+    DL2 --> DL3["At risk: everything in the<br/>signing account"]
+
+    classDef prog fill:#e0e0e0,stroke:#333333,stroke-width:2px,color:#111111
+    classDef mode fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef risk fill:#ffffff,stroke:#333333,color:#111111
+    classDef danger fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class L prog
+    class CA,DL mode
+    class CA1,CA2,CA3,DL1,DL2 risk
+    class DL3 danger

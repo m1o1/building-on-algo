@@ -814,6 +814,14 @@ The factory registry is harder to fake because only the factory application can
 write its own boxes. A malicious pool can claim anything in its own state; it
 cannot make the real factory map `(asset_a, asset_b)` to the malicious app ID.
 
+{{fig:provenance-trust-graph}} draws both claims side by side and marks which
+arrows an attacker can forge. Every arrow that originates inside the caller is
+forgeable, because the caller wrote it. The one arrow that is not is the entry
+the factory itself recorded in its own box --- and that is the only one worth
+checking.
+
+{{include-fig:provenance-trust-graph}}
+
 That is why the verification method combines both sides. {{tbl:factory-provenance-checks}} summarizes
 the checks used by `verify_pool`.
 

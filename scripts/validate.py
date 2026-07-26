@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "validation" / "manifest.json"
 EXAMPLES_ROOT = ROOT / "examples"
 EXAMPLES_INDEX = EXAMPLES_ROOT / "index.yaml"
+FIGURES_ROOT = ROOT / "figures"
+FIGURES_INDEX = FIGURES_ROOT / "index.yaml"
+FIGURES_OUT = FIGURES_ROOT / "out"
 
 
 def run(cmd: list[str]) -> None:
@@ -262,6 +265,41 @@ def load_examples() -> list[dict]:
     return entries
 
 
+def load_figures() -> list[dict]:
+    """Parse and schema-check figures/index.yaml.
+
+    A figure entry is small on purpose: the slug the book refers to it by, the
+    caption that follows it on the page, and the source file it was drawn from.
+    Everything else — its number, which chapter it lands in, which file each
+    renderer consumes — is derived, which is why none of it is written here.
+    """
+    if not FIGURES_INDEX.exists():
+        return []
+    data = _load_yaml(FIGURES_INDEX)
+    entries = data.get("figures") or []
+    problems: list[str] = []
+    seen: set[str] = set()
+    for position, entry in enumerate(entries, start=1):
+        slug = entry.get("slug")
+        where = slug or f"entry #{position}"
+        if not slug:
+            problems.append(f"{where}: missing slug")
+        elif slug in seen:
+            problems.append(f"{where}: duplicate slug")
+        else:
+            seen.add(slug)
+        if not entry.get("caption"):
+            problems.append(f"{where}: missing caption")
+        rel = entry.get("source")
+        if not rel:
+            problems.append(f"{where}: missing source")
+        elif not (FIGURES_ROOT / rel).exists():
+            problems.append(f"{where}: source does not exist: figures/{rel}")
+    if problems:
+        raise AssertionError("figures/index.yaml is invalid:\n  " + "\n  ".join(problems))
+    return entries
+
+
 def _puyapy(source: Path, out_dir: Path) -> subprocess.CompletedProcess:
     """Compile one example.
 
@@ -441,7 +479,7 @@ CHAPTERS_DIR = ROOT / "chapters"
 BOOK_MANIFEST = CHAPTERS_DIR / "book.yaml"
 
 XREF_RE = re.compile(r"\{\{([a-z][a-z-]*):([^}]*)\}\}")
-XREF_NAMESPACES = {"ex", "tbl", "fig", "ch", "chn", "part", "include-ex"}
+XREF_NAMESPACES = {"ex", "tbl", "fig", "ch", "chn", "part", "include-ex", "include-fig"}
 # {{figure:...}} is the single most likely typo for {{fig:...}} and would
 # otherwise sail through as an unknown namespace. Name it explicitly.
 BANNED_NAMESPACES = {"figure", "table", "example", "chapter", "sec", "section"}
@@ -534,6 +572,9 @@ def check_structure(strict: bool = False) -> None:
     doc = _load_book_manifest()
     entries = _manifest_entries(doc)
     examples = load_examples()
+    figures = load_figures()
+    figure_slugs = {f["slug"] for f in figures}
+    placements: dict[str, list[str]] = {}  # figure slug -> [where, ...]
     example_slugs = {e["slug"] for e in examples}
     chapter_slugs = {e["slug"] for e in entries}
     problems: list[Problem] = []
@@ -558,6 +599,11 @@ def check_structure(strict: bool = False) -> None:
     # A table or figure declares itself with an attribute on its caption line:
     #     : Fee pooling rules {#tbl:fee-pooling}
     anchor_re = re.compile(r"\{#(tbl|fig|ex):([a-z0-9][a-z0-9-]*)\}")
+    # A figure has no caption line in the chapter to hang {#fig:slug} on — its
+    # caption lives in figures/index.yaml — so the placement directive is what
+    # mints the anchor. Both syntaxes feed the same `anchors` map, which is what
+    # lets {{fig:slug}} resolve and check 3 notice an unreferenced figure.
+    placement_re = re.compile(r"\{\{include-fig:([a-z0-9][a-z0-9-]*)\}\}")
     anchors: dict[str, str] = {}   # slug -> "chapters/file.md:line"
     references: dict[str, list[str]] = {}  # slug -> [where, ...]
 
@@ -580,6 +626,17 @@ def check_structure(strict: bool = False) -> None:
                                 f"duplicate anchor {{#{key}}}, first seen at {anchors[key]}")
                     )
                 anchors[key] = f"{rel}:{line_no}"
+
+            for slug in placement_re.findall(line):
+                key = f"fig:{slug}"
+                where = f"{rel}:{line_no}"
+                placements.setdefault(slug, []).append(where)
+                if key in anchors:
+                    problems.append(
+                        Problem(2, "error", where,
+                                f"duplicate anchor {{#{key}}}, first seen at {anchors[key]}")
+                    )
+                anchors[key] = where
 
             # -- check 5: appendix-in-chapter ------------------------------
             # An appendix inside a chapter is a section the author could not
@@ -700,6 +757,8 @@ def check_structure(strict: bool = False) -> None:
             known = slug in chapter_slugs
         elif ns in ("ex", "include-ex"):
             known = slug in example_slugs
+        elif ns == "include-fig":
+            known = slug in figure_slugs
         elif ns == "part":
             known = slug in {p.get("id") for p in doc.get("parts", [])}
         else:
@@ -758,6 +817,41 @@ def check_structure(strict: bool = False) -> None:
             problems.append(
                 Problem(10, "error", f"examples/{e['path']}",
                         f"{printed} printed lines exceeds the {e['tier']} budget of {budget}")
+            )
+
+    # -- check 13: figures are drawn, rendered, and placed ------------------
+    # The rendered SVG and PDF are committed, so a contributor without
+    # mermaid-cli can still build the book — which also means a stale or
+    # missing render is invisible until someone opens the PDF and finds a
+    # missing-image box. This is the check that makes it visible instead.
+    for figure in figures:
+        slug = figure["slug"]
+        for suffix in (".svg", ".pdf"):
+            artifact = FIGURES_OUT / f"{slug}{suffix}"
+            if not artifact.exists():
+                problems.append(
+                    Problem(13, "error", f"figures/index.yaml",
+                            f"{slug}: figures/out/{slug}{suffix} has not been rendered; "
+                            f"run `python3 build.py figures`")
+                )
+        where = placements.get(slug, [])
+        if not where:
+            problems.append(
+                Problem(13, "warning", "figures/index.yaml",
+                        f"{slug} is drawn and indexed but no chapter places it")
+            )
+        elif len(where) > 1:
+            problems.append(
+                Problem(13, "error", where[1],
+                        f"{slug} is placed {len(where)} times; a figure is numbered "
+                        f"where it appears, so it can appear only once")
+            )
+    for slug, wheres in placements.items():
+        if slug not in figure_slugs:
+            problems.append(
+                Problem(13, "error", wheres[0],
+                        f"{{{{include-fig:{slug}}}}} names a figure that is not in "
+                        f"figures/index.yaml")
             )
 
     errors = [p for p in problems if p.severity == "error"]

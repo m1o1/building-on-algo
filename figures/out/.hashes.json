@@ -1,0 +1,18 @@
+{
+  "abi-call-wire.svg": "7812971016a47565a2544790e1050932a4eed9f8de5a8a89f2da3561182d73d4",
+  "atomic-group.mmd": "659201eff04f87dc95f21c7d2a8685d602e5917e1a820169c7e36d74a7283241",
+  "book-map.mmd": "44dc7a97d5a75458b87707c493f17a764bb09a06f81ee20768bf7c7e479507de",
+  "constant-product-curve.svg": "f3f76c5d9ae430f76c3864ea3246470fa28c1cbf09bd18bcbac37579d1cbcc80",
+  "contract-as-sender.mmd": "8eec83a41db1492f22eb1099fa29dfb9ffb51af2df150a1fc9f530a5373d5e12",
+  "group-commit.mmd": "70ede90b86d05a28ee63b6ed6308b132fa4f3e7d0e34c3e9d424fa73b5803781",
+  "logicsig-modes.mmd": "ed1eb1e807953db9690c05576090c79ca355d5b10e06102586e1b77b9eb232a6",
+  "mbr-slab.svg": "180589011814c9332fefffc4d4d43b6c324a86cfe493fad4f72079499a0af9b5",
+  "notional-machine.mmd": "c524b49dbf19fc428f5b488f46ba72db320645c05592b791e63fdfa9a09a54cf",
+  "oncompletes.mmd": "cbce6ad1a0ca179a914c4ea82e9b8b89a91519f280e4637625a91c467db4dd47",
+  "packed-box-layout.svg": "820b55cce294c22a1c80bf19d2a143b140b201d8dc04bf6f36c2ebe41971051a",
+  "provenance-trust-graph.mmd": "110944590acac0e99a1968d300087fcdf89f315fe3ffff75ba388e8b83acd328",
+  "reward-accumulator.svg": "98a0d9451c011d3d4e925c28ae2018020d6d61b3b568f4eb03cebb5b43f970da",
+  "simulate-trace.svg": "c11c1cc319f78be8b3c06086fb6f15e81df904b737e3a4609027dc0d47b7ccbb",
+  "storage-decision-tree.svg": "b4e7f2f241884edd73f956d20ebd7ab308db4fdb746540aa23bc668ba3163d0c",
+  "who-pays.svg": "4aec5f8c72b41a46e9f97e17e6cf63644d085f29758762377d9788f963780879"
+}
