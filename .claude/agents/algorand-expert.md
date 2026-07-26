@@ -465,7 +465,15 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 6. **Compile every example and treat WARNINGS as findings, not noise.** `tests/` asserts nothing about warnings, so a clean test run is not evidence of a clean compile. `expression result is ignored` in particular marks a discarded return value — on `Box.create` that is a silent overwrite of live data wearing the costume of a style nit. Read the compiler's full output for every file the chapter ships, and either fix the warning or state in prose why the code earns it.
 
-7. **Self-review the output.** Before returning results, re-read every code block and prose change.
+7. **Evaluate every "does this still fit in 64 bits?" claim NUMERICALLY, and record the threshold.** `MAX_UINT64 = 18,446,744,073,709,551,615`. Do the multiplication, compare it, and then compute and write down the smallest input value that would actually overflow. Prose of the form "at 10^12 this no longer fits" is a factual claim with an arithmetic answer, and two such claims survived a full review round in this book while being off by two orders of magnitude. The threshold matters independently of the claim: "any `total` above 6,518,286,428,268 overflows in the back half of the schedule" is a finding; "large grants might overflow" is not.
+
+8. **Prove the failing opcode is REACHABLE in every deliberate-failure example.** A chapter that says "this aborts with `/ 0`" is asserting that control flow arrives at the division before any guard or early return intercepts it. Read the method top to bottom and confirm it. A guard hoisted above the arithmetic — or arithmetic hoisted above a guard — silently changes which message the reader will actually see, and the chapter's source-line attribution with it.
+
+9. **Attribute every transcript to chain or emulator, and never assert on an AVM string.** See the message table in Verified API Ground Truth. A message quoted in prose without a side-of-the-boundary label is a defect. An `assert` whose message string copies an AVM failure string (`"- would result negative"`, `"/ 0"`) is a worse one — it makes a contract's own assertion indistinguishable from the evaluator's in a failure log.
+
+10. **Every example that creates a box must fund the MBR or explicitly scope it out.** A box write that the app account cannot pay for aborts mid-method. Either assert the balance before the write or say in prose that funding is the deployment script's job.
+
+11. **Self-review the output.** Before returning results, re-read every code block and prose change.
 
 ### When to Compile-Test
 
@@ -541,7 +549,24 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
 ### ARC-4 boundary, router and app-spec facts (verified empirically, puyapy 5.9.0 / algokit-utils-py 4.2.3, 2026-07-26)
 
 - **The AVM has ONE stack with TWO value types on it** (`uint64` and byte string) — not two stacks. Chapter 1-style phrasing like "the value stack and the byte stack" is wrong; correct it on sight.
-- **`+` and `-` abort on range violation exactly like `*`.** None of them wrap. Verified empirically: `a + b` where the sum exceeds 2^64-1 raises `OverflowError: + overflows`. `mulw` is the widening escape hatch for multiplication ONLY — there is no additive equivalent, so a bound like `self.count + n <= UInt64(LIMIT)` can abort before the assertion it guards is ever evaluated. Never cite `{{ex:stack-types}}`-style multiplication-only material as evidence for an addition claim without the generalization being stated in the text.
+- **`+` and `-` abort on range violation exactly like `*`.** None of them wrap. `mulw` is the widening escape hatch for multiplication ONLY — there is no additive equivalent, so a bound like `self.count + n <= UInt64(LIMIT)` can abort before the assertion it guards is ever evaluated. Never cite `{{ex:stack-types}}`-style multiplication-only material as evidence for an addition claim without the generalization being stated in the text.
+- **The AVM's arithmetic failure messages, read from `data/transactions/logic/eval.go` (go-algorand, AVM v12 / consensus v41).** These are the exact literals; PuyaPy does not wrap them (verified by reading TEAL — it emits bare `+`/`-`/`/`/`%` opcodes with no guard and no message of its own), so on-chain the reader sees the AVM's string verbatim.
+
+  | Operation | Exact AVM message | Site |
+  |---|---|---|
+  | `a + b` overflow | `+ overflowed` | `eval.go:1944` `opPlus` |
+  | `a * b` overflow | `* overflowed` | `eval.go:2033` `opMul` |
+  | `a - b`, `b > a` | `- would result negative` | `eval.go:1999` `opMinus` |
+  | `a // b`, `b == 0` | `/ 0` | `eval.go:2010` `opDiv` |
+  | `a % b`, `b == 0` | `% 0` | `eval.go:2021` `opModulo` |
+  | `divw`, `d == 0` | `divw 0` | `eval.go:2059` `opDivw` |
+  | `divw` quotient ≥ 2^64 | `divw overflow: %d <= %d` (divisor first, then hi) | `eval.go:2062` |
+  | `divmodw`, zero divisor | `/ 0` | `eval.go:1982` `opDivModw` |
+  | `a ** b` overflow | `%d^%d overflow` (e.g. `2^64 overflow`) | `eval.go:2280-2308` `opExp` |
+
+  `% 0` is **not** `/ 0` — separate opcode, separate literal. `EvalError.Error()` (`eval.go:1134-1145`) wraps them: an app call reads `logic eval error: / 0. Details: app=1234, pc=57`; a LogicSig reads `rejected by logic err=/ 0. Details: pc=57`.
+- **⚠ The testing emulator prints DIFFERENT strings from the chain, and all FIVE arithmetic cases differ.** `_algopy_testing/primitives/uint64.py:198-208` raises `OverflowError(f"{op} overflows")` and `ArithmeticError(f"{op} underflows")`. So pytest shows `OverflowError: + overflows` (present tense) where the chain shows `+ overflowed`, and `ArithmeticError: - underflows` where the chain shows `- would result negative`. **Division and modulo by zero do not go through that code path at all** — the emulator falls through to CPython, which raises a plain `ZeroDivisionError` (`integer division or modulo by zero` / `integer modulo by zero`), so `/ 0` and `% 0` — two distinct AVM literals — collapse into one Python exception with wording from neither. **None of the five are interchangeable.** Every arithmetic-failure transcript in the book must be labelled as either a unit-test run or an on-chain run, and must use that context's string. Quoting the emulator's wording as "what the AVM says" is a fabricated transcript. **Tests must assert on the exception CLASS (`pytest.raises(ArithmeticError)`), never on the text** — and note the corollary for transcripts: a test written that way *passes*, so a "failing pytest run" transcript for such a test depicts a run that does not happen.
+- **`algokit-utils` sets the validity window to 10 rounds everywhere EXCEPT LocalNet, where it is 1000 — the protocol maximum.** `algokit_utils/transactions/transaction_composer.py:1393`: `self._default_validity_window = default_validity_window or 10`; the LocalNet override is at 2105-2116 with the source comment *"set a bigger window to avoid dead transactions"* (verified 4.2.3, 2026-07). Two consequences that bite in opposite directions. (1) **`Txn.last_valid` sits ~999 rounds ahead of `Global.round` on LocalNet**, so any defect that reads `Txn.last_valid` as a clock is exercised at *full strength* by every LocalNet test — and passes anyway, because tests typically assert that a call returned rather than that it returned a number computed independently of the contract. **A defect that reads a caller-supplied field is not caught by exercising it; it is caught only by asserting against a figure the contract did not produce.** (2) The `op.Block` readable window is `1001 - (last_valid - first_valid)` wide, so on LocalNet it **collapses to a single round**, `first_valid - 1`.
 - **The ABI method name is part of the selector signature.** `add(uint64,uint64)uint64` = `fe6bdf69`; `add_native(uint64,uint64)uint64` = `5d767951`; `add(uint64)uint64` = `ff9a73d6`. Two Python methods carrying `@arc4.abimethod(name="add")` with different argument types are unambiguous and legal — overloading is free because arguments are in the signature. Renaming the *Python* method does not move the selector; changing an argument type does and breaks every deployed caller.
 - **`byte[]` is length-prefixed on the wire.** A 14-byte payload as `byte[]` is 16 bytes (2-byte length prefix); the same payload as `(string,uint64)` is 18 bytes (4 bytes of overhead — a head offset plus the string's own length prefix). The delta is TWO bytes, not four. Do not describe the tuple as "spending two more" than a bare payload — that double-counts the `byte[]` prefix.
 - **ARC-4 dynamic-array element offsets are counted from the START of the offset list** (the first byte after the 2-byte element count), not from its end. For `['a','bb']` → `0002 0004 0007 0001 61 0002 6262`, offset `0004` must resolve to absolute index 6, which only works with the start-of-offset-list base.
@@ -598,6 +623,70 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
 
 ---
 
+### Clocks, block lookback and randomness (verified against go-algorand source and puyapy 5.9.0 / algorand-python 3.5.1, 2026-07-26)
+
+**There are FOUR things that look like "now," and only one of them is.**
+
+| Expression | What it actually is | Who controls it |
+|---|---|---|
+| `Global.round` | the round **currently being formed** | the ledger — this is "now" |
+| `Global.latest_timestamp` | the **previous** block's timestamp | the previous proposer, within a 25s band |
+| `Txn.first_valid` / `Txn.first_valid_time` | when the caller *said* the txn became valid | the caller, up to 1000 rounds stale |
+| `Txn.last_valid` | when the caller *said* the txn expires | the caller, freely, up to 1000 rounds ahead |
+
+- **`Global.round`** → `global Round` (`eval.go:3940-3942`) → `cb.mods.Hdr.Round` (`ledger/eval/cow.go:160-162`). Ledger-supplied, not caller-influenced. **Contract code uses `Global.round` for "now," always.**
+- **`Global.latest_timestamp` is the PREVIOUS block's timestamp**, not the block being formed: `eval.go:3999-4000` → `getLatestTimestamp()` (`eval.go:3944-3950`) → `PrevTimestamp()` (`cow.go:164-166`).
+- ⭐ **`Global.round` and `Global.latest_timestamp` therefore describe DIFFERENT BLOCKS** — round N versus the timestamp of block N−1. Two adjacent lines reading "now" read two points about 2.75 s apart. Any contract asserting both a timestamp deadline and a round deadline and expecting them to flip together is wrong: they flip one block apart, every time. Flag this on sight.
+- **Timestamp trust bound.** Validation (`data/bookkeeping/block.go:818-824`): a block's timestamp must be ≥ the previous block's and ≤ previous + `MaxTimestampIncrement` (**25 seconds**, `config/consensus.go:898`); honest generation clamps `time.Now()` into that band (`block.go:661-666`). **The rule is expressed entirely relative to the previous block — there is no consensus check against real-world time at all.** A single proposer's manipulation budget is roughly −2.75 s to +22 s, monotonic (it can stall, never rewind); sustained skew needs many consecutive blocks. This justifies "never for anything an adversary profits from at ~20-second granularity." It does **not** justify "the timestamp is arbitrary" — that overstates it.
+- **`MaxTxnLife: 1000`** (`config/consensus.go:892`, set in base-v7 and never overridden through v41); bounds enforced in `WellFormed` (`transaction.go:489-493`). So `Global.round - Txn.first_valid` ranges 0 to 1000. The two coincide when a transaction lands in the round it was built for — the quiet-mempool case, which is exactly why clock bugs of this family pass every LocalNet test and fail on a busy network.
+- ⭐ **`Txn.first_valid_time` is a third clock and looks innocent.** `txn FirstValidTime` (`fields.go:287`) is implemented at `eval.go:3376-3385` as `availableRound(FirstValid - 1)`, so it *never* fails the lookback window (`FirstValid-1` is exactly `lastAvail`) — it is the one always-available historic timestamp. But it is caller-anchored and can be up to 1000 rounds (~46 min) stale at the caller's discretion. Honest framing: **a lower bound on when the transaction was constructed, never "now."**
+- **`Txn.last_valid` must never be used as a clock.** The caller may set it up to 1000 rounds beyond now, free and repeatable, so `elapsed = Txn.last_valid - start_round` hands an attacker ~46 minutes of extra elapsed time per call — direct theft of `total * 1000 / duration` per invocation in a vesting schedule. **Two legitimate uses, neither of which reads it as time:** (1) LogicSig expiry, `assert Txn.last_valid <= EXPIRY_ROUND` — constraining an attacker-chosen value *downward* is always safe; (2) bounding the block-lookback window. **Rule: it is safe to assert an upper bound on `Txn.last_valid`; it is never safe to use its value as elapsed time.**
+
+**The `op.Block` lookback window is anchored to the TRANSACTION's fields, not to the current round.** `availableRound` (`eval.go:6083-6097`), used by `opBlock` (`eval.go:6099-6104`): `firstAvail = LastValid - MaxTxnLife - 1`, `lastAvail = FirstValid - 1`. Error text: `round 60000000 is not available. It's outside [59999999-59999999]`.
+
+**Available rounds = 1001 − (LastValid − FirstValid).**
+
+| FirstValid | LastValid | Width | Available window | Count |
+|---|---|---|---|---|
+| 60,000,000 | 60,001,000 | 1000 | [59999999, 59999999] | 1 |
+| 60,000,000 | 60,000,100 | 100 | [59999099, 59999999] | 901 |
+| 60,000,000 | 60,000,000 | 0 | [59998999, 59999999] | 1001 |
+
+A transaction with the default maximum validity window can read **exactly one** historic block: `FirstValid - 1`. Deeper lookback requires the *client* to shrink `LastValid` — a transaction-construction change, not a contract change. Say so whenever a chapter proposes reading several past blocks.
+
+- ⭐ **`op.Block.blk_timestamp(Global.round - 1)` compiles and NEVER succeeds — not intermittently, not "off the happy path," not anywhere.** *(Corrected 2026-07; the earlier "fails intermittently in production" claim in this file was wrong and must not be repeated.)* The window's upper bound is `lastAvail = FirstValid - 1`. algosdk sets `first_valid` from algod's `last-round` field (`algosdk/v2client/algod.py:454-457`), which is the last round already **committed** at build time — call it L. A transaction built at that moment cannot be included before L+1, so `Global.round >= first_valid + 1` always, which puts `Global.round - 1` at `first_valid` or higher: **at minimum one round above the ceiling, on the very first call, on LocalNet and MainNet alike.** The failure is `round <n> is not available. It's outside [<lo>-<hi>]`. This is the better bug — deterministic and immediate. The window does not track the chain at all; it is pinned to two numbers the caller wrote down before sending, and `Global.round` is not one of them. **Any expression involving `Global.round` is the wrong shape for this argument.** Correct forms: `op.Block.blk_timestamp(Txn.first_valid - 1)`, or just `Txn.first_valid_time`.
+- **`Txn.first_valid - 1` can itself underflow** if a hand-built transaction sets `first_valid == 0`. algod never does, so it is safe in practice — but say so in a comment rather than leaving the reader to wonder, and never conflate it with the protocol's own clamp of `firstAvail` to 1.
+
+**`blk_seed` is not safe randomness, and the usual folklore about why is wrong.** Seed derivation (`agreement/proposal.go:155-180`): `seedProof = VRF_SK.Prove(prevSeed)`, `vrfOut = seedProof.Hash()`, `alpha = H(proposerAddr, vrfOut)`. Because the VRF is deterministic, **a proposer cannot CHOOSE the seed** — do not repeat that claim. The two real attacks:
+
+1. **Proposer withholding.** The proposer learns the seed before publishing and can decline to propose; a different proposer then produces a different seed via the `period != 0` branch (`alpha = H(prevSeed)`). Cost is the forgone block reward (~10 ALGO bonus, decaying 1%/1M rounds, plus 50% of fees), so it is profitable for a large staker against any prize above roughly 10 ALGO.
+2. **The fatal one — free, and needs no stake at all.** Every round a contract *can* read is at or before `FirstValid - 1`, which is strictly public when the caller builds the transaction. The caller computes the outcome off-chain and submits only when they like it. This is **unfixable with `blk_seed`**: the AVM will never let a contract read a block that is not already public.
+
+**The correct alternative is the Algorand Randomness Beacon, standardised as ARC-21** ("Round based datafeed oracles on Algorand"). *There is no ARC-110 — if a draft cites one, it is fabricated.* App IDs verified live via algod `/v2/applications/`: **MainNet `1615566206`** (creator `BO65GIBYYYUPK4KTQ32IRO5BE2H3VEFTK65GKI2GNHZYPNUMJKGJOFJWSY`), **TestNet `600011887`** (creator `PEW65C77CTTOHDBM2M4LUYXSG6HWJNPOAGPSD5C33IVWILS46PI6SVN4BM`); both schema 64 byte-slices / 0 uints. **ARC-21 defines FOUR methods, not two** *(corrected 2026-07)*: two mandatory — `get(uint64,byte[])byte[]` (returns empty if unavailable) and `must_get(uint64,byte[])byte[]` (panics if unavailable) — plus two optional search variants, `get_closest(uint64,uint64,byte[])(uint64,byte[])` and `must_get_closest(uint64,uint64,byte[])(uint64,byte[])`. Args are `(round, user_data)`, returning 32 bytes. **Keep the spec/deployment boundary explicit:** the ARC defines only the interface. Publication cadence (rounds that are **multiples of 8**) and retention (**189 stored outputs ≈ 1512 rounds**) are properties of the beacon the Foundation actually runs, not of ARC-21, and a different deployment may choose differently. Any contract that commits to a target round must round that target **up** to the next multiple of 8 (rounding up can only lengthen the lead, preserving the security property) and must bound the lead so the target stays inside the retention window — otherwise the draw is permanently unreadable and, if commit is init-once, permanently stuck. **The security rule any chapter must state alongside it: the consumer MUST commit publicly to a future round before that round's value exists** — otherwise attack 2 returns with extra steps.
+
+**Block time is ~2.75 s and VARIABLE.** Measured live over three windows ending at round 60,960,000: 10k rounds → 2.750 s, 300k → 2.754 s, 10M → 2.802 s. No consensus parameter pins it, and `DynamicFilterTimeout = true` since **v39** (`config/consensus.go:1462`). **Schedules should be denominated in rounds and converted to wall-clock only for human display.** Treat any contract that computes a round count from a hard-coded seconds-per-round constant as a finding.
+
+**Two arithmetic hazards that only show up in schedule code:**
+
+- **The divisor is usually a DIFFERENCE** — `end - start`, `end - cliff`, `total_staked`, `duration`. Each is zero in exactly the degenerate case nobody tests, and PuyaPy's constant-zero warning (`warning: uint64 division by constant zero; will fail at runtime if reached`) never fires for them because the zero arrives in a variable. **Guard the denominator where it is ESTABLISHED** — reject `end <= start` at initialisation — not at every division site.
+- **`-` aborts, so operand ordering is a correctness concern**, not a style one. `now - start` aborts for every call made before the schedule opens. Same shape as the MBR rule: when a subtraction can go negative, restructure it into a comparison or an addition rather than subtracting and then checking.
+
+**Schedule maths, verified numerically.** The wrong form `((now - start) // (end - start)) * total` pays **nothing at all** until `now >= end` — not merely dust; at one third elapsed on a 2,592,000-round, 1,000,000-unit schedule it returns 0 where the right form `(total * (now - start)) // (end - start)` returns 333,333. When `total * elapsed` can exceed 2^64, the wide form is `hi, lo = op.mulw(total, now - start)` then `op.divw(hi, lo, end - start)`.
+
+⭐ **The narrow form is not a smaller version of the right answer; it is a landmine with a delay fuse.** `(total * (now - start)) // (end - start)` on a 2,830,000-round schedule overflows for any `total >= 6,518,286,428,268` — about 6.5M tokens at six decimals, an ordinary grant — and it overflows *only in the back half of the schedule*, so the contract deploys, pays out for weeks, and then aborts permanently on every call for the rest of the term with no way to reconfigure. **Any proportion whose numerator is a token amount is a wide multiply.** Treat a narrow multiply-then-divide in production-shaped code as a blocking finding, and if a chapter shows the narrow form deliberately (as the teaching step before `mulw` arrives), require prose that names the domain limit explicitly.
+
+⭐ **`divw` in a proportion `(a*b)/d` where `b < d` cannot abort, and the argument is worth writing down rather than guarding.** `divw` aborts exactly when the quotient will not fit, i.e. when `d <= hi`. If `b < d` then `(a*b)/d < a`, and `a` is a `UInt64`, so the quotient always fits. In a vesting schedule `now - start < end - start` holds on the linear branch by construction, so no fifth guard is needed. State the argument in a comment; an unexplained absent guard reads as an oversight.
+
+**Sentinel collision: a `maybe()`/`get()` default is not a safe stand-in for "absent."** `BoxMap.maybe()` returns `(value, exists)`, and the tempting shortcut is to let the missing value fall through as zero. Zero is a real round, a real balance, a real timestamp. Branch on the flag. A rate limiter that treats an absent box as `last_call = 0` refuses every first-time caller until the chain passes the cooldown, with a message that says "cooling" and means "never called" — a lie that is very hard to debug. **Rule: a sentinel is only safe when it cannot collide with a real value.**
+
+**Rounding floors toward the contract, and that is not merely conservative — rounding up is exploitable.** Both `//` and `divw` truncate toward zero, which is already correct. Rounding up over-pays up to one unit per claim, and claims are unbounded, so an attacker calls once per round and drains funds never owed, leaving the last beneficiary short. Rounding down retains sub-unit dust that a terminal `now >= end → return total` branch repays in full. **Rule: when a division decides how much LEAVES the contract, floor it; residue accumulates on the contract's side.**
+
+**Cliff off-by-one: lock with `now < cliff`, not `now <= cliff`.** The wrong form locks *through* round C and releases at C+1, while the linear term `(now - start)` is already non-zero at `now == cliff` — so the two halves of the schedule disagree at exactly the round every integration test targets. Separately and more subtly, decide and state whether the linear portion measures from `start` (so the cliff releases a lump sum — the standard employee-equity meaning) or from `cliff` (nothing accrues during the cliff; the schedule is merely delayed). Both are legitimate, they pay very differently, and the off-by-one is easy to conflate with the design choice. Keep `start` and `cliff` as separate parameters.
+
+**Duplicate-transaction rejection interacts with clock-driven retries.** A "claim every round" loop or a retry harness hits `TransactionInLedgerError`, which looks nothing like a clock bug and sends readers hunting in the wrong place. Repeated-claim scripts need distinct `note` values or naturally-varying `FirstValid`.
+
+---
+
 ## Non-Documentable Expert Knowledge
 
 The following information cannot be reliably found through the reference links above. It represents historical data, specific on-chain identifiers, practical patterns, and operational knowledge that must be embedded directly.
@@ -623,11 +712,19 @@ Source: [go-algorand/config/consensus.go](https://github.com/algorand/go-algoran
 
 ```python
 # Compute (a * b) / c without uint64 overflow
-high, low = op.mulw(a, b)                              # 128-bit product as (high, low)
-_, result, _, _ = op.divmodw(high, low, UInt64(0), c)   # 128-bit / 64-bit -> quotient low word
+assert c != UInt64(0), "divide by zero"
+high, low = op.mulw(a, b)          # 128-bit product as (high, low)
+result = op.divw(high, low, c)     # 128-bit / 64-bit -> uint64, ABORTS if it won't fit
 ```
 
-`op.mulw` returns `tuple[UInt64, UInt64]` (high, low). `op.divmodw` returns `tuple[UInt64, UInt64, UInt64, UInt64]` (quotient_high, quotient_low, remainder_high, remainder_low).
+`op.mulw` returns `tuple[UInt64, UInt64]` (high, low). `op.divw` takes `(hi, lo, divisor)` and returns a single `UInt64`.
+
+**Use `mulw` + `divw`. Do NOT reach for `divmodw` here.** Two reasons, both verified empirically (puyapy 5.9.0, 2026-07-26):
+
+1. **`_, result, _, _ = op.divmodw(...)` does not compile.** PuyaPy rejects it: `error: _ is not currently supported as a variable name`. Every discarded element needs a real name (`_qh`, `_rh`, `_rl` — a leading underscore in a real identifier is fine, a bare `_` is not).
+2. **`divmodw` fails SILENTLY on overflow; `divw` fails LOUDLY.** `divmodw` returns a 128-bit quotient as `(q_hi, q_lo)` and never aborts, so taking only `q_lo` truncates and hands back a wrong number with no signal. With `a=2^63, b=10, d=2`: `divmodw` gives `q_hi=2, q_lo=9223372036854775808` (the low word alone is nonsense), while `divw` aborts with `divw overflow: 2 <= 5`. `divw`'s check is exact, not conservative — `divw(5,0,6)` succeeds and `divw(5,0,5)` fails — so `mul_div` is safe exactly when `divisor > hi`.
+
+Reach for `divmodw` only when you genuinely need one of: a divisor wider than 64 bits, the remainder, or a deliberately-128-bit quotient. `op.addw(a, b) -> (carry, sum)` exists and is a real 128-bit add primitive, but there is **no add-with-carry opcode** — a running accumulator wants `BigUInt`, not a hand-rolled two-word type.
 
 ### Common algod Error Messages (approximate -- actual messages include additional context)
 
@@ -737,6 +834,15 @@ Never enable `IsIndexerActive` -- this activates the deprecated V1 indexer with 
 - **Constant propagation**: Intermediate writes may be dead-store eliminated (`constant_propagation.py` + `dead_code_elimination.py` in `src/puya/ir/optimize/`)
 - **Repeated loads elimination**: Compiler tracks state writes and eliminates redundant re-reads when value hasn't changed (`repeated_loads_elimination.py`)
 - These optimizations are correct because the compiler can prove, within a single execution frame, what value each state key holds.
+
+### Toolchain Traps in This Repository (verified 2026-07, puyapy 5.9.0)
+
+- **⚠ Batch compilation produces a FALSE `duplicate contract name` error.** Passing two files that define same-named classes to a single `puyapy` invocation fails even though each compiles cleanly alone. **Compile one file at a time** before reporting a compile error as a finding.
+- **There are TWO pytest configurations and they disagree.** `examples/pyproject.toml` sets `python_files = ["*_test.py"]`; the repo root sets `python_files = ["test_*.py"]` with `testpaths = ["tests"]`. A bare `pytest` from the root will silently collect nothing from `examples/`. Run `uv run --group test python -m pytest examples/<dir> -q` explicitly.
+- **Use `uv run --group test`, never bare `python3`** — the latter fails with `No module named puyapy`. Run it from the repository root and pass absolute paths for files outside it.
+- **`scripts/validate.py --examples` exceeds a 2-minute tool timeout.** Invoke as `timeout 570 uv run --group test python scripts/validate.py --examples` with an explicit long timeout.
+- **Figure rendering needs an explicit Chromium path:** `PUPPETEER_EXECUTABLE_PATH=/opt/pw-browsers/chromium python3 build.py figures`. Bare invocation fails with `Could not find Chrome`.
+- **`algokit_utils` is NOT installed in this container.** Questions about its API surface must be answered by an agent with web access or by reading the published source, never guessed.
 
 ### State Proofs Architecture (verified against dev.algorand.co/concepts/protocol/state-proofs/)
 

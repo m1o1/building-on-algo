@@ -89,6 +89,36 @@ Cleanup is not housekeeping, it is the only way to get the money back. If an app
 
 ## Arithmetic and time
 
+### Dividing before multiplying silently returns zero
+
+`(a // b) * c` is integer division first, so it returns zero for every input where `a < b` --- which for a proportion means every input except the last one. It is the transcription every spreadsheet formula invites and it produces a contract that pays nothing at all until the moment it pays everything. Write `(a * c) // b` instead. Doing so moves the risk from rounding to overflow, which is a trade you want, because overflow aborts loudly and rounding-to-zero does not: route the product through `op.mulw` and `op.divw` and both problems are gone at once. No test that checks only the endpoints of a schedule will catch this, because the endpoints are the two points the wrong form gets right.
+
+*From {{ch:numbers-and-time}}.*
+
+### Overflow and underflow end the transaction, they do not wrap
+
+On the AVM, `a + b` past 2^64-1 reports `+ overflowed`, `a - b` with `b > a` reports `- would result negative`, and `a // 0` reports `/ 0` (while `a % 0` reports `% 0`). None of them wrap, none of them return a sentinel, and none of them are catchable --- the transaction is discarded, so there is no state left to inspect and no assertion of yours to fire. The consequence is denial of service, not theft: a contract holding funds can become permanently uncallable on an input path nobody tested, especially if the offending value was set by an init-once method. Test the boundaries, not the middle. And note that the wording differs between the chain and `algopy_testing`, which reports `OverflowError: + overflows` and `ArithmeticError: - underflows` --- never quote one as the other in a runbook.
+
+*From {{ch:numbers-and-time}}.*
+
+### Guard a divisor where it is set, not where it is used
+
+A division-by-zero guard placed at the division site has to be repeated at every division site, and the day somebody adds a third one it will not be. Put it in the method that establishes the value --- `assert shares > UInt64(0)` in the setter, `assert end > start` in `configure` --- and it holds for every use forever, including uses that do not exist yet. This matters more than it sounds because in practice the divisor is usually a *difference* (`end - start`, `total - claimed`), so one assertion about the ordering of two parameters retires both the `/ 0` and the `- would result negative` in a single line. PuyaPy warns about a literal `// UInt64(0)` and says nothing at all about a zero that arrives in a variable, which is every zero that has ever caused an incident.
+
+*From {{ch:numbers-and-time}}.*
+
+### Txn.last_valid is a number the caller chose
+
+Reading `Txn.last_valid` as "now" hands the caller control of your clock: they may set it up to a thousand rounds beyond the current round, for free, on every call, and nothing about such a transaction looks unusual. Against a time-based release schedule that is roughly forty-six minutes of unearned progress per transaction, repeatable as fast as fees can be paid. It survives testing for the opposite of the obvious reason: AlgoKit Utils widens the validity window to the protocol maximum of a thousand rounds on LocalNet, so your tests already run the attack at full strength and pass anyway, because they assert that a call returned rather than that it returned the right number. The safe use of the field is the opposite direction: `assert Txn.last_valid <= EXPIRY` bounds a number the caller chose, which is fine, because a caller who chooses badly only hurts themselves. Use `Global.round` for "now", always --- and remember that `Global.latest_timestamp` is the *previous* block's timestamp, so the two are never describing the same block.
+
+*From {{ch:numbers-and-time}}.*
+
+### Block seeds are already public when the caller builds the transaction
+
+`op.Block` can only read rounds at or before `Txn.first_valid - 1`, and that round is committed and public before the transaction exists --- so a caller can compute your contract's "random" answer off-chain, check whether they win, and submit only when they do, for free, as many times as they like. The common objection to `blk_seed` --- that a proposer might choose a favourable seed --- is actually false, since the seed is a VRF output the proposer can compute but not select. The real problem is worse and needs no proposer at all, and no arrangement of the code fixes it. Use a commit-reveal shape against the ARC-21 randomness beacon: commit publicly to a future round, close entries, then read that round's value once it exists. Note also that the readable window is `1001 - (last_valid - first_valid)` rounds wide, so a transaction with a full validity window can read exactly one block --- and that `blk_timestamp(Global.round - 1)` never works at all. The readable window ends at `first_valid - 1`, and `first_valid` is the last round already committed when the transaction was built, so `Global.round - 1` is always at least one round too new. Reach for `Txn.first_valid - 1` instead.
+
+*From {{ch:numbers-and-time}}.*
+
 ### Block timestamps come from a proposer's clock, not from a trusted clock
 
 `Global.latest_timestamp` is whatever the block proposer's system clock said, bounded only by monotonicity and a ceiling of roughly 25 seconds ahead of the previous block. It is fine for a cliff measured in months and useless for anything measured in seconds. Any logic where a 25-second skew changes who wins --- an auction close, a rate lock, a first-come claim --- must key on round numbers or accept that the boundary is fuzzy. And never compare it against a client-supplied timestamp for equality; compare with `>=` and let the window be wide.

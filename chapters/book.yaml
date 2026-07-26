@@ -51,6 +51,10 @@ parts:
       # ceiling, which is the question 03-c-state.md forward-references twice
       # and deliberately does not answer.
       - {file: 04-c-boxes.md,           slug: boxes,           kind: concept}
+      # Phase 5a, the fourth on-ramp chapter. The arithmetic and the clocks the
+      # vesting project runs on; ordering comes from this list, not from the
+      # filenames.
+      - {file: 05-c-numbers-and-time.md, slug: numbers-and-time, kind: concept}
       - {file: 03-p-token-vesting.md,   slug: token-vesting,   kind: project,
          code: projects/chapter3/token-vesting}
       - {file: 04-p-nfts.md,            slug: nfts,            kind: project,

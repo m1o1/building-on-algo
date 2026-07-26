@@ -150,3 +150,11 @@ figures:
       why the count on the left is wrong from that instant and cannot be
       repaired.
     source: src/registry-break-trace.mmd
+
+  - slug: four-clocks
+    caption: >-
+      Four values that look like "now", on one timeline. Only `Global.round` is
+      one. `Global.latest_timestamp` is always a block behind it,
+      `Txn.first_valid_time` can be forty-six minutes behind that, and
+      `Txn.last_valid` is a number the caller chose.
+    source: src/four-clocks.mmd

@@ -605,3 +605,155 @@ examples:
     tier: minibuild
     mode: compile
     chapter: 4
+
+  # -- Chapter 5, the Mini-Build --------------------------------------------
+  - slug: vesting-calc-broken
+    path: ch05_numbers_time/vesting_calc_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 5
+
+  # Compiled by CI, never transcluded — §2.4 presents the fixed Mini-Build
+  # as a diff. Same arrangement as guestbook-fixed above.
+  - slug: vesting-calc-fixed
+    path: ch05_numbers_time/vesting_calc_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 5
+
+  # -- Chapter 5, cluster 1: Arithmetic That Refuses ------------------------
+  - slug: no-floats
+    path: ch05_numbers_time/no_floats.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  - slug: overflow-panics
+    path: ch05_numbers_time/overflow_panics.py
+    tier: core
+    mode: unit
+    chapter: 5
+    test: ch05_numbers_time/overflow_panics_test.py
+
+  - slug: underflow-panics
+    path: ch05_numbers_time/underflow_panics.py
+    tier: core
+    mode: unit
+    chapter: 5
+    test: ch05_numbers_time/underflow_panics_test.py
+
+  - slug: divide-by-zero
+    path: ch05_numbers_time/divide_by_zero.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  # Wrong variant of divide-by-zero (slot 5 of §2.2). It compiles; the
+  # failure is at runtime, which is exactly the point.
+  - slug: divide-by-zero-wrong
+    path: ch05_numbers_time/divide_by_zero_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  # -- Chapter 5, cluster 2: Numbers Too Big for One Word -------------------
+  - slug: mulw-split
+    path: ch05_numbers_time/mulw_split.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  - slug: divw-join
+    path: ch05_numbers_time/divw_join.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  - slug: divmodw-silent
+    path: ch05_numbers_time/divmodw_silent.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  - slug: mul-div
+    path: ch05_numbers_time/mul_div.py
+    tier: core
+    mode: unit
+    chapter: 5
+    test: ch05_numbers_time/mul_div_test.py
+
+  # -- Chapter 5, cluster 3: Which Clock Are You Reading? -------------------
+  - slug: two-clocks
+    path: ch05_numbers_time/two_clocks.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  - slug: deadline-timestamp
+    path: ch05_numbers_time/deadline_timestamp.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  - slug: expiry-upper-bound
+    path: ch05_numbers_time/expiry_upper_bound.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  # Wrong variant of expiry-upper-bound: the same field read as elapsed
+  # time instead of constrained downward.
+  - slug: last-valid-clock-wrong
+    path: ch05_numbers_time/last_valid_clock_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  - slug: past-block
+    path: ch05_numbers_time/past_block.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  - slug: commit-reveal
+    path: ch05_numbers_time/commit_reveal.py
+    tier: core
+    mode: compile
+    chapter: 5
+
+  # Wrong variant of commit-reveal. Compiles, deploys, and hands the
+  # caller the outcome before they commit to it.
+  - slug: block-seed-wrong
+    path: ch05_numbers_time/block_seed_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  # -- Chapter 5, cluster 4: Schedules --------------------------------------
+  - slug: linear-vesting
+    path: ch05_numbers_time/linear_vesting.py
+    tier: core
+    mode: unit
+    chapter: 5
+    test: ch05_numbers_time/linear_vesting_test.py
+
+  # Wrong variant of linear-vesting. Its test is linear-vesting's, which
+  # asserts both forms side by side at one third elapsed.
+  - slug: linear-vesting-wrong
+    path: ch05_numbers_time/linear_vesting_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 5
+
+  - slug: vesting-cliff
+    path: ch05_numbers_time/vesting_cliff.py
+    tier: core
+    mode: unit
+    chapter: 5
+    test: ch05_numbers_time/vesting_cliff_test.py
+
+  - slug: rate-limit
+    path: ch05_numbers_time/rate_limit.py
+    tier: core
+    mode: compile
+    chapter: 5

@@ -1,0 +1,38 @@
+%% Four things that look like "now", laid on one timeline so that the
+%% distances between them are visible. The mistake this diagram exists to
+%% prevent is the assumption that a contract has a clock. It has one number it
+%% may treat as now -- Global.round -- and three other values that a reader
+%% will mistake for it.
+%% .
+%% Top to bottom is time, oldest first. The first drawing ran left to right,
+%% which is the natural direction for a timeline and produced a 1901x346 strip:
+%% every annotation hung off the chain as its own node and widened the rank.
+%% Folding each annotation into the block it describes gives one column at
+%% roughly 420x820, which survives being placed in a printed column. The
+%% ordering is what carries the meaning here, not the axis.
+%% .
+%% No subgraphs, for the reason recorded in state-scopes.mmd: a subgraph with
+%% edges crossing its boundary ignores its own `direction` and stacks.
+flowchart TB
+    B0["block first_valid - 1<br/>Txn.first_valid_time is THIS block's timestamp<br/>the newest round op.Block is allowed to read"]
+
+    B1["block first_valid<br/>the transaction becomes valid here"]
+
+    GAP["0 to 1000 rounds<br/>about 0 to 46 minutes<br/>the caller chose this distance"]
+
+    B2["block round - 1<br/>Global.latest_timestamp is THIS block's timestamp"]
+
+    B3["the round being formed<br/>your code is running here<br/>Global.round is the only 'now' a contract has"]
+
+    B4["block last_valid<br/>Txn.last_valid is a number the caller picked<br/>and may have picked 1000 rounds ahead<br/>NOT A CLOCK"]
+
+    B0 --> B1 --> GAP --> B2 --> B3 --> B4
+
+    classDef block fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef nowblk fill:#ffffff,stroke:#333333,color:#111111,stroke-width:3px
+    classDef note fill:#ffffff,stroke:#333333,color:#111111
+    classDef danger fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class B0,B1,B2 block
+    class GAP note
+    class B3 nowblk
+    class B4 danger
