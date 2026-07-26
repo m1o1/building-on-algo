@@ -10,7 +10,6 @@ class Registry(ARC4Contract):
     def __init__(self) -> None:
         self.house = GlobalState(Profile(arc4.UInt64(0), arc4.UInt64(0)))
 
-    @arc4.abimethod
-    def award(self) -> None:
-        entry = self.house.value
-        entry.credits = arc4.UInt64(1)
+    @arc4.abimethod(readonly=True)
+    def house_credits(self) -> arc4.UInt64:
+        return self.house.value.credits

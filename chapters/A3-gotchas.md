@@ -13,6 +13,24 @@ The pointer after each entry names the chapter it is drawn from; go there for th
 
 ## Global and local state
 
+### A counter maintained on CloseOut is wrong the first time somebody clears state
+
+Any global number that a close-out handler decrements --- member counts, active-stake totals, open-position tallies --- silently desynchronizes the first time an account uses ClearState instead of CloseOut, and there is no method you can add to repair it, because the contract was never told. If a number must be exact, derive it from something the contract controls, or rename it to something that only increases.
+
+*From {{ch:state}}.*
+
+### Reading a state key that was never written fails the transaction; it does not return zero
+
+`self.fee.value` on a key that has never been written aborts the call, because PuyaPy compiles `.value` to a `*_get_ex` opcode plus an assertion that the key existed. Local state has a second, harsher absence: reading it for an account that never opted in, or that cleared, is a ledger error that no default argument can catch. Both bite hardest on `readonly` methods, where they turn into a denial-of-service surface --- a non-member calls `credits_of(themselves)` and your dashboard shows an error instead of a zero. Use `.get(default=...)` when a missing key should read as a value, `.maybe()` when absence is information, and an explicit `is_opted_in` check before touching another account's local state at all.
+
+*From {{ch:state}}.*
+
+### Binding an ARC-4 struct to a variable aliases the stored bytes
+
+`entry = self.house.value` is a second name for the same encoded bytes, not a snapshot, and PuyaPy refuses to compile it rather than let you guess: *mutable reference to ARC-4-encoded value must be copied using .copy() when being assigned to another variable*. Add `.copy()` if you want a detached working copy; write through the attribute chain if you want to modify storage. Native `algopy.Struct` values do not have this restriction.
+
+*From {{ch:state}}.*
+
 ### The state schema is fixed at creation and can never be widened
 
 The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch --- a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
@@ -130,6 +148,12 @@ The pattern below reads a payment from the group and credits `Txn.sender`. Those
 *From {{ch:patterns}}.*
 
 ## Resource references, MBR, and budget
+
+### Opting a user in raises the user's minimum balance, not the application's
+
+An application opt-in costs the *opting account* 100,000 microAlgos plus 28,500 per declared local uint and 50,000 per declared local byte slot. Declaring a generous local schema you never fill is therefore a tax you levy on every one of your users, forever, and the failure mode when they cannot pay it is a balance error that never mentions your application.
+
+*From {{ch:state}}.*
 
 ### Opcode budget and fees pool over different transactions
 
@@ -268,6 +292,12 @@ and prevents intermittent test failures.
 *From {{ch:token-vesting}}.*
 
 ## Compilation, tooling, and shipping
+
+### Disabling ARC-4 argument validation moves the validation; it does not remove the need for it
+
+Disabling automatic ARC-4 argument validation buys back opcode budget by trusting the caller's bytes. If you never call `.validate()` on the decoded value, a malformed length prefix on a dynamic field makes the contract read data at an offset nobody checked. Turn validation off only where you have measured the budget saving, and put the explicit `.validate()` call in on the same edit.
+
+*From {{ch:state}}.*
 
 ### The minimum fee is a consensus parameter, not a constant
 

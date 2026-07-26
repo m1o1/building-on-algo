@@ -38,6 +38,11 @@ parts:
       - {file: 01-c-mental-model.md,    slug: mental-model,    kind: concept}
       - {file: 02-c-testing.md,         slug: testing,         kind: concept,
          code: projects/chapter2/simple-vesting}
+      # The Phase 4 pilot concept chapter. It keeps a 03- filename prefix while
+      # the vesting project also keeps its own; ordering comes from this list,
+      # not from the filenames, which is exactly what the manifest is for.
+      # Phase 5 renumbers the files once the full concept sequence lands.
+      - {file: 03-c-state.md,           slug: state,           kind: concept}
       - {file: 03-p-token-vesting.md,   slug: token-vesting,   kind: project,
          code: projects/chapter3/token-vesting}
       - {file: 04-p-nfts.md,            slug: nfts,            kind: project,

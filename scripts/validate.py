@@ -205,8 +205,15 @@ def localnet_smoke() -> None:
 # than on every commit; --changed-only exists for the local edit loop.
 # ---------------------------------------------------------------------------
 
-EXAMPLE_MODES = {"compile", "compile-fail", "unit", "localnet"}
-EXAMPLE_TIERS = {"core", "extended"}
+# `script` is the client-side mode: a deployment or driver program that runs on
+# the developer's machine, not on the AVM. Feeding one to puyapy is a category
+# error, so it is byte-compiled instead. The Completeness Contract still holds
+# --- the file on disk is a whole program, not a fragment.
+EXAMPLE_MODES = {"compile", "compile-fail", "unit", "localnet", "script"}
+# `minibuild` is the per-chapter Mini-Build: §2.4 sets it at 30-90 lines, which
+# is deliberately larger than any micro-example. It is a tier so that check 10
+# still bounds it instead of exempting it.
+EXAMPLE_TIERS = {"core", "extended", "minibuild"}
 
 
 def _load_yaml(path: Path) -> dict:
@@ -384,6 +391,24 @@ def check_examples(changed_only: bool = False) -> None:
                 skipped.append(f"{slug} (localnet: algokit not installed)")
                 continue
 
+            if mode == "script":
+                # Client-side program: byte-compile it. This catches syntax
+                # errors and nothing else, which is honest -- executing it
+                # would need a funded LocalNet and a generated typed client
+                # that only exists inside a project directory.
+                byte = subprocess.run(
+                    [sys.executable, "-m", "py_compile", str(source)],
+                    cwd=ROOT, text=True, capture_output=True, check=False,
+                )
+                if byte.returncode != 0:
+                    failures.append(
+                        f"{slug}: script does not byte-compile\n      "
+                        f"{(byte.stdout + byte.stderr).strip()[-400:]}"
+                    )
+                else:
+                    passed += 1
+                continue
+
             # Every mode except compile-fail must compile: the Completeness
             # Contract says the artifact on the page builds.
             result = _puyapy(source, out_dir)
@@ -489,7 +514,7 @@ MAX_CODE_LINE = 85
 # fences (ASCII diagrams, JSON payloads, TEAL listings, terminal transcripts)
 # are exempt wholesale because breaking their lines would corrupt them.
 NOWRAP_LANGS = {"text", "json", "teal", "console", "output", ""}
-TIER_LINE_BUDGET = {"core": 35, "extended": 20}
+TIER_LINE_BUDGET = {"core": 35, "extended": 20, "minibuild": 90}
 
 # Check 4 stays registered but disabled until Phase 5 folds A1-cookbook.md into
 # the need-shaped chapters. Flipping this to True is the last act of Phase 5.

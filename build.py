@@ -473,9 +473,18 @@ def _resolve_text(text: str, xrefs: dict, where: str, figures: dict[str, dict] |
     def _caption(match: re.Match) -> str:
         key = f"{match.group('ns')}:{match.group('slug')}"
         info = xrefs[key]
+        indent = match.group("indent")
+        if match.group("ns") == "ex":
+            # NOT pandoc's ": caption" syntax. That syntax is only a caption
+            # when it sits against a table; against a code block, pandoc reads
+            # the paragraph ABOVE it as a definition-list term and swallows the
+            # caption into the definition. An example caption is therefore a
+            # bold lead-in paragraph, which both renderers typeset identically
+            # and neither reinterprets. (Phase 4 found this the hard way.)
+            return f"{indent}**{info['display']}.** {info['title']}"
         # Pandoc's table-caption syntax. clean_for_mdbook() rewrites it for the
         # HTML renderer, which has no caption concept of its own.
-        return f"{match.group('indent')}: {info['display']}. {info['title']}"
+        return f"{indent}: {info['display']}. {info['title']}"
 
     text = CAPTION_RE.sub(_caption, text)
 

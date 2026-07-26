@@ -1,29 +1,79 @@
 # examples/index.yaml — one entry per numbered example in the book.
 #
 # GENERATED, eventually. Until the chapter sources carry example front matter
-# (Phase 5), this file is hand-maintained and the seed entries below are the
-# Phase 0 proof that the harness works end to end. A hand-maintained index of
-# ~470 files drifts within a month, which is why the generator is scheduled
-# rather than optional.
+# (Phase 5), this file is hand-maintained and the entries below are the Phase 0
+# proof that the harness works end to end, extended by the Phase 4 pilot. A
+# hand-maintained index of ~470 files drifts within a month, which is why the
+# generator is scheduled rather than optional.
 #
 # Fields:
 #   slug     stable identity. Referenced from prose as {{ex:slug}}. Never changes.
 #   path     relative to examples/. THIS FILE IS WHAT THE BOOK PRINTS (check 9).
-#   tier     core | extended. Sets the printed-line budget (check 10):
-#            core <= 35 lines, extended <= 20.
-#   mode     compile | compile-fail | unit | localnet
-#            EVERY mode except compile-fail compiles the example — the
-#            Completeness Contract says a printed artifact builds, so `unit`
+#   tier     core | extended | minibuild. Sets the printed-line budget (check 10):
+#            core <= 35 lines, extended <= 20, minibuild <= 90.
+#            `minibuild` is the once-per-chapter Mini-Build of §2.4. It is a
+#            tier rather than an exemption so check 10 still bounds it.
+#   mode     compile | compile-fail | unit | localnet | script
+#            EVERY mode except compile-fail and script compiles the example —
+#            the Completeness Contract says a printed artifact builds, so `unit`
 #            means "compiles AND its test passes", not "skip the compile".
+#            `script` is a client-side program that does not run on the AVM;
+#            it is byte-compiled instead of being fed to puyapy.
 #   chapter  destination chapter number in the v2 map (informational)
 #   expect   compile-fail only. Substring that MUST appear in stderr. Without
 #            it a compile-fail example passes when it fails for a typo.
 #   test     unit only. Test file, relative to examples/. Lives on disk and is
 #            not printed; only its load-bearing assertion is quoted in prose.
+#
+# Note on counts: Chapter 3 numbers twenty examples but registers twenty-four
+# entries. Slot 5 of the micro-example anatomy (§2.2) is a *wrong variant* — it
+# is printed beside its example and shares its number, but it is a separate file
+# so that CI compiles it. Both wrong variants are `extended`, so the Core budget
+# cannot be evaded by splitting an example in two. The two Mini-Build entries
+# make up the remainder.
 
 examples:
-  - slug: local-state-optin
-    path: ch03_state/local_optin.py
+  # -- Chapter 3, cluster 1: Shaping What You Store --------------------------
+  - slug: struct-arc4
+    path: ch03_state/struct_arc4.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: struct-missing-copy
+    path: ch03_state/missing_copy.py
+    tier: core
+    mode: compile-fail
+    chapter: 3
+    expect: "must be copied using .copy()"
+
+  - slug: struct-native
+    path: ch03_state/struct_native.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: struct-frozen
+    path: ch03_state/struct_frozen.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  - slug: unsafe-decoding
+    path: ch03_state/unsafe_decoding.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: unsafe-decoding-wrong
+    path: ch03_state/unsafe_decoding_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  # -- Chapter 3, cluster 2: The Global Slab ---------------------------------
+  - slug: state-two-tiers
+    path: ch03_state/state_two_tiers.py
     tier: core
     mode: compile
     chapter: 3
@@ -35,9 +85,105 @@ examples:
     chapter: 3
     test: ch03_state/global_counter_test.py
 
-  - slug: struct-missing-copy
-    path: ch03_state/missing_copy.py
+  - slug: global-get-default
+    path: ch03_state/global_get_default.py
     tier: core
-    mode: compile-fail
+    mode: compile
     chapter: 3
-    expect: "must be copied using .copy()"
+
+  - slug: global-maybe
+    path: ch03_state/global_maybe.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: global-del
+    path: ch03_state/global_del.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  # -- Chapter 3, cluster 3: The Per-Account Slab ----------------------------
+  - slug: local-state-read
+    path: ch03_state/local_state_read.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: global-map
+    path: ch03_state/global_map.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  - slug: local-map
+    path: ch03_state/local_map.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  - slug: state-schema-fixed
+    path: ch03_state/state_schema_fixed.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: factory-deploy-idempotent
+    path: ch03_state/factory_deploy.py
+    tier: core
+    mode: script
+    chapter: 3
+
+  # -- Chapter 3, cluster 4: Getting In and Getting Out ----------------------
+  - slug: init-defaults
+    path: ch03_state/init_defaults.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: create-method
+    path: ch03_state/create_method.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: local-state-optin
+    path: ch03_state/local_optin.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: close-out-handler
+    path: ch03_state/close_out_handler.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  - slug: clear-state-drops-local
+    path: ch03_state/clear_state_drops_local.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: local-balance-wrong
+    path: ch03_state/local_balance_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  # -- Chapter 3, the Mini-Build ---------------------------------------------
+  - slug: registry-broken
+    path: ch03_state/registry_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 3
+
+  # registry-fixed is registered so CI compiles it, but it is never
+  # transcluded: §2.4 says the fixed Mini-Build is presented as a diff, not as
+  # a re-listing. Check 13's "placed exactly once" rule is a figures rule, not
+  # an examples rule, so an unplaced example entry is legal.
+  - slug: registry-fixed
+    path: ch03_state/registry_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 3

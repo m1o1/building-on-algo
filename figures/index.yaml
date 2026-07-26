@@ -122,3 +122,10 @@ figures:
       State writes are staged, not applied. The whole group approves or the
       ledger keeps none of it.
     source: src/group-commit.mmd
+
+  - slug: state-scopes
+    caption: >-
+      Two slabs, not one store. The application owns one global slab; every
+      account that opts in owns its own local slab — and can destroy it without
+      the application's consent.
+    source: src/state-scopes.mmd
