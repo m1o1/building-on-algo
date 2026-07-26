@@ -510,6 +510,35 @@ XREF_NAMESPACES = {"ex", "tbl", "fig", "ch", "chn", "part", "include-ex", "inclu
 BANNED_NAMESPACES = {"figure", "table", "example", "chapter", "sec", "section"}
 
 MAX_CODE_LINE = 85
+# §2.6, the two house rules that were honoured by hand through Phase 4 and are
+# machine-checked from Phase 5a on.
+#
+# MAX_FENCE_LINES caps the *fence*, never the artifact. A 90-line Mini-Build is
+# legal; presenting it as one unbroken 90-line block is not, because that block
+# is precisely the thing a reader skips. Split it and put prose between the
+# halves — which is what §2.4 asks for anyway. The escape hatch is an explicit
+# `{.long}` on the fence's info string, for the rare listing that genuinely
+# cannot be cut (a full ARC-56 JSON, a disassembly).
+MAX_FENCE_LINES = 50
+# MAX_UNPROMPTED_LINES is the density floor: a reader should never travel this
+# far without something that asks them to do rather than read. The plan says
+# "~120", and the tilde is load-bearing — this is reported as a warning, since
+# a hard error on an approximate rule teaches authors to pad rather than to
+# engage. PROMPT_LINE_RE is what counts as engagement: a section break, a
+# callout, a table, a numbered caption, a placed figure, an exercise, a predict
+# prompt, or a block quote.
+MAX_UNPROMPTED_LINES = 120
+PROMPT_LINE_RE = re.compile(
+    r"^(?:#{2,6}\s"
+    r"|:::"
+    r"|\|"
+    r"|(?:Table|Figure|Example):\s"
+    r"|\{\{include-fig:"
+    r"|\d+\.\s+\*\*\("
+    r"|\*Predict"
+    r"|>\s"
+    r")"
+)
 # Wrapping is a property of the content, not the author's patience: prose-ish
 # fences (ASCII diagrams, JSON payloads, TEAL listings, terminal transcripts)
 # are exempt wholesale because breaking their lines would corrupt them.
@@ -531,6 +560,20 @@ CALLOUT_CLASSES = {
 # the harvester; neither renderer prints it.
 CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)(?:\s[^}]*)?\}$")
 CALLOUT_ANY_OPEN_RE = re.compile(r"^:::\s*\S")
+
+# The two below are build.py's harvester regexes, copied deliberately rather
+# than imported: this check exists to catch input the harvester mis-parses, and
+# a checker that shares the parser cannot see the mis-parse. The value pattern
+# is [^"]* — it has no notion of an escaped inner quote, so
+#     title="the \"free\" read"
+# matches as far as `the \`, and everything after it becomes residue the
+# harvester silently drops. The appendix then ships a title cut off mid-phrase,
+# and check 14 stays green, because both sides of that comparison are generated
+# from the same truncation. Nothing else in the toolchain would ever say so.
+GOTCHA_OPEN_ATTRS_RE = re.compile(r"^::: \{\.gotcha\b(?P<attrs>[^}]*)\}$")
+GOTCHA_ATTR_RE = re.compile(
+    r'#(?P<id>[a-z0-9][a-z0-9-]*)|(?P<key>[a-z]+)="(?P<val>[^"]*)"'
+)
 
 COOKBOOK_RETIRED = False
 COOKBOOK_FILE = "A4-cookbook.md"
@@ -763,10 +806,71 @@ def check_structure(strict: bool = False) -> None:
                                 f"unknown callout class {opening.group(1)!r}; "
                                 f"one of {', '.join(sorted(CALLOUT_CLASSES))}")
                     )
+                # A .gotcha's attributes are not decoration -- they are the
+                # only input to the generated appendix. Anything the harvester
+                # cannot parse is discarded without a word, so parse it here
+                # the same way and insist that nothing is left over.
+                gotcha = GOTCHA_OPEN_ATTRS_RE.match(stripped)
+                if gotcha:
+                    attrs = gotcha.group("attrs")
+                    residue = GOTCHA_ATTR_RE.sub("", attrs).strip()
+                    if residue:
+                        detail = (
+                            'an attribute value cannot contain an escaped quote'
+                            if '\\"' in attrs else
+                            "unparsable attribute text"
+                        )
+                        problems.append(
+                            Problem(12, "error", f"{rel}:{line_no}",
+                                    f"gotcha attributes do not parse: {detail}; "
+                                    f"the harvester would silently drop {residue!r}")
+                        )
         if depth:
             problems.append(
                 Problem(12, "error", rel, f"{depth} callout(s) left unclosed")
             )
+
+        # -- check 15: single-fence length (§2.6) --------------------------
+        # An error in chapters written under this rule, a warning in the ones
+        # that predate it and are contracted by the remaining sub-phases. The
+        # test for "written under this rule" is the chapter's own content, not
+        # a flag someone has to remember to set: a restructured chapter shows
+        # its artifact broken before it fixes it (§2.4), so a `## The
+        # Mini-Build` heading is the marker, and it cannot go stale. Warning
+        # rather than exempting keeps the outstanding work visible in every
+        # run instead of only in the plan.
+        restructured = re.search(r"^## The Mini-Build", text, re.MULTILINE) is not None
+        if is_chapter:
+            for open_line, info, body in _fences(text):
+                if "{.long}" in info:
+                    continue
+                if len(body) > MAX_FENCE_LINES:
+                    problems.append(
+                        Problem(15, "error" if restructured else "warning",
+                                f"{rel}:{open_line}",
+                                f"fenced block is {len(body)} lines, over the "
+                                f"{MAX_FENCE_LINES}-line cap; split it with prose "
+                                f"between the halves, or mark the fence {{.long}}")
+                    )
+
+        # -- check 16: prompt density (§2.6) ------------------------------
+        if is_chapter:
+            run_start = 1
+            run = 0
+            for line_no, line in enumerate(text.split("\n"), 1):
+                if PROMPT_LINE_RE.match(line.strip()):
+                    run = 0
+                    run_start = line_no + 1
+                    continue
+                run += 1
+                if run > MAX_UNPROMPTED_LINES:
+                    problems.append(
+                        Problem(16, "warning", f"{rel}:{run_start}",
+                                f"{run} lines with no prompt, table, figure, callout "
+                                f"or exercise (soft limit {MAX_UNPROMPTED_LINES})")
+                    )
+                    run = 0
+                    run_start = line_no + 1
 
         # -- check 11: capstone leak --------------------------------------
         # The capstone must be assemblable from what precedes it. A chapter
@@ -784,7 +888,27 @@ def check_structure(strict: bool = False) -> None:
         ns, _, slug = key.partition(":")
         if ns in ("ch", "chn"):
             known = slug in chapter_slugs
-        elif ns in ("ex", "include-ex"):
+        elif ns == "ex":
+            # {{ex:slug}} prints a NUMBER ("Example 3-7"), and a number only
+            # exists where a caption anchor mints one. build.py's _ref() dies
+            # with SystemExit on an ex: reference that has no anchor, so
+            # resolving this against examples/index.yaml alone would let a
+            # green validator hand a broken book to the renderer. The stricter
+            # rule wins; index membership is checked separately below so the
+            # two failure modes report differently.
+            known = key in anchors
+            if not known and slug in example_slugs:
+                for where in wheres:
+                    problems.append(
+                        Problem(1, "error", where,
+                                f"{{{{ex:{slug}}}}} is registered in examples/index.yaml "
+                                f"but no chapter mints {{#ex:{slug}}} — an example is "
+                                f"numbered by its caption line, so this reference has no "
+                                f"number to print. Add the caption where the example is "
+                                f"placed, or cite the file by path instead.")
+                    )
+                continue
+        elif ns == "include-ex":
             known = slug in example_slugs
         elif ns == "include-fig":
             known = slug in figure_slugs
@@ -795,6 +919,21 @@ def check_structure(strict: bool = False) -> None:
         if not known:
             for where in wheres:
                 problems.append(Problem(1, "error", where, f"unresolved reference {{{{{key}}}}}"))
+
+    # -- check 1 (continued): every ex: anchor names a registered example ---
+    # The reverse of the rule above. A caption that mints {#ex:slug} for a slug
+    # examples/index.yaml has never heard of numbers something CI does not
+    # compile, which is exactly the drift the Completeness Contract exists to
+    # prevent — the number looks authoritative and nothing is checking it.
+    for key, where in anchors.items():
+        ns, _, slug = key.partition(":")
+        if ns == "ex" and slug not in example_slugs:
+            problems.append(
+                Problem(1, "error", where,
+                        f"caption mints {{#ex:{slug}}} but no such slug is registered "
+                        f"in examples/index.yaml — the example would be numbered "
+                        f"without ever being compiled")
+            )
 
     # -- check 3: orphan number (tables and figures only) ------------------
     # Scoped deliberately. An unreferenced example is fine — examples are read

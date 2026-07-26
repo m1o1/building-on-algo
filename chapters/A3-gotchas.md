@@ -293,12 +293,6 @@ and prevents intermittent test failures.
 
 ## Compilation, tooling, and shipping
 
-### Disabling ARC-4 argument validation moves the validation; it does not remove the need for it
-
-Disabling automatic ARC-4 argument validation buys back opcode budget by trusting the caller's bytes. If you never call `.validate()` on the decoded value, a malformed length prefix on a dynamic field makes the contract read data at an offset nobody checked. Turn validation off only where you have measured the budget saving, and put the explicit `.validate()` call in on the same edit.
-
-*From {{ch:state}}.*
-
 ### The minimum fee is a consensus parameter, not a constant
 
 1,000 microAlgos is the minimum fee *today*. It is a consensus parameter, which means it can change at a protocol upgrade, and client code that multiplies a hard-coded 1,000 by a group size will underpay the whole group the moment it does. Read it from `suggested_params()` and scale that. Inside a contract you have no such option --- a fee cap like `assert Txn.fee <= UInt64(10_000)` has to use a constant --- but that is a safety bound rather than a computed fee, and choosing it generously costs nothing.

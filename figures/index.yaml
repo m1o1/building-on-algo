@@ -129,3 +129,11 @@ figures:
       account that opts in owns its own local slab — and can destroy it without
       the application's consent.
     source: src/state-scopes.mmd
+
+  - slug: registry-break-trace
+    caption: >-
+      The registry losing 4,200 credits, in three moments. The right-hand column
+      is deleted by a transaction the left-hand column never observes, which is
+      why the count on the left is wrong from that instant and cannot be
+      repaired.
+    source: src/registry-break-trace.mmd

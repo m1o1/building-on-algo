@@ -1,0 +1,26 @@
+%% The break in "The Mini-Build, Broken", drawn as three moments. The point of
+%% the picture is that the two columns are independent: the right-hand column
+%% is destroyed by a transaction the left-hand column never sees, so the number
+%% in the left-hand column is stale from that instant on and stays stale.
+%% .
+%% No subgraphs -- Mermaid ignores a subgraph's own `direction` once edges cross
+%% its boundary, and the three panels here need to stay rank-aligned in pairs.
+%% Two columns of three rows, TB, keeps the aspect ratio close to square.
+flowchart TB
+    G1["the application's global slab<br/>after Alice opts in<br/>member_count = 1"]
+    G2["the application's global slab<br/>after award(alice, 4200)<br/>member_count = 1"]
+    G3["the application's global slab<br/>after Alice's ClearState<br/>member_count = 1<br/>(still 1 — now wrong, forever)"]
+
+    A1["Alice's local slab<br/>joined_at = 812<br/>credits = 0"]
+    A2["Alice's local slab<br/>joined_at = 812<br/>credits = 4200"]
+    A3["Alice's local slab<br/>deleted by the protocol<br/>4,200 credits gone with it"]
+
+    G1 -- "award(alice, 4200)" --> G2
+    G2 -- "ClearState" --> G3
+    A1 -- "award(alice, 4200)" --> A2
+    A2 -- "ClearState" --> A3
+
+    classDef slab fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef gone fill:#ffffff,stroke:#333333,color:#111111,stroke-dasharray: 4 3
+    class G1,G2,A1,A2 slab
+    class G3,A3 gone

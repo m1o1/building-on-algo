@@ -26,52 +26,21 @@
 #            not printed; only its load-bearing assertion is quoted in prose.
 #
 # Note on counts: Chapter 3 numbers twenty examples but registers twenty-four
-# entries. Slot 5 of the micro-example anatomy (§2.2) is a *wrong variant* — it
-# is printed beside its example and shares its number, but it is a separate file
-# so that CI compiles it. Both wrong variants are `extended`, so the Core budget
-# cannot be evaded by splitting an example in two. The two Mini-Build entries
-# make up the remainder.
+# entries, and the four extra entries have three different reasons.
+#   1. Slot 5 of the micro-example anatomy (§2.2) is a *wrong variant* — printed
+#      beside its example and sharing its number, but a separate file so CI
+#      compiles it. `local-balance-wrong` is Chapter 3's. Wrong variants are
+#      always `extended`, so the Core budget cannot be evaded by splitting an
+#      example in two.
+#   2. `registry-fixed` is compiled but never printed; §2.4 presents a fixed
+#      Mini-Build as a diff, not as a re-listing.
+#   3. `unsafe-decoding` and `unsafe-decoding-wrong` are parked — see the note
+#      above them.
+# An entry that is registered but not placed is legal: check 3's orphan-number
+# rule is scoped to tbl: and fig: only.
 
 examples:
-  # -- Chapter 3, cluster 1: Shaping What You Store --------------------------
-  - slug: struct-arc4
-    path: ch03_state/struct_arc4.py
-    tier: core
-    mode: compile
-    chapter: 3
-
-  - slug: struct-missing-copy
-    path: ch03_state/missing_copy.py
-    tier: core
-    mode: compile-fail
-    chapter: 3
-    expect: "must be copied using .copy()"
-
-  - slug: struct-native
-    path: ch03_state/struct_native.py
-    tier: core
-    mode: compile
-    chapter: 3
-
-  - slug: struct-frozen
-    path: ch03_state/struct_frozen.py
-    tier: extended
-    mode: compile
-    chapter: 3
-
-  - slug: unsafe-decoding
-    path: ch03_state/unsafe_decoding.py
-    tier: core
-    mode: compile
-    chapter: 3
-
-  - slug: unsafe-decoding-wrong
-    path: ch03_state/unsafe_decoding_wrong.py
-    tier: extended
-    mode: compile
-    chapter: 3
-
-  # -- Chapter 3, cluster 2: The Global Slab ---------------------------------
+  # -- Chapter 3, cluster 1: The Global Slab ---------------------------------
   - slug: state-two-tiers
     path: ch03_state/state_two_tiers.py
     tier: core
@@ -103,6 +72,19 @@ examples:
     mode: compile
     chapter: 3
 
+  # -- Chapter 3, cluster 2: Schema, Fixed at Creation -----------------------
+  - slug: state-schema-fixed
+    path: ch03_state/state_schema_fixed.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: factory-deploy-idempotent
+    path: ch03_state/factory_deploy.py
+    tier: core
+    mode: script
+    chapter: 3
+
   # -- Chapter 3, cluster 3: The Per-Account Slab ----------------------------
   - slug: local-state-read
     path: ch03_state/local_state_read.py
@@ -122,19 +104,52 @@ examples:
     mode: compile
     chapter: 3
 
-  - slug: state-schema-fixed
-    path: ch03_state/state_schema_fixed.py
+  # -- Chapter 3, cluster 4: Shaping What You Store --------------------------
+  - slug: struct-arc4
+    path: ch03_state/struct_arc4.py
     tier: core
     mode: compile
     chapter: 3
 
-  - slug: factory-deploy-idempotent
-    path: ch03_state/factory_deploy.py
+  - slug: struct-missing-copy
+    path: ch03_state/missing_copy.py
     tier: core
-    mode: script
+    mode: compile-fail
+    chapter: 3
+    expect: "must be copied using .copy()"
+
+  - slug: struct-native
+    path: ch03_state/struct_native.py
+    tier: core
+    mode: compile
     chapter: 3
 
-  # -- Chapter 3, cluster 4: Getting In and Getting Out ----------------------
+  - slug: struct-frozen
+    path: ch03_state/struct_frozen.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  # -- Chapter 3, parked ------------------------------------------------------
+  # These two were cut from Chapter 3 in Phase 5a: validating an untrusted
+  # ARC-4 argument is an ABI topic wearing a state costume, and it belongs in
+  # the chapter on contracts that exist and respond. They stay registered so
+  # CI keeps compiling them; an unplaced example entry is legal, because
+  # check 3's orphan-number rule is scoped to tbl: and fig: only. Place them
+  # when that chapter is written.
+  - slug: unsafe-decoding
+    path: ch03_state/unsafe_decoding.py
+    tier: core
+    mode: compile
+    chapter: 3
+
+  - slug: unsafe-decoding-wrong
+    path: ch03_state/unsafe_decoding_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 3
+
+  # -- Chapter 3, cluster 5: Getting In and Getting Out ----------------------
   - slug: init-defaults
     path: ch03_state/init_defaults.py
     tier: core
