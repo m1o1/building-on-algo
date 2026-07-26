@@ -1,0 +1,44 @@
+%% The generated router, drawn in the order it actually asks its questions.
+%% The mistake this diagram exists to prevent is the belief that a method is
+%% selected by its name. Three things select it, in this order: whether the
+%% call carries arguments at all, whether its OnComplete is one the method
+%% allows, and only then the four bytes in argument zero. The application-ID
+%% check is a separate question asked afterwards -- which is why a method that
+%% opts out of it with create=allow is matched before the question is put.
+%% .
+%% Two diamonds only, and the OnComplete filter is a rectangle: a Mermaid
+%% diamond holding three lines of text is roughly three times the height of a
+%% rectangle holding the same text, and this figure has to fit on one page.
+%% Flowchart rather than stateDiagram-v2, and no subgraphs: a subgraph's own
+%% direction is ignored once edges cross its boundary.
+flowchart TB
+    T["An application call arrives<br/>app ID · OnComplete · argument array"]
+    A{"Any application<br/>arguments?"}
+    B["Bare route · no selector to match<br/>the OnComplete alone picks the method,<br/>at most one per action, and it runs"]
+    C["The OnComplete must be one the method allows<br/>NoOp · OptIn · CloseOut · Update · Delete"]
+    D["Methods declaring create=allow are matched<br/>on argument zero here, with no ID check"]
+    E{"Is the application<br/>ID zero?"}
+    F["create=require<br/>creation methods"]
+    G["create=disallow, the default<br/>ordinary methods"]
+    H["The method body runs"]
+    X["err · nothing matched<br/>the call is rejected"]
+
+    T --> A
+    A -->|"no"| B
+    A -->|"yes"| C
+    C --> D
+    D -->|"matched"| H
+    D -->|"no match yet"| E
+    E -->|"zero · a creation"| F
+    E -->|"non-zero · it exists"| G
+    F -->|"matched"| H
+    G -->|"matched"| H
+    F -->|"no match"| X
+    G -->|"no match"| X
+
+    classDef step fill:#f2f2f2,stroke:#333333,color:#111111
+    classDef ask fill:#ffffff,stroke:#333333,color:#111111
+    classDef bad fill:#e0e0e0,stroke:#333333,color:#111111
+    class T,B,C,F,G,H step
+    class A,E ask
+    class D,X bad

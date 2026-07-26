@@ -26,17 +26,17 @@
 #            not printed; only its load-bearing assertion is quoted in prose.
 #
 # Note on counts: a chapter always registers more entries than it numbers.
-# Chapter 1 numbers nine and registers eleven; Chapter 3 numbers twenty and
-# registers twenty-four. The extra entries have three different reasons.
+# Chapter 1 numbers nine and registers eleven; Chapter 2 numbers twenty-one and
+# registers twenty-five; Chapter 3 numbers twenty and registers twenty-two.
+# The extra entries have two different reasons.
 #   1. Slot 5 of the micro-example anatomy (§2.2) is a *wrong variant* — printed
 #      beside its example and sharing its number, but a separate file so CI
 #      compiles it. `reference-types-wrong` is Chapter 1's, `local-balance-wrong`
 #      is Chapter 3's. Wrong variants are always `extended`, so the Core budget
 #      cannot be evaded by splitting an example in two.
-#   2. `greeter-fixed` and `registry-fixed` are compiled but never printed;
-#      §2.4 presents a fixed Mini-Build as a diff, not as a re-listing.
-#   3. `unsafe-decoding` and `unsafe-decoding-wrong` are parked — see the note
-#      above them.
+#   2. `greeter-fixed`, `counter-fixed` and `registry-fixed` are compiled but
+#      never printed; §2.4 presents a fixed Mini-Build as a diff, not as a
+#      re-listing.
 # An entry that is registered but not placed is legal: check 3's orphan-number
 # rule is scoped to tbl: and fig: only.
 
@@ -116,6 +116,168 @@ examples:
     tier: core
     mode: script
     chapter: 1
+
+  # -- Chapter 2, the Mini-Build ---------------------------------------------
+  - slug: counter-broken
+    path: ch02_contracts/counter_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 2
+
+  - slug: counter-fixed
+    path: ch02_contracts/counter_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 2
+
+  # -- Chapter 2, cluster 1: Two Types, and Nothing Else ---------------------
+  - slug: stack-types
+    path: ch02_contracts/stack_types.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: string-vs-bytes
+    path: ch02_contracts/string_vs_bytes.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: slice-bytes
+    path: ch02_contracts/slice_bytes.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: itob-btoi
+    path: ch02_contracts/itob_btoi.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  # -- Chapter 2, cluster 2: Crossing the ARC-4 Boundary ---------------------
+  # `unsafe-decoding` and its wrong variant were cut from Chapter 3 in Phase 5a
+  # and parked: validating an untrusted ARC-4 argument is an ABI topic wearing a
+  # state costume. They land here, at the end of the boundary cluster.
+  - slug: arc4-boundary
+    path: ch02_contracts/arc4_boundary.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: arc4-boundary-wrong
+    path: ch02_contracts/arc4_boundary_wrong.py
+    tier: extended
+    mode: compile-fail
+    chapter: 2
+    expect: "Unsupported left operand type for +"
+
+  - slug: as-uint64
+    path: ch02_contracts/as_uint64.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: from-bytes-validate
+    path: ch02_contracts/from_bytes_validate.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: unsafe-decoding
+    path: ch02_contracts/unsafe_decoding.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: unsafe-decoding-wrong
+    path: ch02_contracts/unsafe_decoding_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  # -- Chapter 2, cluster 3: Values With Shape -------------------------------
+  - slug: bool-packing
+    path: ch02_contracts/bool_packing.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: tuple-return
+    path: ch02_contracts/tuple_return.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: static-array
+    path: ch02_contracts/static_array.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: dynamic-array
+    path: ch02_contracts/dynamic_array.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  # -- Chapter 2, cluster 4: What Makes a Method Reachable -------------------
+  - slug: allow-actions
+    path: ch02_contracts/allow_actions.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: bare-methods
+    path: ch02_contracts/bare_methods.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: create-modes
+    path: ch02_contracts/create_modes.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  # The danger-list wrong variant that compiles. That is the whole point of it:
+  # `create="allow"` on a mutating method is a routing bug, not a type error.
+  - slug: create-modes-wrong
+    path: ch02_contracts/create_modes_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  # -- Chapter 2, cluster 5: The File a Client Reads Before It Calls ---------
+  - slug: method-selector
+    path: ch02_contracts/method_selector.py
+    tier: core
+    mode: compile
+    chapter: 2
+
+  - slug: abi-name-overload
+    path: ch02_contracts/abi_name_overload.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: readonly-method
+    path: ch02_contracts/readonly_method.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: default-args
+    path: ch02_contracts/default_args.py
+    tier: extended
+    mode: compile
+    chapter: 2
+
+  - slug: app-spec-tour
+    path: ch02_contracts/app_spec_tour.py
+    tier: extended
+    mode: script
+    chapter: 2
 
   # -- Chapter 3, cluster 1: The Global Slab ---------------------------------
   - slug: state-two-tiers
@@ -203,25 +365,6 @@ examples:
 
   - slug: struct-frozen
     path: ch03_state/struct_frozen.py
-    tier: extended
-    mode: compile
-    chapter: 3
-
-  # -- Chapter 3, parked ------------------------------------------------------
-  # These two were cut from Chapter 3 in Phase 5a: validating an untrusted
-  # ARC-4 argument is an ABI topic wearing a state costume, and it belongs in
-  # the chapter on contracts that exist and respond. They stay registered so
-  # CI keeps compiling them; an unplaced example entry is legal, because
-  # check 3's orphan-number rule is scoped to tbl: and fig: only. Place them
-  # when that chapter is written.
-  - slug: unsafe-decoding
-    path: ch03_state/unsafe_decoding.py
-    tier: core
-    mode: compile
-    chapter: 3
-
-  - slug: unsafe-decoding-wrong
-    path: ch03_state/unsafe_decoding_wrong.py
     tier: extended
     mode: compile
     chapter: 3

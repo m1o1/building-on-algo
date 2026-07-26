@@ -36,6 +36,10 @@ parts:
     title: Foundations
     chapters:
       - {file: 01-c-mental-model.md,    slug: mental-model,    kind: concept}
+      # Phase 5a, the second on-ramp chapter. Like 03-c-state.md below it, it
+      # keeps a filename prefix that collides with the project chapter beside
+      # it; ordering comes from this list, not from the filenames.
+      - {file: 02-c-contracts.md,       slug: contracts,       kind: concept}
       - {file: 02-c-testing.md,         slug: testing,         kind: concept,
          code: projects/chapter2/simple-vesting}
       # The Phase 4 pilot concept chapter. It keeps a 03- filename prefix while

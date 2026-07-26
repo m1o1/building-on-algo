@@ -58,6 +58,13 @@ figures:
       status code can never fail.
     source: src/simulate-trace.svg
 
+  - slug: router-decision
+    caption: >-
+      How the generated router chooses, in the order it asks. A method that
+      declares `create=allow` is matched before the application-ID question is
+      ever asked, which puts it on both sides of that question at once.
+    source: src/router-decision.mmd
+
   - slug: oncompletes
     caption: >-
       The six OnCompletes, as the lifecycle they actually describe. ClearState

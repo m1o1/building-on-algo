@@ -153,6 +153,12 @@ Nothing about `@arc4.abimethod` makes a method internal, and nothing about namin
 
 *From {{ch:mental-model}}.*
 
+### create=allow removes the application-ID check, and at ID zero every caller is the creator
+
+The three values of `create` are not three flavours of the same check. `"require"` asserts the application ID is zero and `"disallow"` asserts it is non-zero; `"allow"` deletes the assertion, and the generated router matches such a method *above* the `txn ApplicationID` branch entirely. A caller can therefore send it against application ID zero, which creates a fresh application from your program, runs `__init__`, and executes the method against empty state. Any guard of the form `Txn.sender == Global.creator_address` passes there, because the sender is the one doing the creating. Use `"allow"` only for a method genuinely designed to run in both worlds, and if you cannot say in one sentence what it should do at ID zero, you want `"disallow"`.
+
+*From {{ch:contracts}}.*
+
 ### Assert that the funding transaction's sender is the account being credited
 
 The pattern below reads a payment from the group and credits `Txn.sender`. Those are two different accounts unless you say they are the same one. Left unasserted, anyone can build a group that pairs *somebody else's* pending payment with their own app call and take the position it paid for --- the payment is valid, the app call is valid, and the contract cheerfully credits the wrong party. Whenever a grouped transfer funds something that is booked to `Txn.sender`, assert `payment_txn.sender == Txn.sender`. If you genuinely want third-party sponsorship, model the beneficiary as an explicit method argument rather than leaving it implied.
@@ -166,6 +172,12 @@ The pattern below reads a payment from the group and credits `Txn.sender`. Those
 The AVM has no return channel. `return` from an `abimethod` compiles to a `log` of the four-byte prefix `0x151f7c75` followed by the ARC-4 encoding of the value. An application call may log **1,024 bytes** in total across at most 32 `log` calls, while it may carry **2,048 bytes** of arguments --- so a method that echoes or expands its input can be made to fail by a caller who does nothing more unusual than sending a large argument. Bound anything variable-length that you return, and bound it well below the ceiling so the number means something to the caller.
 
 *From {{ch:mental-model}}.*
+
+### ARC-4 bools share a byte only while they are adjacent, so field order changes the size
+
+Eight `arc4.Bool` values in a row occupy one byte. Put any non-bool field between two of them and each is rounded up to a byte of its own: `(bool,bool,uint64)` encodes in nine bytes and `(bool,uint64,bool)` in ten, for the same three values. In a tuple that is one byte. In a struct with sixteen flags interleaved with other fields it is fourteen wasted bytes on every read and every write, and in box storage those bytes are priced at 400 microAlgos each, forever. Group your bools.
+
+*From {{ch:contracts}}.*
 
 ### Opting a user in raises the user's minimum balance, not the application's
 
@@ -261,6 +273,12 @@ Every LogicSig that authorizes a payment must assert `Txn.close_remainder_to == 
 
 ## Testing and simulation
 
+### A method marked readonly is answered by simulation, so anything it writes is silently discarded
+
+`readonly=True` is a permission granted to callers, not a restriction imposed on you: the compiler does not stop a readonly method from writing state, and if you submit one as a real transaction its writes commit normally. What happens instead is that every conforming client reads the flag out of the app spec and answers the call with `simulate` --- no fee, no round, no ledger change --- and reports the returned value as though it had happened. A readonly method that mutates therefore produces correct-looking answers forever while changing nothing, and the discrepancy only appears when somebody reads the chain directly. The rule is mechanical: if the method body can reach an assignment to state or an inner transaction, it is not readonly. The simulation is a client-side courtesy and a caller can decline it --- `counter.new_group().bump().send()` builds a real group and submits it --- but reaching for that to make a readonly method write is a sign the flag is on the wrong method.
+
+*From {{ch:contracts}}.*
+
 ### simulate replaced dryrun; dryrun is gone from the node entirely
 
 Older material, blog posts, and a good deal of surviving example code reach for the `dryrun` endpoint for exactly this job. It has been removed from go-algorand --- not deprecated, removed --- and any SDK call to it now fails against a current node. `simulate` is the replacement and it is strictly better: it runs the real program against real ledger state, honours the group, and can be asked for opcode-level traces. If you find yourself reading documentation that mentions `dryrun`, treat everything around it as dated by several protocol versions.
@@ -316,6 +334,18 @@ and prevents intermittent test failures.
 Assertion messages do not exist on chain. The AVM aborts at a program counter; the compiler stores your message in the ARC-56 app spec under `sourceInfo.approval.sourceInfo[]`, keyed by that counter, and the client SDK maps the number back to the string. An `assert` written without a message contributes no entry at all, so there is nothing to map and your caller sees `assert failed pc=78`. This bites hardest on contracts other teams integrate against, because they may not have your source --- and it bites in production, where you are reading a failed transaction hours after the fact. Give every assertion a message, and ship the app spec alongside the contract.
 
 *From {{ch:mental-model}}.*
+
+### from_bytes relabels bytes as an ARC-4 value and verifies nothing; validate is the check it skipped
+
+`arc4.String.from_bytes(raw)` emits no opcodes and performs no validation --- the stub documentation says so --- so a length prefix that disagrees with the payload behind it sails through and fails somewhere else, later, in code that had nothing to do with the decision. PuyaPy does insert argument validation on ABI methods by default, which is why this mostly bites on values you assembled yourself from boxes, logs, or arguments to a method carrying `validate_encoding="unsafe_disabled"`. Where you have disabled it for opcode budget, `.validate()` is not optional; it is the same check, moved to a line you chose.
+
+*From {{ch:contracts}}.*
+
+### A byte[] return arrives at the client as a list of integers, and no decoder will guess otherwise
+
+Returning `Bytes` from an ABI method gives the method a `byte[]` return type, and a conforming client decodes `byte[]` into a list of integers --- because that is what the type means. Text that you concatenated by hand comes back as `[118, 105, 115, ...]`, and the caller has no way to know it was ever meant to be read. This never raises: it is a wrong answer that succeeds. If the value has structure, say so in the return type --- `arc4.String`, a tuple, a struct --- and let the encoding carry the meaning instead of a comment in your codebase.
+
+*From {{ch:contracts}}.*
 
 ### The minimum fee is a consensus parameter, not a constant
 
