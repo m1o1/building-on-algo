@@ -45,7 +45,7 @@ Example: The vesting calculator, as first written {#ex:vesting-calc-broken}
 
 {{ex:vesting-calc-broken}} is complete and deployable. It compiles without a warning, it has a creator-only guard on `configure` and an init-once flag beside it, and it contains four defects: three are wrong lines, and one is a guard that was never written. The missing guard is the harder kind to find and the more common kind to ship.
 
-It only reports a number; paying the beneficiary needs an inner transaction, which is the next chapter's material. Everything wrong with it is wrong before any money moves, which is the point of stopping here.
+It only reports a number; paying the beneficiary needs an inner transaction, which is {{ch:moving-value}}'s material. Everything wrong with it is wrong before any money moves, which is the point of stopping here.
 
 *Predict: four defects. Write your four down now, in whatever words you have --- you are not expected to be right yet, and one of them is genuinely hard to see. Check them against the diff at the end of the chapter.*
 
@@ -530,7 +530,7 @@ Answer these from memory before moving on. Four of them reach back into earlier 
 
    One of the three is disqualified outright --- name it and say by what. Of the remaining two, neither is strictly better; say which axis decides between them, and give a concrete product requirement that would flip your answer.
 
-5. **(Extend)** Extend {{ex:commit-reveal}} so that it actually draws a winner, using the ARC-21 randomness beacon rather than the block seed. You will hit a problem this chapter has not solved: calling another application from inside your contract is the next chapter's material and {{ch:patterns}}'s, so write the beacon call as a comment describing exactly what you would send and what you expect back.
+5. **(Extend)** Extend {{ex:commit-reveal}} so that it actually draws a winner, using the ARC-21 randomness beacon rather than the block seed. You will hit a problem this chapter has not solved: calling another application from inside your contract is {{ch:patterns}}'s material, so write the beacon call as a comment describing exactly what you would send and what you expect back.
 
    Write down three things the contract must check that {{ex:commit-reveal}} does not check yet, and for each one, name the specific thing that goes wrong if you skip it. At least one of your three should be about the beacon's retention window rather than about randomness.
 

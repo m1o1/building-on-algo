@@ -261,24 +261,9 @@ Before any account --- including your smart contract --- can hold an ASA, it mus
 
 MBR is Algorand's anti-spam mechanism. Every account must maintain a minimum Algo balance proportional to the resources it consumes on-chain. The base MBR is 100,000 microAlgos (0.1 Algo) just to exist. Each ASA opt-in adds 100,000 more. Each piece of global state, local state, or box storage adds more (with its own formula). If a transaction would cause an account's balance to drop below its MBR, the transaction fails. This is one of the most common errors new developers encounter: the contract cannot opt into an asset because no one has sent it enough Algo to cover the MBR.
 
-To opt the contract into the vesting token, we use an *inner transaction* --- a transaction generated and executed by the contract during its own execution. When your contract executes an inner transaction, it acts as an autonomous agent, sending from its own address. The contract can send payments, transfer assets, create new assets, and even call other contracts via inner transactions.
+The contract opts itself into the vesting token with an *inner transaction*, which {{ch:moving-value}} introduced: the application account signs for itself and sends an asset transfer of zero units to itself. The `fee=UInt64(0)` below is the rule from that chapter, unchanged --- an inner transaction's fee comes out of the application account's own balance, so it is set to zero and the caller's fee covers both transactions instead. Note what that means here, where there is no group at all: `initialize` is a single application call carrying one inner transaction, so the caller sets its fee to 2,000 microAlgo and the accounting works out the same way. Pooling is what makes a zero-fee inner transaction legal, and a lone application call is a group of one.
 
-There is one critical security rule for *inner transactions*: keep the inner
-fee at zero so the caller covers the cost through fee pooling. In the book's
-validated PuyaPy baseline, inner transaction builders default `fee` to zero,
-but we still write `fee=UInt64(0)` explicitly so the intent is reviewable. If
-you use lower-level TEAL or another builder, verify its default; a non-zero
-inner fee is deducted from the contract's own Algo balance, not from the
-caller. An attacker can exploit that by repeatedly calling a method that emits
-inner transactions until the contract balance drops below MBR.
-
-::: {.gotcha #inner-fee-zero topic="Inner transactions" title="A non-zero inner transaction fee is paid out of the contract's own balance"}
-A non-zero inner transaction fee is paid by the contract's own
-Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
-transaction cover the pooled fee.
-:::
-
-The solution is *fee pooling*: the Algorand protocol validates fees at the group level, not per-transaction. The sum of all fees in an atomic group must meet the sum of all minimum fees (including inner transactions). So the caller's outer transaction overpays its fee to cover everything.
+What is new is *when* the opt-in happens, and that is the design question worth your attention: the contract must hold the asset before anybody can deposit into it, and it must be funded above MBR before it can opt in.
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -433,16 +418,11 @@ from algopy import gtxn
         return deposit_txn.asset_amount
 ```
 
-The essential validations for an incoming grouped transaction in a stateful contract are: **who is asking** (authorization --- enforced on the app call's `Txn.sender`, which must be the admin, not on the transfer's sender), **what asset** (correct token), **how much** (positive amount), and **where it went** (to the contract's address). These are the checks shown above.
+Three of {{ch:moving-value}}'s four questions each appear in the assertions, though not in this order --- which asset, how much, where it went. The fourth, whose it was, is not asked, and its absence is the decision worth understanding. `deposit_txn.sender` is never compared to anything. Authorization runs instead on the *app call's* `Txn.sender`, which must be the admin, so the question this contract asks is not "did the caller pay this?" but "did the admin authorize this arriving?" The two are different accounts on purpose: the admin may direct a deposit that a treasury, an exchange, or a grant program funds, and requiring them to be the same account would rule that out for no gain. Nothing is credited to anybody by name here --- the tokens go into one undifferentiated pool --- so there is no per-account bookkeeping for a mismatched sender to corrupt. Substituting one authorization question for another is safe exactly when that is true, and the tip jar in {{ch:moving-value}} is the case where it was not.
 
-After validation, `available_tokens` increases by the amount received. Later,
-`create_schedule` will reserve from this counter before writing a new
-beneficiary schedule, which prevents the admin from promising more tokens than
-the contract actually holds.
+After validation, `available_tokens` increases by the amount received. Later, `create_schedule` will reserve from this counter before writing a new beneficiary schedule, which prevents the admin from promising more tokens than the contract actually holds.
 
-That `+=` deserves a closer look, because it is the first time in this book that a contract writes state inside a group it does not control. The write does not go to the ledger when the line runs. It goes to a copy the whole group shares, and the ledger takes that copy only if every transaction in the group approves --- as {{fig:group-commit}} shows. This is why you may reason about the deposit and the state update as one indivisible thing: if the transfer were rejected, the increment would never have existed.
-
-{{include-fig:group-commit}}
+The same `+=` is also the all-or-nothing rule from {{ch:moving-value}} doing real work for the first time in a contract you are shipping, so it is worth naming what it buys you here. The write does not go to the ledger when the line runs; it goes to a copy the whole group shares, and the ledger takes that copy only if every transaction in the group approves, as {{fig:group-commit}} showed. So the deposit and the increment to `available_tokens` are one indivisible thing: there is no state in which the contract believes it holds tokens it did not receive, and no cleanup path to write for the case where the transfer is rejected.
 
 You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in {{ch:limit-order-book}}), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
 

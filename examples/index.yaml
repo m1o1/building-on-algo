@@ -757,3 +757,181 @@ examples:
     tier: core
     mode: compile
     chapter: 5
+
+  # -- Chapter 6, the Mini-Build --------------------------------------------
+  - slug: tip-jar-broken
+    path: ch06_moving_value/tip_jar_broken.py
+    tier: minibuild
+    mode: compile
+    chapter: 6
+
+  # tip-jar-fixed is registered so CI compiles it and never transcluded: §2.4
+  # presents the repaired Mini-Build as a diff. Same arrangement as the four
+  # Mini-Builds before it.
+  - slug: tip-jar-fixed
+    path: ch06_moving_value/tip_jar_fixed.py
+    tier: minibuild
+    mode: compile
+    chapter: 6
+
+  # -- Chapter 6, cluster 1: The Contract Has an Account --------------------
+  - slug: app-account
+    path: ch06_moving_value/app_account.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/app_account_test.py
+
+  - slug: inner-payment
+    path: ch06_moving_value/inner_payment.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/inner_payment_test.py
+
+  - slug: inner-fee-zero
+    path: ch06_moving_value/inner_fee_zero.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  # Wrong variant of inner-fee-zero, and the reason danger-list item 1 is on
+  # the list: a permissionless method that charges the application's own
+  # account a fee is a withdrawal anyone can trigger.
+  - slug: inner-fee-zero-wrong
+    path: ch06_moving_value/inner_fee_zero_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  # -- Chapter 6, cluster 2: Requiring the Other Half of the Deal -----------
+  - slug: grouped-payment
+    path: ch06_moving_value/grouped_payment.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/grouped_payment_test.py
+
+  # Wrong variant of grouped-payment. Its test is grouped-payment's, which
+  # runs the same self-payment past both contracts.
+  - slug: grouped-payment-wrong
+    path: ch06_moving_value/grouped_payment_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  - slug: grouped-asset-transfer
+    path: ch06_moving_value/grouped_asset_transfer.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  # Wrong variant of grouped-asset-transfer: checks where the units went and
+  # never which units they were.
+  - slug: grouped-asset-transfer-wrong
+    path: ch06_moving_value/grouped_asset_transfer_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  - slug: group-bounds
+    path: ch06_moving_value/group_bounds.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/group_bounds_test.py
+
+  # Wrong variant of group-bounds. Its test is group-bounds', which credits
+  # one payment twice against this contract and zero times against the other.
+  - slug: group-bounds-wrong
+    path: ch06_moving_value/group_bounds_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  # -- Chapter 6, cluster 3: All of It, or None of It -----------------------
+  - slug: group-all-or-nothing
+    path: ch06_moving_value/group_all_or_nothing.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: pay-from-payload
+    path: ch06_moving_value/pay_from_payload.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: same-asset-twice
+    path: ch06_moving_value/same_asset_twice.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/same_asset_twice_test.py
+
+  # Wrong variant of same-asset-twice: Tinyman V1's bootstrap, which took one
+  # asset for two and cost roughly $3M.
+  - slug: same-asset-twice-wrong
+    path: ch06_moving_value/same_asset_twice_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  # -- Chapter 6, cluster 4: Assets a Contract Can Hold ---------------------
+  - slug: asa-create
+    path: ch06_moving_value/asa_create.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: asa-self-optin
+    path: ch06_moving_value/asa_self_optin.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: asa-send
+    path: ch06_moving_value/asa_send.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: optin-gate-eager
+    path: ch06_moving_value/optin_gate_eager.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: asa-close-out
+    path: ch06_moving_value/asa_close_out.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  # -- Chapter 6, cluster 5: Who Controls an Asset, and What Your Ledger Is --
+  - slug: asa-roles
+    path: ch06_moving_value/asa_roles.py
+    tier: core
+    mode: compile
+    chapter: 6
+
+  - slug: asa-clawback
+    path: ch06_moving_value/asa_clawback.py
+    tier: extended
+    mode: compile
+    chapter: 6
+
+  - slug: balance-is-not-ledger
+    path: ch06_moving_value/balance_is_not_ledger.py
+    tier: core
+    mode: unit
+    chapter: 6
+    test: ch06_moving_value/balance_is_not_ledger_test.py
+
+  # Wrong variant of balance-is-not-ledger: prices every position off the
+  # account balance, so a donation re-prices the whole contract.
+  - slug: balance-is-not-ledger-wrong
+    path: ch06_moving_value/balance_is_not_ledger_wrong.py
+    tier: extended
+    mode: compile
+    chapter: 6

@@ -37,6 +37,12 @@ The clear state program's return value decides only whether its own logic is cre
 
 *From {{ch:state}}.*
 
+### An account balance is not an accounting record
+
+`Global.current_application_address.balance` tells you what the account holds. It does not tell you what anyone is owed, because it also counts the minimum balance, the funding that got the contract running, fee refunds, and anything a stranger chose to send. A contract that prices positions off its balance can have every position re-valued by an outsider making a payment, which in an empty pool means the first depositor sets the price to whatever they like --- the first-depositor donation attack, met again in the AMM. Keep the ledger in state you write, check withdrawals against the ledger, and treat the balance as a liveness signal at most. When the two disagree, the difference is information: it is fees you paid, donations you received, or a bug, and all three are worth knowing about.
+
+*From {{ch:moving-value}}.*
+
 ### The state schema is fixed at creation and can never be widened
 
 The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch --- a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
@@ -141,11 +147,15 @@ The `op.btoi` call accepts a byte array of 0--8 bytes and interprets it as a big
 
 ### A non-zero inner transaction fee is paid out of the contract's own balance
 
-A non-zero inner transaction fee is paid by the contract's own
-Algo balance. Set `fee=UInt64(0)` explicitly and make the caller's outer
-transaction cover the pooled fee.
+The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder in algorand-python, so the danger is not an omitted fee --- it is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee` in the belief that a transaction must carry one. On a method anybody may call, that is an unbounded drain at 1,000 microAlgo per call, and it does not stop being a problem when the balance is large: draining the account toward its minimum makes every other inner transaction the contract wants to send start failing. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and make the caller cover the group with `assert Txn.fee >= UInt64(TOTAL)`, counting one minimum fee per transaction including the inner ones. Fees pool across an atomic group; that is what makes a zero-fee inner transaction valid in the first place.
 
-*From {{ch:token-vesting}}.*
+*From {{ch:moving-value}}.*
+
+### An application account's balance is not what it can spend
+
+Every Algorand account that still exists when a transaction settles must hold at least its minimum balance, and an application's account is no exception: 100,000 microAlgo to exist, plus 100,000 per asset it holds, plus its box charges. Its declared schema is not in that sum --- schema minimum balance is billed to the creator and to the accounts that opt in, never to the application account. An inner payment of `app.balance` therefore fails for every account that will still exist afterwards --- not for large amounts, for every amount --- and it fails twice over. The fee is the first reason: an inner transaction's fee is taken from the application account *before* the payment is applied, so an instruction to send the whole balance is short by exactly one fee before it is ever attempted, and the message says `overspend` rather than anything about a minimum balance, which sends people looking in the wrong place. The second reason survives `fee=UInt64(0)` entirely: an account holding one asset owes 200,000, and a payment leaving it at zero is refused when the group settles --- this time with a message that does name the minimum, and from the ledger rather than from your program. The only account that slips past both is one holding nothing else at all, which is emptied and deleted rather than checked, and that is a closure, not a withdrawal. Spend `app.balance - app.min_balance`, set `fee=UInt64(0)` so nothing is taken first, and remember that this figure moves: opting into one more asset raises the floor by 100,000 microAlgo and silently reduces what a previously-working withdrawal may send. The failure mode is worse than a rejected transaction, because a contract whose only withdrawal path is unconditionally broken and whose account has no private key is holding money nobody can ever reach.
+
+*From {{ch:moving-value}}.*
 
 ### Inner transactions have three separate ceilings, and one of them is depth
 
@@ -154,6 +164,12 @@ An application call may issue at most 16 inner transactions, a group may contain
 *From {{ch:yield-farming}}.*
 
 ## ASAs
+
+### Two asset arguments may name the same asset
+
+Two parameters of type `Asset` are two names, not two things, and neither the ABI nor the AVM will stop a caller passing one asset for both. In a pool contract, every later method reads the two as opposing sides of a trade and each of those methods is individually correct; with one asset on both sides, a deposit becomes instantly withdrawable from the other side at whatever the pricing arithmetic produces. This is the core of the Tinyman V1 exploit of January 2022, worth roughly three million dollars, and the fix is `assert a.id != b.id` in the method that stores them. The same reasoning applies to any pair of same-typed arguments that the contract will later treat as distinct --- two accounts, two boxes, two application ids.
+
+*From {{ch:moving-value}}.*
 
 ### A contract-held clawback address is custody, and it is visible on-chain
 
@@ -174,6 +190,18 @@ The caller must have already opted into the LP token before calling this method.
 *From {{ch:amm}}.*
 
 ## Atomic groups
+
+### A typed group argument checks the type, never the contents
+
+`payment: gtxn.PaymentTransaction` guarantees that the named slot holds a payment. It guarantees nothing about the receiver, the amount, the sender, or --- for an asset transfer --- which asset. A payment the caller sent to their own account satisfies the type perfectly, costs one fee, and leaves their balance where it started, so an unchecked deposit method hands out positions for free. Ask all four questions on every incoming transfer: `xfer_asset` against a stored id, `amount` against a floor, `receiver` against `Global.current_application_address`, and `sender` against `Txn.sender`. The asset id in particular must come from state your contract wrote, never from a method argument --- an id the caller supplies is a formality the caller performs on themselves.
+
+*From {{ch:moving-value}}.*
+
+### A group index check without a group size check bounds nothing
+
+Checking `Txn.group_index` says where your call sits; it says nothing about how many other transactions ride alongside it, and a group may hold sixteen. A method that reads a payment at a fixed index and never asserts `Global.group_size` can be called once per remaining slot against the same payment, crediting the same money up to sixteen times in one atomic group --- every transaction in which is valid, correctly signed, and honest about what it is. This is what makes the receiver and asset checks worth having: an attacker who cannot forge a transfer can still restructure the group around one. A typed group parameter already reads position-relatively --- PuyaPy lowers it that way --- but that is the compiler's choice, not your assertion, and it bounds one slot and nothing else. Assert the size and the index together, and read neighbours position-relative (`Txn.group_index - 1`) rather than absolutely, so the pattern survives being nested later.
+
+*From {{ch:moving-value}}.*
 
 ### A type-checked group argument says nothing about the rest of the group
 
