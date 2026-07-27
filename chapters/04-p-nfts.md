@@ -991,7 +991,7 @@ Run the script:
 poetry run python deploy_nft_vesting.py
 ```
 
-If everything works, you will see the app ID, contract address, token ID, NFT ID, and claimed amounts for both the original beneficiary and the new holder. If you get a "box read/write budget exceeded" error, make sure you are passing the correct box reference in the `box_references` parameter. If you get "balance below minimum," increase the initial funding amount.
+If everything works, you will see the app ID, contract address, token ID, NFT ID, and claimed amounts for both the original beneficiary and the new holder. If you get an `invalid Box reference 0x...` error, the box name in that message is the one you did not pass in the `box_references` parameter. If you get `account <address> balance <n> below min <m> (<k> assets)`, increase the initial funding amount.
 
 ## Testing the NFT Vesting Contract
 

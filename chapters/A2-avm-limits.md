@@ -52,7 +52,7 @@ Table: Minimum balance increments by resource {#tbl:mbr-costs}
 | Each local state bytes slot (opted-in account) | 50,000 |
 | Each box (paid by the app account) | 2,500 + 400 × (name_len + data_size) |
 
-Two of these are the reliable source of "balance below minimum" failures in a contract that looked fine in testing.
+Two of these are the reliable source of `account <address> balance <n> below min <m> (<k> assets)` failures in a contract that looked fine in testing.
 
 The **schema MBR is charged to the creator at creation time**, for the schema declared, not for the slots actually used. Declaring `global_num_bytes=16` and using two of them costs the same as using sixteen.
 

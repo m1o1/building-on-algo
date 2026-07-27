@@ -429,6 +429,7 @@ def calculate_output(
 Subroutines compile to TEAL `callsub`/`retsub` instructions. For an AMM with swap, add-liquidity, and remove-liquidity all needing the same output calculation, extracting it to a subroutine saves significant program bytes. Given the 8KB program size limit, this matters. (See [Algorand Python structure guide](https://algorandfoundation.github.io/puya/lg-structure.html) for subroutine best practices.)
 
 **When to subroutine vs inline:**
+
 - **Subroutine:** Logic used in 2+ methods, or logic longer than ~10 TEAL instructions
 - **Inline:** Short expressions used once, or where the overhead of `callsub`/`retsub` (stack management) exceeds the savings
 

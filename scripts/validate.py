@@ -24,6 +24,22 @@ EXAMPLES_INDEX = EXAMPLES_ROOT / "index.yaml"
 FIGURES_ROOT = ROOT / "figures"
 FIGURES_INDEX = FIGURES_ROOT / "index.yaml"
 FIGURES_OUT = FIGURES_ROOT / "out"
+FIGURES_SRC = FIGURES_ROOT / "src"
+
+# Check 21 tests the builder's own caption composition rather than a copy of
+# it, so it needs the real function. Imported lazily inside a try so that this
+# script still runs its other twenty checks if `build.py` is unimportable --
+# a broken builder should produce one clear failure here, not twenty spurious
+# ones everywhere else.
+sys.path.insert(0, str(ROOT))
+try:
+    from build import figure_caption as _figure_caption
+except Exception:  # pragma: no cover - reported by check 21 itself
+    _figure_caption = None
+
+# The one spelling of the elided-TEAL marker. Every LogicError transcript in
+# the book cuts its trace under this exact line; check 19 enforces it.
+TRACE_MARKER = "    ... 10 lines of TEAL trace ..."
 
 
 def run(cmd: list[str]) -> None:
@@ -619,6 +635,28 @@ def _outside_fences(text: str):
             yield n, line
 
 
+def _fence_blocks(text: str):
+    """Yield one [(line_no, line), ...] list per code fence.
+
+    Check 19 needs the whole fence at once, not a line and its successor: a
+    missing marker is a property of the transcript's *extent*, and the line
+    where it should have been says nothing on its own.
+    """
+    block = None
+    for i, line in enumerate(text.split("\n"), start=1):
+        if line.strip().startswith("```"):
+            if block is None:
+                block = []
+            else:
+                yield block
+                block = None
+            continue
+        if block is not None:
+            block.append((i, line))
+    if block:
+        yield block
+
+
 def _load_book_manifest() -> dict:
     if not BOOK_MANIFEST.exists():
         raise SystemExit(f"Missing book manifest: {BOOK_MANIFEST}")
@@ -1034,6 +1072,86 @@ def check_structure(strict: bool = False) -> None:
                         f"figures/index.yaml")
             )
 
+    # -- check 21: a figure caption reaches the page as it was written --------
+    # Checks 13 and 3 cover a figure's existence and its number; nothing
+    # covered its *text*, and that gap shipped. `build.py`'s `_place_figure`
+    # composed the caption as
+    #
+    #     f"{info['display']}. {info['title']}".rstrip(". ")
+    #
+    # and `str.rstrip` takes a set of characters rather than a suffix, so it
+    # deleted the caption's own terminal period from all 21 entries -- every
+    # figure in the book, in every build, for as long as the line existed. No
+    # check saw it because every check was asking whether the figure was there,
+    # not what it said. So this one compares the composed caption against
+    # `figures/index.yaml` character for character and reports any difference.
+    #
+    # IT CALLS `build.figure_caption`, IT DOES NOT REIMPLEMENT IT. That
+    # function was lifted to module level in `build.py` for this check, and the
+    # reason is that a check which recomposes the caption itself is testing its
+    # own copy: the copy would be written correctly, would pass forever, and
+    # would say nothing about what the builder does. The first draft of this
+    # check did exactly that -- `composed = f"Figure X-Y. {caption}"` followed
+    # by `composed.endswith(caption)`, an assertion that is true by
+    # construction and can never fire. Calling the real function is what makes
+    # the check able to fail.
+    #
+    # Not written against `Building-on-Algorand.md` either. The concatenated
+    # manuscript is build output; it may be absent and it may be stale, and a
+    # check that quietly passes when its input is missing is worse than no
+    # check. Calling the composition directly means this runs on a bare clone.
+    #
+    # The period rule is a house-style rule (`publishing-pro.md`: a caption is
+    # a sentence and ends like one) and is enforced on the source entry rather
+    # than on the composition, so the message points at the line an author
+    # would edit.
+    if _figure_caption is None:
+        problems.append(
+            Problem(21, "error", "build.py",
+                    "build.figure_caption could not be imported, so caption "
+                    "fidelity is unchecked; fix the import before trusting a "
+                    "clean run")
+        )
+    for figure in figures if _figure_caption is not None else []:
+        slug = figure["slug"]
+        source_caption = str(figure.get("caption", ""))
+        if not source_caption.strip():
+            problems.append(
+                Problem(21, "error", "figures/index.yaml",
+                        f"{slug}: caption is empty; every figure carries one, and it "
+                        f"lives here rather than in the chapter that places it")
+            )
+            continue
+        if not source_caption.rstrip().endswith("."):
+            problems.append(
+                Problem(21, "error", "figures/index.yaml",
+                        f"{slug}: caption does not end in a period -- a caption is a "
+                        f"sentence and is punctuated as one "
+                        f"(...{source_caption.rstrip()[-40:]!r})")
+            )
+        # `display` is computed at build time from where the placement sits, so
+        # a representative one stands in here; the invariant under test is not
+        # about the number but about whether the caption text survives having a
+        # number put in front of it, which is exactly what `rstrip` broke.
+        written = source_caption.strip()
+        composed = _figure_caption("Figure 4-2", written)
+        if not composed.endswith(written):
+            problems.append(
+                Problem(21, "error", "figures/index.yaml",
+                        f"{slug}: build.py composes this caption as {composed[-48:]!r}, "
+                        f"which does not end with the caption as written "
+                        f"({written[-48:]!r}) -- the builder is altering caption text "
+                        f"rather than only prefixing the figure number")
+            )
+        if source_caption.strip().lower().startswith("figure"):
+            problems.append(
+                Problem(21, "error", "figures/index.yaml",
+                        f"{slug}: caption opens with {source_caption.strip()[:16]!r}; "
+                        f"the number and the word `Figure` are prefixed at build time "
+                        f"from where the figure is placed, so writing them here "
+                        f"doubles them on the page")
+            )
+
     # -- check 14: the generated gotcha appendix has not drifted -------------
     # chapters/A3-gotchas.md is derived from every ::: {.gotcha} callout in the
     # book, and it is committed rather than built on demand, for the same
@@ -1057,6 +1175,572 @@ def check_structure(strict: bool = False) -> None:
                 Problem(14, "error", f"chapters/{_build.GOTCHA_APPENDIX_FILE}",
                         "generated gotcha appendix has drifted from its sources; "
                         "run `python3 build.py gotchas`")
+            )
+
+    # -- check 17: one transaction ID, one failure ---------------------------
+    # Transaction IDs are globally unique, so the same elided ID appearing
+    # twice in the book is the same transaction twice, and it cannot have
+    # failed in two different applications or with two different messages.
+    # Nothing else notices: the two sites are usually chapters apart, and one
+    # of them is often a figure, which no other check reads at all. The
+    # recorded instance is `J4KD...81XR`, used for an `assert failed` in
+    # figures/src/simulate-trace.svg and for an unrelated failure in
+    # chapters/05-c-numbers-and-time.md, introduced by a fix to the figure.
+    #
+    # Scope, stated rather than assumed: this harvests `chapters/` and
+    # `figures/src/` only. `projects/`, `examples/` and `tests/` are code, not
+    # transcripts, and are deliberately not read -- a contradiction there would
+    # be a test failure, not a rendering defect.
+    txid_re = re.compile(
+        r"\b(?:[Tt]ransaction|Txn)\s+([A-Z0-9]{4}(?:\.\.\.)?[A-Z0-9]{3,})[:'\s]"
+    )
+    app_res = (re.compile(r"\bapp=(\d+)"), re.compile(r"\bappId:\s*(\d+)"))
+    # Three discriminators, because the book has two transcript shapes and the
+    # first version of this check only understood one of them. The algod form
+    # spells out `logic eval error: MSG. Details: app=N, pc=N`; the dominant
+    # form in the manuscript is what algokit-utils prints, `Txn ID had error
+    # 'MSG' at PC N and Source Line M:`, which carries neither `logic eval
+    # error:` nor `app=`. A check that harvests only the first is inert against
+    # the corpus it was written for, which is what happened here.
+    msg_res = (
+        re.compile(r"logic eval error:\s*(.+?)\s*(?:\.\s*Details:|$)"),
+        re.compile(r"rejected by logic err=\s*(.+?)\s*(?:\.\s*Details:|$)"),
+        re.compile(r"had error\s*'(.+?)'\s*(?:at PC|$)"),
+    )
+    pc_re = re.compile(r"(?:\bpc=|\bat PC\s+)(\d+)")
+    # id -> {"app": {value: where}, "msg": {value: where}, "pc": {value: where}}
+    txids: dict[str, dict[str, dict[str, str]]] = {}
+
+    def _harvest_txids(raw: str, rel: str) -> None:
+        # Collapse the source to one line per ID so a transcript wrapped across
+        # three lines -- or across three <text> elements in an SVG -- still
+        # associates its ID with the app= and message that belong to it.
+        flat = re.sub(r"<[^>]+>", " ", raw) if rel.endswith((".svg", ".mmd")) else raw
+        for match in txid_re.finditer(flat):
+            txid = match.group(1)
+            line_no = flat.count("\n", 0, match.start()) + 1
+            where = f"{rel}:{line_no}"
+            window = re.sub(r"\s+", " ", flat[match.end():match.end() + 240])
+            # Stop at the next *different* transaction ID so two adjacent
+            # transcripts do not bleed into each other. It must be a different
+            # one: the `Runtime error when executing X (appId: N) in
+            # transaction ID: MSG` form names its own ID a second time inside
+            # its own message, and truncating there cut every such transcript
+            # off before its message closed.
+            for nxt in txid_re.finditer(window):
+                if nxt.group(1) != txid:
+                    window = window[: nxt.start()]
+                    break
+            seen = txids.setdefault(txid, {"app": {}, "msg": {}, "pc": {}})
+            for field, patterns in (("app", app_res), ("msg", msg_res)):
+                for pattern in patterns:
+                    hit = pattern.search(window)
+                    if hit:
+                        seen[field].setdefault(hit.group(1), where)
+                        break
+            pc = pc_re.search(window)
+            if pc:
+                seen["pc"].setdefault(pc.group(1), where)
+
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if path.exists():
+            _harvest_txids(path.read_text(encoding="utf-8"), f"chapters/{entry['file']}")
+    if FIGURES_SRC.is_dir():
+        for path in sorted(FIGURES_SRC.rglob("*")):
+            if path.is_file():
+                rel = path.relative_to(FIGURES_SRC).as_posix()
+                _harvest_txids(path.read_text(encoding="utf-8", errors="replace"),
+                               f"figures/src/{rel}")
+
+    for txid, seen in sorted(txids.items()):
+        for field, label in (("app", "app id"), ("msg", "failure message"),
+                             ("pc", "program counter")):
+            values = seen[field]
+            if len(values) > 1:
+                sites = "; ".join(f"{v!r} at {w}" for v, w in sorted(values.items()))
+                problems.append(
+                    Problem(17, "error", sorted(values.values())[0],
+                            f"transaction {txid} is shown with {len(values)} different "
+                            f"{label}s -- a transaction ID is globally unique, so these "
+                            f"cannot both be it: {sites}")
+                )
+
+    # -- check 18: no format strings or agent placeholders in the prose -------
+    # A Go format string is what the *source* says; the reader never sees a
+    # `%d`. Quoting one inside a backtick span presents an unrenderable
+    # literal as an error message, and it is invisible to every other check
+    # because it is legal markdown. The recorded instance is
+    # `write budget exceeded (%d > %d) while %s box %#x` in the zk-voting
+    # chapter. `{TXID}` is the placeholder spelling used in .claude/agents/;
+    # the manuscript's is `{id}`, and mixing them defeats the grep that audits
+    # prefix coverage.
+    # `%w` is in the verb class because the recorded go-algorand wrapper is
+    # `transaction %v: %w`; an earlier version of this check omitted it and
+    # would have passed that string. Three shapes are deliberately excluded,
+    # none of which is a Go format string: a shell parameter expansion
+    # (`${FILE%.svg}`), a percent-encoded run (`a%2F%3Ab.svg`) and a strftime
+    # pattern (`%Y-%m-%d`). None appears in the corpus today -- the exclusions
+    # are here so that adding one later does not produce a spurious error
+    # someone then "fixes" by weakening the check.
+    #
+    # The strftime exclusion cannot be written as "a run of strftime letters
+    # containing no Go verb", because `%d` is both: that formulation left
+    # `%Y-%m-%d` firing. It is written instead as a property of the run's verb
+    # set -- *every* verb is a strftime letter and *at least one* is exclusive
+    # to strftime. `%Y-%m-%d` is excluded because `%Y` and `%m` are strftime
+    # and nothing else, which is what licenses reading the `%d` beside them as
+    # a day rather than an integer. `%G %s` is not excluded: `%s` is not a
+    # strftime letter at all, so the run fails the *every* half. `%e %d` is
+    # not excluded either, and that is the deliberately conservative case --
+    # `e`, `b`, `p`, `U` and `G` are strftime letters that read too easily as
+    # something else, so they are held out of the exclusive set and cannot on
+    # their own license the exclusion. The three exclusions are stripped *per
+    # run*, not per line. An earlier version
+    # skipped the whole line on any strftime hit, so one `%Y-%m-%d` in a caption
+    # silenced both this check and the `{TXID}` check for everything else on
+    # that line; an exclusion that widens to the line is a hole, and
+    # `(%d > %d)` next to a date went straight through it.
+    #
+    # A strftime run is two or more `%X` pairs joined by at most two characters
+    # of punctuation. It is stripped only when *every* verb in it is a letter
+    # strftime uses and *at least one* is a letter Go's fmt does not use. Both
+    # halves are load-bearing, and the reason is the overlap: `d`, `b`, `e`,
+    # `p`, `U`, `G`, `s`, `w`, `x`, `X` are claimed by both notations. Requiring
+    # every verb to be a strftime letter is what stops `transaction %p: %w`
+    # from being eaten (`w` is not one); requiring one strftime-only letter is
+    # what stops `%e %d` from being eaten (neither is exclusive). Without both,
+    # a real format string disappears from the corpus and the check goes quiet
+    # about it -- which is the same shape as the line-level exclusion this
+    # replaced, only narrower.
+    span_re = re.compile(r"`[^`\n]+`")
+    fmt_re = re.compile(r"%[-+#]?[0-9.]*[dsvxXqtwf]")
+    shell_re = re.compile(r"\$\{[^}]*\}")
+    strftime_run_re = re.compile(r"(?:%[a-zA-Z][^%a-zA-Z0-9]{0,2}){2,}")
+    pct_encoded_run_re = re.compile(r"(?:%[0-9A-Fa-f]{2}){2,}")
+    verb_re = re.compile(r"%([a-zA-Z])")
+    STRFTIME_LETTERS = set("YmdHMSjaAbBpZeIkyCGuUVWnrTFD")
+    STRFTIME_ONLY = STRFTIME_LETTERS - set("dsvxXqtwf") - set("bepUG")
+
+    def _is_strftime_run(run: str) -> bool:
+        verbs = verb_re.findall(run)
+        return (bool(verbs)
+                and all(v in STRFTIME_LETTERS for v in verbs)
+                and any(v in STRFTIME_ONLY for v in verbs))
+
+    def _strip_exclusions(text: str) -> str:
+        text = shell_re.sub("", text)
+        text = pct_encoded_run_re.sub("", text)
+        return strftime_run_re.sub(
+            lambda m: "" if _is_strftime_run(m.group(0)) else m.group(0), text)
+
+    def _format_string_hits(line: str):
+        for span in span_re.findall(line):
+            probe = _strip_exclusions(span)
+            if fmt_re.search(probe):
+                yield span
+
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if not path.exists():
+            continue
+        rel = f"chapters/{entry['file']}"
+        for line_no, line in _outside_fences(path.read_text(encoding="utf-8")):
+            for hit in _format_string_hits(line):
+                problems.append(
+                    Problem(18, "error", f"{rel}:{line_no}",
+                            f"format string in a backtick span: {hit} -- quote what the "
+                            f"tool prints, not the format string that produces it")
+                )
+            if "{TXID}" in line:
+                problems.append(
+                    Problem(18, "error", f"{rel}:{line_no}",
+                            "{TXID} is the .claude/agents/ placeholder spelling; "
+                            "the manuscript's is {id}")
+                )
+    # Figures are the recorded source of this defect family and have no fences,
+    # so every line is scanned. A raw `%d` outside a backtick span counts here:
+    # an SVG has no inline-code markup, so the backtick heuristic that keeps
+    # chapter prose honest would let a figure through untouched.
+    if FIGURES_SRC.is_dir():
+        for path in sorted(FIGURES_SRC.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = f"figures/src/{path.relative_to(FIGURES_SRC).as_posix()}"
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_no, line in enumerate(text.split("\n"), start=1):
+                probe = _strip_exclusions(line)
+                hit = fmt_re.search(probe)
+                if hit:
+                    problems.append(
+                        Problem(18, "error", f"{rel}:{line_no}",
+                                f"format string in a figure: {hit.group(0)} -- a figure's "
+                                f"quoted strings are held to the manuscript's standard; "
+                                f"render the literal, not the verb that produces it")
+                    )
+                if "{TXID}" in line:
+                    problems.append(
+                        Problem(18, "error", f"{rel}:{line_no}",
+                                "{TXID} is the .claude/agents/ placeholder spelling; "
+                                "the manuscript's is {id}")
+                    )
+
+    # -- check 19: an elided TEAL trace is marked where it was cut ------------
+    # The book's convention is that a `LogicError` transcript shows the
+    # message's first line and then the ten lines of generated TEAL the real
+    # exception prints, cut under a visible marker. Eleven transcripts shipped
+    # at d845ff3 without a correct marker, failing in two ways: four carried a
+    # marker of the wrong spelling (`12 lines`, `9 lines`, `11 lines`,
+    # `9 lines`), two ended on the trailing colon of `... at PC N:` with no
+    # marker at all -- leaving the fence ending mid-sentence on the
+    # exception's own promise of the trace -- and the remaining five simply
+    # had nothing where the marker belonged. (The four misspelled ones are the
+    # transcripts that end on `and Source Line N:`; do not swap those two
+    # shapes, as an earlier revision of this comment did.)
+    #
+    # The check therefore has to see four things, and the first version saw
+    # only the third of them. (1) PRESENCE: every transcript inside a fence
+    # gets exactly one marker, measured over the transcript's whole extent,
+    # because a marker that is simply absent leaves no line to inspect.
+    # (2) FINALITY: that marker is the transcript's last non-blank line -- a
+    # marker sitting above the message says the wrong block was cut.
+    # (3) POSITION: a line ending on the `and Source Line {n}:` colon is
+    # followed immediately by the marker. A bare `at PC {n}:` colon is
+    # reported too, but it is the no-source-map spelling: `logic_error.py`
+    # `:83-84` emits it on exactly the `line_no is None` branch whose
+    # `trace()` returns the "Could not determine TEAL source line" advisory
+    # (`:89-95`) instead of TEAL, so nothing was elided there and the fix is
+    # to restore the missing `and Source Line {n}:` clause, not to add the
+    # marker. See `.claude/agents/algorand-verified-facts.md`'s entry
+    # requiring every transcript in this book to carry the clause and a real
+    # ten-line trace.
+    # (4) SPELLING: any line that reads like the marker is byte-identical
+    # to it.
+    #
+    # Presence is the part that matters. The first version tested (3) alone,
+    # passed six deliberate injections, and still reported only six of the
+    # eleven shipped defects, because none of the other five ended on a colon.
+    # An injection that only ever perturbs a line the check already looks at
+    # cannot show that the check looks in enough places. The test that settles
+    # it is running the finished check against `git archive HEAD chapters`.
+    #
+    # Two boundaries are load-bearing and were both established by running the
+    # widened check over the corpus rather than by reasoning about it. A
+    # transcript is opened only by `LogicError:` as the line's first non-space
+    # text, or by a pytest report's `E   LogicError:`; a *raw algod* string
+    # quoted without the Python exception around it opens nothing, because the
+    # ten TEAL lines are a client-side artifact that algokit-utils appends from
+    # a source map it kept -- the node prints none of them, so
+    # `chapters/07-c-proving-it-works.md:522` is right to carry no marker
+    # and demanding one there is a false positive. And the extent ends at the
+    # next opener, the next *prompt* line, or the end of the fence: three
+    # transcripts, in two REPL fences, continue with a further command after
+    # the marker, so without the prompt boundary rule (2) would fire on all
+    # three.
+    #
+    # Note that only (1) and (2) are scoped to a recognised transcript. (3) and
+    # (4) are a sibling loop over every line of every fence, transcript or not,
+    # and that is deliberate: a misspelled marker or a fence ending on either
+    # of those colons is a defect wherever it appears, and neither needs an
+    # opener to be judged. Descriptions of this check in `CLAUDE.md` and
+    # `.claude/agents/publishing-pro.md` say the same; if you change the
+    # scoping, change all three.
+    logicerr_open_re = re.compile(r"^(?:E\s+)?LogicError:")
+    prompt_re = re.compile(r"^(?:>>>|\$|In \[\d+\]:)")
+    srcline_re = re.compile(r"(?:Source Line \d+|at PC \d+):\s*$")
+    marker_like_re = re.compile(r"\.\.\..*TEAL trace")
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if not path.exists():
+            continue
+        rel = f"chapters/{entry['file']}"
+        for block in _fence_blocks(path.read_text(encoding="utf-8")):
+            # Split the fence into transcripts. `except LogicError as err:` and
+            # `from ... import LogicError` are Python source, not output, and
+            # start no transcript, which is why the opener must lead the line.
+            starts = [i for i, (_, line) in enumerate(block)
+                      if logicerr_open_re.match(line.lstrip())]
+            for n, start in enumerate(starts):
+                end = starts[n + 1] if n + 1 < len(starts) else len(block)
+                for j in range(start + 1, end):
+                    if prompt_re.match(block[j][1].lstrip()):
+                        end = j
+                        break
+                extent = block[start:end]
+                markers = [k for k, (_, line) in enumerate(extent)
+                           if line == TRACE_MARKER]
+                where = f"{rel}:{block[start][0]}"
+                if len(markers) != 1:
+                    problems.append(
+                        Problem(19, "error", where,
+                                f"a LogicError transcript carries {len(markers)} "
+                                f"copies of the elided-trace marker, not 1 -- every "
+                                f"transcript cuts its trace under exactly one "
+                                f"{TRACE_MARKER.strip()!r}")
+                    )
+                    continue
+                last = max(k for k, (_, line) in enumerate(extent) if line.strip())
+                if markers[0] != last:
+                    problems.append(
+                        Problem(19, "error", where,
+                                f"the elided-trace marker is at {rel}:"
+                                f"{extent[markers[0]][0]} but the transcript runs to "
+                                f"{rel}:{extent[last][0]} -- the marker stands where "
+                                f"the trace was cut, which is below the message, not "
+                                f"above it")
+                    )
+            for i, (line_no, line) in enumerate(block):
+                nxt = block[i + 1][1] if i + 1 < len(block) else None
+                m_src = srcline_re.search(line)
+                if m_src:
+                    # The bare `at PC N:` shape is reported whatever follows
+                    # it. Guarding it on `nxt != TRACE_MARKER` would let the
+                    # one fix this branch exists to forbid -- appending the
+                    # marker -- silence the error instead of persisting it.
+                    if (m_src.group(0).startswith("at PC")
+                            or nxt is None or nxt != TRACE_MARKER):
+                        shown = "the end of the fence" if nxt is None \
+                            else repr(nxt.strip()[:48])
+                        if m_src.group(0).startswith("at PC"):
+                            # The no-source-map spelling. Nothing was elided
+                            # here, so appending the marker would fabricate a
+                            # trace algokit-utils never printed.
+                            problems.append(
+                                Problem(19, "error", f"{rel}:{line_no}",
+                                        f"a fenced line ends on a bare 'at PC N:' "
+                                        f"colon -- that is the spelling used when "
+                                        f"the client had no source map, and what "
+                                        f"follows it upstream is the 'Could not "
+                                        f"determine TEAL source line' advisory, not "
+                                        f"TEAL; restore the ' and Source Line N:' "
+                                        f"clause rather than adding "
+                                        f"{TRACE_MARKER.strip()!r}")
+                            )
+                        else:
+                            problems.append(
+                                Problem(19, "error", f"{rel}:{line_no}",
+                                        f"a fenced line ends on its Source Line "
+                                        f"colon but the next line is {shown} -- the "
+                                        f"elided TEAL trace must be marked with "
+                                        f"{TRACE_MARKER.strip()!r}")
+                            )
+                if marker_like_re.search(line) and line != TRACE_MARKER:
+                    problems.append(
+                        Problem(19, "error", f"{rel}:{line_no}",
+                                f"elided-trace marker is spelled {line.strip()!r} -- "
+                                f"the one spelling is {TRACE_MARKER.strip()!r}, and the "
+                                f"count in it is the trace length the exception prints, "
+                                f"not a number chosen per transcript")
+                    )
+
+    # --- Check 20: a block element needs a blank line above it ------------
+    #
+    # Pandoc's markdown, unlike CommonMark, does not let a heading or a list
+    # interrupt a paragraph. With no blank line above it, a `### Heading` is
+    # simply the paragraph's last line and a `- item` is simply more of its
+    # last sentence. Both then render as body prose. A swallowed heading
+    # appears in no table of contents, sets no running head and carries no
+    # anchor for a cross-reference to land on; a swallowed list arrives as a
+    # single run-on paragraph with stray hyphens or digits where the bullets
+    # were -- `The generated LogicSig verifier: - Has a deterministic address
+    # ... - Signs an application call transaction - Reads proof bytes from`.
+    #
+    # Nothing else in this file notices, because every other structural check
+    # reads the block list pandoc already parsed, and that is precisely the
+    # list this defect removes the element from. The check has to read the
+    # raw line.
+    #
+    # EVERY CARVE-OUT AND EVERY EXTENSION BELOW WAS SETTLED BY RUNNING THE
+    # SHAPE THROUGH PANDOC. An earlier version of this comment justified two
+    # of them from memory and got both backwards, which is why each one now
+    # carries the command that decided it.
+    #
+    # Carved out, because pandoc parses them correctly:
+    #
+    #     printf '## Exercises\n1. **(Trace)** first\n' | pandoc -t html
+    #         -> <h2 ...>Exercises</h2><ol><li>...
+    #   A heading is its own block and closes itself, so a list directly
+    #   beneath one still parses. The book has fifteen `## Exercises`
+    #   sections; eight open with a blank line and seven -- the seven concept
+    #   chapters, `01-c` through `07-c` -- put the numbered list directly
+    #   under the heading. All seven are correct.
+    #
+    #   Without this carve-out the check fires on all seven. On the corpus as
+    #   it stood when the check was written it reported thirteen in total,
+    #   seven of them these false ones and six of them real, so 54% noise --
+    #   and a check that is more than half noise gets switched off within a
+    #   round. Reproduce either number by replacing `heading_re.match(
+    #   prev_line)` in `closes_own_block()` with `False`: against today's
+    #   tree, whose six real ones are fixed, the count is 7 and the noise is
+    #   all of it.
+    #
+    #     printf 'Intro.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n- item\n'
+    #         | pandoc -t html   -> <table>...</table><ul><li>item</li></ul>
+    #     printf '::: {.note}\n- item\n:::\n'
+    #         | pandoc -t html   -> <div class="note"><ul><li>item</li></ul>
+    #   A table row and a callout fence do end their own block.
+    #
+    #     printf 'Para.\n\n```python\nx=1\n```\n- a\n' | pandoc -t html
+    #         -> ...<pre>...</pre><ul><li>a</li></ul>
+    #   So does a closing code fence -- and the fence delimiter is a non-blank
+    #   previous line, so without this carve-out both branches fire on it.
+    #
+    #   ALL FOUR APPLY TO BOTH BRANCHES, which is why they live in
+    #   `closes_own_block()` below rather than beside the list test. The first
+    #   version of this check put three of the four inside the list branch and
+    #   left the heading branch with only the closing fence, so
+    #   `printf '## Parent\n### Child\n' | pandoc -t html` -- which sets
+    #   `<h2>` then `<h3>`, both real -- was reported as a swallowed heading.
+    #   A carve-out is a property of the PREVIOUS line, so it cannot belong to
+    #   one branch.
+    #
+    # NOT carved out, because pandoc does NOT parse them correctly:
+    #
+    #     printf 'Intro.\n\n> quoted\n- item one\n- item two\n' | pandoc -t html
+    #         -> <blockquote><p>quoted - item one - item two</p></blockquote>
+    #   A blockquote does not close itself; the list is lazily continued into
+    #   it and the bullets set as literal hyphens. `>` used to be carved out
+    #   here alongside `|` and `:::`, on the stated grounds that all three
+    #   "end their own block". Two of them do.
+    #
+    #     printf 'Intro para.\nHeading text\n============\n' | pandoc -t html
+    #         -> <p>Intro para. Heading text ============</p>
+    #   Setext obeys the SAME blank-line rule as ATX, not the opposite one,
+    #   and is swallowed identically -- so the underline prints literally. The
+    #   `-` form is worse: it sets as an em dash inside the paragraph, which
+    #   is invisible even to a reader who knows to look. Flagged on the
+    #   underline line, and only when the text above the underline is itself
+    #   a paragraph continuation; a blank line two rows up, or a block that
+    #   closed itself there, makes it a real heading.
+    #
+    #     printf 'Intro para.\nHeading text\n-\n' | pandoc -t html
+    #         -> <p>Intro para. Heading text -</p>
+    #   A SINGLE hyphen is a Setext underline (`printf 'Heading text\n-\n'`
+    #   alone sets an `<h2>`), so it is swallowed like any other. The pattern
+    #   asked for `-{2,}` and missed it, and no other pattern here covers a
+    #   bare `-` either.
+    #
+    #     printf 'Intro para.\n    - item one\n' | pandoc -t html
+    #         -> <p>Intro para. - item one</p>
+    #   Four spaces of indent does not make it a nested list when there is no
+    #   parent item; it is still swallowed. The bullet pattern therefore
+    #   allows any indent, and it is the PREVIOUS line -- unindented ordinary
+    #   paragraph text -- that decides, since a list under an indented line
+    #   really is a nesting or a lazy continuation.
+    #
+    # Both branches run outside code fences only, since a leading `#` or `-`
+    # in a shell or YAML fence is a comment or an item and there are hundreds
+    # of each, and never at line 1.
+    #
+    # This is a formatting gate, so it is described in `CLAUDE.md` and in
+    # `.claude/agents/publishing-pro.md` as well as here, exactly as check 19
+    # is; if you change the carve-outs or the shapes covered, change all three.
+    #
+    # All four shapes in the "NOT carved out" list occur zero times in the
+    # corpus today, so widening to them moved no count. They are latent
+    # traps, and the reason to close them now is that the same root cause --
+    # a block element that needs a blank line above it and did not get one --
+    # has already produced two different surfaces in this book, and the check
+    # written for the surface that was seen did not find the other.
+    #
+    # Run over all 24 chapters it found six real instances, every one of them
+    # present at `d845ff3`: the heading at `10-p-zk-voting.md:597` and five
+    # lists (`07-p-yield-farming.md`, `08-c-patterns.md`,
+    # `09-p-limit-order-book.md`, and two in `10-p-zk-voting.md`). Six hits
+    # is the argument for the check rather than against it -- the rendered
+    # page looks like prose that was always prose, which is how these got
+    # past five review rounds and a rasterize-and-read pass.
+    heading_re = re.compile(r"^#{1,6} \S")
+    bullet_re = re.compile(r"^\s*(?:[-*+]|\d{1,9}[.)])\s+\S")
+    fence_re = re.compile(r"^\s*(```|~~~)")
+    # `-` needs no repetition: `printf 'Heading text\n-\n' | pandoc -t html`
+    # sets an `<h2>`, so a single hyphen is a Setext underline and is
+    # swallowed by a paragraph above it exactly as `---` is. `-{2,}` missed it
+    # and a bare `-` matches `bullet_re` no better, since a list marker needs
+    # whitespace and content after it -- so nothing saw the shape at all. The
+    # widening cannot add a false positive for the same reason.
+    setext_re = re.compile(r"^(=+|-+)\s*$")
+
+    def closes_own_block(prev_line: str) -> bool:
+        """True where pandoc ends the previous block, so what follows parses.
+
+        All four shapes were run through pandoc; the commands are in the
+        comment above. This is shared by both branches deliberately: an
+        earlier version tested the heading, table-row and callout carve-outs
+        inside the list branch only, so `### Child` directly under `## Parent`
+        -- which pandoc sets as a real `<h3>` -- was reported as swallowed.
+        Zero occurrences today, but the docs described the carve-outs as
+        applying to the check rather than to one of its two branches.
+        """
+        return bool(
+            heading_re.match(prev_line)
+            or fence_re.match(prev_line)
+            or prev_line.lstrip().startswith(("|", ":::"))
+        )
+
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if not path.exists():
+            continue
+        rel = f"chapters/{entry['file']}"
+        lines = path.read_text(encoding="utf-8").split("\n")
+        in_fence = False
+        for i, line in enumerate(lines):
+            if fence_re.match(line):
+                in_fence = not in_fence
+                continue
+            if in_fence or i == 0:
+                continue
+            prev = lines[i - 1]
+            if not prev.strip():
+                continue
+            # Every carve-out is checked before either branch, because all
+            # four are properties of the previous line rather than of the
+            # element being judged.
+            if closes_own_block(prev):
+                continue
+            # A Setext underline under text that is itself a paragraph
+            # continuation: the heading was swallowed and the underline
+            # prints as literal `=` signs or as an em dash. The line that
+            # decides is two above, not one: `prev` is the heading's own text,
+            # so it is `lines[i - 2]` that has to be paragraph text rather
+            # than a block that closed itself.
+            if (setext_re.match(line) and i >= 2 and lines[i - 2].strip()
+                    and not closes_own_block(lines[i - 2])):
+                problems.append(
+                    Problem(20, "error", f"{rel}:{i + 1}",
+                            f"Setext underline {line.strip()[:20]!r} under "
+                            f"{prev.strip()[:40]!r}, which is itself a "
+                            f"continuation of the paragraph above it -- pandoc "
+                            f"reads all three as one paragraph and prints the "
+                            f"underline as body text; a blank line above "
+                            f"{prev.strip()[:24]!r} makes it the heading it "
+                            f"was meant to be")
+                )
+                continue
+            if heading_re.match(line):
+                problems.append(
+                    Problem(20, "error", f"{rel}:{i + 1}",
+                            f"heading {line.strip()[:52]!r} has no blank line above "
+                            f"it, so it is parsed as the last line of the preceding "
+                            f"paragraph -- it will not appear in the table of "
+                            f"contents, will set no running head, and will carry no "
+                            f"anchor")
+                )
+                continue
+            if not bullet_re.match(line):
+                continue
+            # A list continuing, or a line indented enough that this item is a
+            # nesting or a lazy continuation of it. This one stays in the list
+            # branch: an indented previous line does not rescue a heading.
+            if bullet_re.match(prev) or prev.startswith((" ", "\t")):
+                continue
+            problems.append(
+                Problem(20, "error", f"{rel}:{i + 1}",
+                        f"list item {line.strip()[:46]!r} has no blank line above "
+                        f"it, so pandoc folds the whole list into the preceding "
+                        f"paragraph and the bullets render as literal hyphens or "
+                        f"digits in running prose")
             )
 
     errors = [p for p in problems if p.severity == "error"]

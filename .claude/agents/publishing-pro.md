@@ -75,6 +75,40 @@ Every chapter must follow a consistent, repeatable internal pattern so readers l
 
 **The emphasis budget (house rule, supersedes any generic "italic, never bold" advice).** This book's chapters carry one load-bearing claim per section that the reader is meant to be able to find by scanning. That claim gets **bold**, as a complete sentence, and it is the *only* bold in the section. Everything else that wants emphasis takes italics: contrastive words (*not*, *new*, *whole*), the shape-words in a comparison (*constant* versus *curve*), and secondary claims. Two bolded sentences in one section is the defect to flag, not bold itself — a second bold is what makes the first one invisible. Run-in heads at the start of a paragraph (`**Correction two: price the write before making it.**`) are structural, not emphasis, and do not count against the budget. Neither do bolded figures inside tables.
 
+**Inline code never hyphenates, and two mechanisms make that affordable (settled 2026-07-27 — do not re-litigate either without re-measuring).** `chapters/metadata.yaml` sets `HyphenChar=None` on the monospace font, because a hyphen TeX invents inside `smart_contracts/artifacts/` is a character the tool never printed and the reader cannot tell it from one that was. That alone removes the only break opportunity a long identifier had, so `scripts/codebreak.lua` — a PDF-only pandoc filter — puts one back after each `.`, `_` and `/` the identifier already contains, using `\discretionary{}{}{}`, which prints nothing. A reader rejoining the halves gets the original string back exactly.
+
+`-` is deliberately excluded, and the argument for excluding it is the same one that bought `HyphenChar=None` in the first place: that setting exists *because* an invented hyphen inside `smart_contracts/artifacts/` is unfalsifiable to the reader, so re-admitting `-` as a break character reintroduces exactly the ambiguity the setting was bought to remove. A break after a real hyphen is lossless on reassembly, but on the page it is indistinguishable from an invented one, so the reader has to guess. Consistency here is not fussiness; it is the only thing that lets a reader trust *any* hyphen in monospace.
+
+**Two adjacent separators are never split either, and this one is a correctness rule rather than a taste one.** `//` is Python's floor division; breaking between the slashes sets a `/` at one line end and a `/` at the next line's start, which a reader reassembles as two ordinary divisions — a different operator with a different result, and floor-division rounding is a security property in the vesting and AMM chapters. `...` would set `..`, which is not the book's elision marker. `://` would set `http:/`. This shipped for one build and put `GlobalState(Profile(..` / `.))` on page 109 before it was caught.
+
+**Three sites are named as the accepted price, and *named* is not the same as *all*.** Of the residual 51 overfull boxes, 14 contain a monospace span; the three sites below are five of those 14, chosen because each one shows a different reason the filter cannot help. The other nine are ordinary residue, four of them wide (`ImmutableArray` and `ReferenceArray` at 48.04pt each, `gtxn.PaymentTransaction(0)` at 46.67pt, `self.joining_fee.maybe()` at 42.95pt) — quote the enumeration as an illustration and never as a bound on what is left. The three: `algorand-python-testing` (26.01pt, hyphens only); `GlobalState(UInt64)` (51.62pt, no separator at all); and the chapter-7 exercise-2 statement list, which the filter improves without repairing. That third site is one paragraph carrying several boxes, so state it as a count and a list — with neither mechanism, 4 boxes at 113.24 / 81.61 / 284.18 / 158.47pt; with `HyphenChar=None` alone, 5, being those four plus 144.70pt; with both, 3, at 0.62 / 33.14 / 39.40pt. Record it as *improved*, never as fixed: a box one-seventh as wide is still a box, and the page still overruns. Note that the middle row is the "read the middle term" argument in miniature at a single site — removing hyphenation adds a fifth box here and repairs none of the four.
+
+An earlier version of this entry paired "284.18pt to 39.40pt and 198.40pt to 33.14pt, two boxes". Every part of that was wrong in a way worth naming: the control has four boxes and not two, the residual has three and not two, and `198.40pt` appears in **no current build at all** — it was harvested from the repudiated 74-overfull variant that carried the `\_` hook, three lines below the sentence that repudiates it. **A per-box figure inherits the build it was measured on exactly as an aggregate does.** Correcting the triple and leaving the per-box numbers alone left the entry half-contaminated and unfalsifiable: a maintainer re-measuring against `198.40pt` finds nothing and cannot tell whether the mechanism regressed or the number was fiction.
+
+Measured over the whole book, 2026-07-27: `Overfull \hbox` 102 with neither mechanism, **116** with `HyphenChar=None` alone, 51 with both; underfull 89 / **105** / 43; 670 pages and zero LaTeX errors throughout. **Read the middle term.** Turning hyphenation off costs 14 overfull boxes on its own (15 new, 1 repaired, per-paragraph); the filter is what pays for that and then halves the baseline underneath it. The filter is load-bearing, not refinement, and removing it while keeping `HyphenChar=None` ships a book measurably worse than doing neither. An earlier version of this entry recorded the middle term as 74, which was a build carrying a since-deleted `\_` hook as well — two mechanisms labelled as one, in a direction that would have told a future maintainer that deleting the filter was safe.
+
+**A break opportunity the filter creates is also a *page*-break opportunity, and that needed a third mechanism.** LaTeX leaves `\brokenpenalty` at 100 — cheap enough that TeX will happily end a page on one of the filter's discretionaries, so the reader turns the leaf in the middle of an identifier. Five sites did exactly that: `Txn.first_` / `valid_time`, `assert Txn.` / `sender == ...`, `opt_` / `in_to_asset`, `get_` / `vesting_info`, and `smart_contracts/token_vesting/` / `contract.py:`. A line break inside an identifier the reader scans past; a page turn inside one is a lookup. The penalty is **binary**: measured at 500, 2,000 and 5,000 it is merely a cost TeX outweighs and three to five sites survive; only the infinite value removes them all.
+
+**Where the setting goes is the whole question, and the answer is not `metadata.yaml`.** Setting `\brokenpenalty=10000` globally shipped for one round and was wrong. `\brokenpenalty` cannot tell one of the filter's discretionaries from an ordinary prose hyphen, and this book had twenty-one hyphenated page-ends of which five were the defect and sixteen were correct typography — so the global setting forbids all twenty-one, and the displaced material has to go somewhere. `scripts/codebreak.lua` now sets the penalty inside a group around only the 716 paragraphs that actually contain one of its discretionaries, via a `Para` handler that walks for the raw inline `Code()` emitted. Measured on the built PDF:
+
+| | control | global | paragraph-scoped |
+|---|---|---|---|
+| page-ends on a broken line | 21 | 0 | 8 |
+| mid-identifier page turns | 5 | 0 | 0 |
+| callouts cut to a bare header bar | 1 | 2 | 0 |
+
+The blunt setting fixed the five sites, stranded two GOTCHA callouts as a header bar at a page foot, and left a third standing. The scoped one fixes the same five, cures the pre-existing callout, and introduces none. Both are identical on `Overfull \hbox`, `Underfull \hbox`, page count and errors (51 / 43 / 670 / 0), and the scoped one is marginally better on `Underfull \vbox` too, 194 against 195.
+
+**That one-point difference is why this entry exists, and it is a lesson about method rather than about penalties.** An earlier round compared the two variants on `Underfull \vbox` alone, read the aggregates as near-identical, concluded that scoping "does not buy a Block-level pass", and shipped the global setting — whose two stranded callouts that statistic cannot see. The variants differ by half a percent on the aggregate and by everything on the page. **Compare typography variants on the artifact the reader holds. An aggregate is a search tool for finding pages to look at; it is never the comparison itself.**
+
+The vertical price is real and it is worth being accurate about: `Underfull \vbox` goes 179 → 194. An earlier version of this entry called that "all of it glue stretched above section heads where that glue exists to be stretched," which is comfortable and false — of the thirty pages that gain a box, seven carry a section head and twenty-three do not. It is ordinary interparagraph glue, loosened by a line or two on pages that gave up material. Rasterise two of them before accepting it, which is what settled this: the loosening is invisible beside a caption that names nothing.
+
+Find these with a page-boundary scan, not by reading: extract text page by page, strip the running head and folio, and report where the last body line ends in `[A-Za-z0-9)][._/]` and the next page's first body line begins `[a-z_]`. That returned 13 candidates on the control build, 8 of them sentence-final periods before a fence, and returns 9 now, all benign; the eye alone found one of the five in fourteen rounds. Run the same scan for a page's last line being exactly a callout label, or an `Example N-M.` caption, and it finds the two defects that motivated the other two mechanisms on this page.
+
+**The residual 51 has no majority owner, and the largest group is 41% of it.** Classified by hand off `book.log` — by hand because a regex gets this wrong twice over, missing `dev.algorand.co` on the TLD and missing the resource-table links entirely, since those reach the log as `[][]` with the scheme swallowed: **21 are bibliography URLs or `\href` link text** (`Link` and `Str`, never `Code`, so they do not enter the filter), **14 contain a monospace span**, **4 are `in alignment` rather than `in paragraph`**, and **12 are ordinary prose or table cells**. Say *plurality*, never *dominated by*: a reader who takes 21-of-51 for a majority concludes that fixing the URLs fixes the page, and it leaves thirty boxes standing. URLs are still the largest single target and still need a different mechanism; a wider separator set will not reach them. Three alternatives were tested and rejected: `\XeTeXinterchartokenstate` (4,334 errors), `HyphenChar=<zero-width>` (DejaVu Sans Mono has no U+200B, and its U+00AD is visible), and `\emergencystretch` (3em inert, 6em costs a 671st page and 124 underfull boxes) — those three figures predate the mislabelling above and have not been re-measured since, so treat them as indicative rather than settled.
+
+**Horizontal changes are measured by the per-paragraph `Overfull \hbox` diff against a control build and by nothing else; vertical ones are not measured by it at all.** The diff is the right instrument for anything that decides where a *line* ends — a separator set, a hyphenation setting, a font option — and `CLAUDE.md` §4a has why a hyphen count or a word-position proxy will not show what such a change affects, plus the monotonicity check that catches a mislabelled variant before the harness runs. But a change that decides where a *page* ends is invisible in it: `\brokenpenalty`, `\Needspace`, `\nopagebreak`, `widowpenalty`, float placement. Those move no line ending, so the `Overfull \hbox` diff is empty for them by construction, and reading that emptiness as "no effect" is how a variant with two stranded callouts got shipped. Decide a page-makeup change on the page scan of the built PDF — page-ends on a broken line, mid-identifier page turns, stranded captions, bare callout header bars — and use `Underfull \vbox` only to find pages worth rasterizing.
+
 ### Code Examples
 
 **Formatting rules:**
@@ -210,11 +244,77 @@ Two of these are *placement* directives rather than citations, and they take the
 - Sentence case for all items
 - Terminal periods only if at least one item is a complete sentence (then ALL items get periods)
 
+### A Blank Line Above Every Heading and Every List
+
+This rule belongs to both sections above and is stated once here, because
+the failure mode is the same for a heading and for a list and it is
+invisible in the source. Pandoc's markdown, unlike CommonMark, lets neither
+one interrupt a paragraph. With no blank line above it, a `### ...` line is
+simply the paragraph's last line and a `- item` is simply more of its last
+sentence, and both then set as body prose. A swallowed heading appears in no
+table of contents, sets no running head, and carries no anchor for a
+cross-reference to land on --- the chapter reads as though that section was
+never written. A swallowed list arrives as one run-on paragraph with stray
+hyphens or digits where the bullets were: `The generated LogicSig verifier: -
+Has a deterministic address ... - Signs an application call transaction`.
+
+`scripts/validate.py` check 20 is the gate, and it is a *formatting* gate,
+which is why it is described here and in `CLAUDE.md` as well as in the code
+--- if you change its scoping, change all three. It errors on an ATX heading, a Setext
+underline, or a list item at any indent whose previous line is non-blank,
+outside code fences and never at line 1. It excuses a block element only
+where pandoc genuinely parses it: under a heading, under a table row, under
+a callout fence, and under a closing code fence, all four of which end their
+own block. The heading carve-out is the one that earns its keep. A list
+directly beneath a heading parses fine, and seven of the book's fifteen
+`## Exercises` sections --- the seven concept chapters --- are exactly that
+shape, all correct. Without the carve-out the check reported thirteen on the
+corpus it was written against, seven of them these false ones, and a check
+that is 54% noise gets switched off within a round.
+
+**Every carve-out is a claim about pandoc, so run it through pandoc.** The
+first version of this check excused a list under `>` because a blockquote
+"closes its own block", and scoped headings to ATX because "Setext has the
+opposite blank-line rule". Both were written from memory and both are false:
+`printf 'Intro.\n\n> quoted\n- item one\n' | pandoc -t html` lazily
+continues the list *into* the blockquote and sets the bullets as literal
+hyphens --- the exact defect the check exists to catch, unconditionally
+suppressed --- and `printf 'Intro para.\nHeading text\n============\n' |
+pandoc -t html` swallows the Setext heading identically to an ATX one. The
+`-` underline form is worse still, because it sets as an em dash inside the
+paragraph and is invisible even to a reader looking for it. Two more shapes
+were wrong in the other direction: a block element after a *closing* fence
+was reported though pandoc parses it, and a four-space-indented list after a
+paragraph was not reported though pandoc swallows it. All four occur zero
+times in the corpus, so correcting them moved no count --- which is the
+point. **A carve-out you cannot produce the transcript for is a hole you
+have not measured**, and the next person to widen the check will trust it.
+The comment in `scripts/validate.py` now carries the command beside each one.
+
+Run over all 24 chapters the check found six real instances, every one of
+them shipped at `d845ff3`: the heading at `10-p-zk-voting.md:597`, a
+"Production Verifier Binding Checklist" folded into the paragraph above it
+and absent from the TOC ever since, plus five lists in
+`07-p-yield-farming.md`, `08-c-patterns.md`, `09-p-limit-order-book.md` and
+`10-p-zk-voting.md` (two). Six hits is the argument for the check rather
+than against it: the rendered page looks like prose that was always prose,
+which is how all six walked past five review rounds and a rasterize-and-read
+pass. Keep the two zk-voting finds the right way round: check 20's heading
+branch is what reported the heading at `:597`, and rasterizing a page for an
+unrelated reason is what turned up the swallowed list at `:569` --- twenty-
+eight source lines above it, in a different section. The check found the
+heading; the eye found the list.
+
 ### Editorial Voice
 
 - **Conversational, direct, and opinionated** -- have a point of view and state it clearly
 - **Second person, always. No "we", no "I".** This book addresses the reader as *you* and describes what the code, the contract, or the AVM does in the third person. "We'll build a guestbook" becomes "You'll build a guestbook" or, more often, "The guestbook starts as one box"; "I recommend one box per signature" becomes "One box per signature is the form to reach for." The authorial "we" is a defect wherever it appears, including the softened institutional forms ("as we saw", "we now have", "our contract"). It is the single most common voice slip in drafted chapters --- grep for `\bwe\b`, `\bwe'\w`, `\bour\b`, and `\bus\b` in any chapter under review and check every hit. The exception is quoted error text and quoted third-party documentation, which is reproduced verbatim.
 - The first-person plural in a *reader instruction* is the same defect wearing a disguise: "let's add a guard" is "add a guard."
+- **Scheduled sweep, re-measured 2026-07-27: 126 occurrences of `we`/`our`/`ours`/`us` across 11 files.** An earlier figure of 113 is superseded; it could not be reproduced by any method, because it mixed `grep -c` *line* counts with *occurrence* counts and no single command yields it. A backlog figure that nobody can re-derive is worse than no figure, so the method is now part of the entry and any re-measurement must state its own.
+
+  **Method (run it exactly this way or state the change):** source is `chapters/*.md` in the working tree; fenced blocks are removed whole by toggling on any line matching `^\s*(```|~~~)` and dropping the fence lines themselves; inline code spans matching `` `[^`\n]*` `` are then blanked; the count is `re.findall(r"\b(we|our|ours|us)\b", flags=re.I)` over what remains, counting **occurrences, not lines**. Per file: `05-p-amm` 28, `04-p-nfts` 25, `03-p-token-vesting` 21, `07-p-yield-farming` 19, `10-p-zk-voting` 14, `09-p-limit-order-book` 9, `06-p-amm-factory` 4, `08-c-patterns` 2, `F2-preface` 2, `A3-gotchas` 1, `A4-cookbook` 1. Two of these are not defects and the sweep should leave them: `F2-preface`'s pair is the `How to Contact Us` section, where the publisher's first person is the convention, and `A3-gotchas`'s single hit is harvested output of a chapter callout, so it is repaired at the source chapter and regenerated, never edited in place.
+
+  This is a backlog, not a live finding: repairing one site while 125 remain is not an improvement, and a per-site report holds the diff-review loop over something no diff introduced. Do not raise individual instances in a diff review unless the diff *added* one --- check the `+` side specifically. Raise the sweep itself as a scheduled pass, and re-measure with the method above when it runs.
 - Contractions permitted ("don't", "you'll", "you're")
 - Active verbs preferred over passive constructions
 - Assume intelligent readers without specific Algorand knowledge
@@ -290,6 +390,129 @@ Before considering any chapter complete, verify:
 - [ ] Every fence carries a language tag
 - [ ] No fence exceeds its tier's printed-line budget (see "House Caps")
 - [ ] Callouts are formatted per house style and attach to the lines they name
+- [ ] A wrapped error transcript breaks at a separator the emitter produced (see "Wrapping an Error Transcript")
+
+**Wrapping an error transcript.** Machine output is quoted, not authored, so a
+break has to fall where the emitter already put a seam. Break at the
+**outermost separator the emitter itself produced** that yields lines fitting
+the measure: after `transaction {id}: `, after `logic eval error:`, before
+`. Details:`, after `had error '...'`. Descend into the message text only when
+no wrapper boundary fits. Never break inside a `key=value` pair, a
+parenthetical, a hex or base32 literal, the delimiters of a quoted
+sub-message, or a fixed two-word phrase such as `assert failed` --- a reader
+who greps the book for `assert failed pc=` must find it. Continuation lines
+carry no hyphen, no backslash and no added indentation beyond the alignment
+the transcript already had; anything else is a character the tool did not
+print. The recorded instance is a fix that wrapped `assert failed pc=1174`
+between the two words, producing a string that exists nowhere in
+go-algorand's output.
+
+**Cutting an error transcript.** A `LogicError` in this book is shown as its
+message --- wrapped by the rule above --- followed by the literal marker line
+`    ... 10 lines of TEAL trace ...`, and nothing else is ever cut. The
+trailing colon on `... and Source Line <n>:` is the exception *promising*
+the trace that comes next, so a fence ending on that colon ends
+mid-sentence. A bare `... at PC <n>:` is the no-source-map spelling; what
+algokit-utils prints after it is the "Could not determine TEAL source
+line" advisory, not TEAL, so that shape is itself the defect --- fix it by
+restoring the missing `and Source Line <n>:` clause, not by adding the
+marker.
+`scripts/validate.py` check 19 enforces four things about it: that each
+transcript inside a fence carries exactly one marker, that the marker is the
+transcript's last non-blank line, that a line ending on the Source Line
+colon is followed immediately by it (and that a bare `at PC <n>:` colon
+does not end a line at all), and that any line reading like it is
+byte-identical to it. The first two are conditional on the check having
+recognised a transcript; the last two run over every fenced line whether or
+not one was recognised. It recognises a transcript by its opening line:
+`LogicError:` as the line's first non-space text, or a pytest report's
+`E   LogicError:`. The transcript then runs to the next such opener, the next
+prompt line, or the end of the fence --- the prompt matters, because three
+transcripts, in two REPL fences, carry a further command after the marker and
+the marker is still the last line of the *transcript*. Inside a transcript
+opened either of those two ways, a marker that is missing or doubled fails
+the gate rather than reaching you; outside one, a line ending on either
+colon and a line misspelling the marker still fail it, and only presence
+and finality go unchecked. A raw algod string quoted without the
+Python exception around it (`chapters/07-c-proving-it-works.md:522`) opens no
+transcript and must not: the trace belongs to the client, which appended it
+because it compiled the program, and the node prints none of it, so that
+fence is right to carry no marker. Neither an unfenced quotation nor one
+reworded into prose is visible to the check at all. Whether either *should*
+have been a transcript is still yours.
+
+Two conventions have to be kept apart, because they look alike and mean
+different things. The **marker line** says a block of output was cut. An
+**inline `...`** says one value was shortened --- and the only values ever
+shortened that way are a transaction ID (`TFWY...J4A`), an address
+(`KRT4...5DVQ`), and an oversized structured field (`data {...}`). What
+survives the cut is whatever still identifies the value, and that depends on
+the value's shape. A flat opaque string keeps both ends --- *head-and-tail*:
+leading characters, `...`, then its own last three or four, because a reader
+matching an ID or an address against an explorer needs both. A structured
+field keeps its delimiters and loses everything between them: go-algorand
+prints `data %+v`, a Go struct arrives brace-wrapped, and `data {...}` keeps
+the braces precisely because the braces are what say a structure was cut
+rather than a string truncated. Do not tighten the head-and-tail case to
+"four-dot-four" --- chapter 1's
+transaction IDs are four-dot-three (`chapters/01-c-mental-model.md:24`,
+`:89`, `:93`, `:97`, and the `TFWY...J4A` cited two sentences ago), a tail is
+evidence, and evidence is never repadded to make a rule come out even.
+
+A *trailing* `...` with nothing after it is a third form, and a legitimate
+one, but it says "a value of this shape", not "this exact value, shortened".
+The test is whether the value is illustrative rather than evidential, and it
+passes in two situations. One is a value that is different for every reader:
+`0x0123...` for a genesis hash in a table
+(`chapters/09-p-limit-order-book.md:217`), `b"\x01\x02..."` and
+`b"\x03\x04..."` in an illustrative LogicSig (`:75`, `:95`), `0xABCD...` in a
+cookbook command line
+(`chapters/A4-cookbook.md:788`), `App address:     W3EP...` in the setup
+appendix (`chapters/A1-setup.md:197`), where the address is whatever the
+reader's own LocalNet minted, and the hex box name in `invalid Box reference
+0x...` (`chapters/10-p-zk-voting.md:480`, `chapters/A4-cookbook.md:501`,
+`chapters/04-p-nfts.md:994`), where `0x` is real output --- go-algorand's
+literal is `invalid Box reference %#x` --- and the hex after it is whatever
+box the reader failed to declare. The other is a field the quotation stops
+inside on purpose, because its remainder is not what the sentence is about
+and the prose says so: `opcodes=...` closing algod's `Details:` tail
+(`chapters/05-c-numbers-and-time.md:86`), where the next sentence explains
+why that tail keeps going. Those are instances of the test, not the whole of
+it. A new site that meets the test needs no entry here, and a site that fails
+it is a defect however closely it resembles one of these. Head-and-tail in
+any of these places promises a specific value that does not exist; a trailing
+`...` in a real transcript throws away one that does.
+
+A bare `...` --- one attached to no value at all --- standing where a whole
+clause was removed conflates all of these and quietly tells the reader that
+some unspecified text is missing. One position is exempt: statement position
+inside a Python listing, where `...` is the language's own Ellipsis and every
+Python reader already parses it as an omitted body. That covers output a tool
+quoted back --- a pytest failure report showing `    ...` under a test's `def`
+line (`chapters/07-c-proving-it-works.md:90`, `:101`, `:114`) --- and it
+equally covers a listing the book authored for the reader to complete: the
+seven Parsons-problem stubs whose bodies are a single `...`
+(`chapters/01-c-mental-model.md:424`, `chapters/02-c-contracts.md:478`,
+`chapters/03-c-state.md:453`, `chapters/04-c-boxes.md:616`,
+`chapters/05-c-numbers-and-time.md:512`, `chapters/06-c-moving-value.md:489`,
+`chapters/07-c-proving-it-works.md:510`). So is `place_order(...)` in an
+ASCII architecture diagram (`chapters/09-p-limit-order-book.md:357-360`),
+which is a sketch and not output. Outside those, a bare `...` is the defect
+described here, and the recorded instance is `chapters/03-c-state.md:65`,
+which carried `cannot fetch key, ... has not opted in to app 1042` for five
+review rounds: it read as an abridged sentence, but the `...` was an address,
+and the transcript was additionally missing the entire `Txn {id} had error
+'<msg>' at PC <n> and Source Line <m>:` frame that every other transcript in
+the book carries. Nobody caught it because it did not look abridged --- it looked
+short, and short output is not obviously wrong.
+
+**Never author the elided values yourself.** An ID, an address, a PC or a
+Source Line is evidence, not prose. If a transcript is missing one, the fix is
+a routing to algorand-expert and, where the value needs a live chain, a
+walkthrough --- not a plausible-looking string. Placeholders that already exist
+in the manuscript stay as they are; check 17 holds each one to a single
+application, message and PC across every chapter and figure at once, so
+inventing a replacement can break a site chapters away.
 
 **Editorial:**
 - [ ] Conversational, direct tone

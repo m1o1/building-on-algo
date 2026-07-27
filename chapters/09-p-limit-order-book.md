@@ -785,13 +785,13 @@ ORDER_SIZE = 128         # Total
 ::: {.spec}
 **ARC-4 method signatures.** When constructing transactions manually (without a typed client), you need the exact method signatures for `Method.from_signature()` or `AtomicTransactionComposer`. These are derived from the contract's method definitions and can also be found in the generated `.arc56.json` file:
 
-| Method | ARC-4 Signature |
-|--------|----------------|
-| `initialize` | `"initialize(uint64)void"` |
-| `place_order` | `"place_order(uint64,uint64,uint64,uint64,uint64,uint64,byte[],pay)uint64"` |
-| `fill_order` | `"fill_order(uint64,uint64,axfer)void"` |
-| `cancel_order` | `"cancel_order(uint64)void"` |
-| `cleanup_expired_order` | `"cleanup_expired_order(uint64)void"` |
+```text
+"initialize(uint64)void"
+"place_order(uint64,uint64,uint64,uint64,uint64,uint64,byte[],pay)uint64"
+"fill_order(uint64,uint64,axfer)void"
+"cancel_order(uint64)void"
+"cleanup_expired_order(uint64)void"
+```
 :::
 
 
@@ -996,7 +996,7 @@ fund_account(
 )
 ```
 
-The app account needs seed funding to cover its minimum balance requirement (which increases as orders create box storage) and to pay for inner transactions such as MBR refunds in `cleanup_expired_order`. Without this funding, the first `place_order` call will fail with "balance below minimum."
+The app account needs seed funding to cover its minimum balance requirement (which increases as orders create box storage) and to pay for inner transactions such as MBR refunds in `cleanup_expired_order`. Without this funding, the first `place_order` call will fail with `account <address> balance <n> below min <m> (<k> assets)`.
 
 Next, compile Alice's limit order LogicSig with her specific trading parameters, then have Alice sign (delegate) it and place the order on the order book:
 
@@ -1318,6 +1318,7 @@ This pattern --- limit order fill + AMM swap in a single atomic group --- is how
 The keeper's atomic group from the previous section coordinates multiple contracts *externally* --- the keeper constructs the group client-side. But contracts can also call other contracts *internally* via inner `ApplicationCall` transactions. This is the Algorand equivalent of Solidity's external function calls.
 
 When one contract calls another via inner transaction:
+
 - The called contract's approval program runs within the caller's execution
 - Each inner app call adds **+700 opcodes** to the shared budget
 - The call stack depth is limited to **8 levels** (the 8th-level contract cannot call further apps)

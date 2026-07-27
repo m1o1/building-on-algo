@@ -34,7 +34,7 @@ By the end of this chapter you will be able to:
 
 The single most important thing on that page is at the top: the HTTP request itself *succeeded*. A rejected simulation is a `200 OK` whose body reports the failure, which is why a test that asserts on the status code will pass no matter what the contract does. The information you want --- which assertion fired, where, and what the program had done before it got there --- is in `failure-message`, `failed-at`, and the execution trace. The diagram draws that body as an object because that is what the node returned; whether your own code ever gets to hold it is a separate question this chapter answers later, and the answer surprises people.
 
-The second most important thing is what is *not* on the page. There is no Python. There is a program counter, and there is whatever string your app spec can associate with that program counter, and getting from either of those back to a line in your source file is a hop the tooling does not make for you. The third of the four sections that follow closes that gap with a sixteen-line function.
+The second most important thing is what is *not* on the page. There is no Python. There is a program counter, there is whatever string your app spec can associate with that program counter, and --- when the client compiled the contract itself, as the client behind every `LogicError` transcript so far did --- a line number into the *generated TEAL*. Getting from any of those back to a line in your source file is a hop the tooling does not make for you. The third of the four sections that follow closes that gap with a sixteen-line function.
 
 ## The Mini-Build, Broken
 Example: A vesting contract that fails {#ex:simple-vesting-broken}
@@ -516,10 +516,11 @@ Answer these from memory before moving on. Four of them reach back into earlier 
 
    Finally: statement (e) uses `in` rather than `==`. Say what `LogicError.message` actually contains that makes the equality version fail, and say what you would lose if you weakened the assertion to `pytest.raises(LogicError)` alone.
 
-3. **(Debug)** A team's contract has run in production for six weeks. This morning every call to `settle` fails. Their on-call engineer has one line from a user's wallet and nothing else:
+3. **(Debug)** A team's contract has run in production for six weeks. This morning every call to `settle` fails. Their on-call engineer has one error string from a user's wallet and nothing else:
 
    ```console
-   logic eval error: assert failed pc=1174. Details: app=8842, pc=1174
+   transaction 5KQD...7WPX: logic eval error:
+   assert failed pc=1174. Details: app=7311, pc=1174
    ```
 
    They have the deployed app spec. They look up 1174 in `sourceInfo` and it is not there. They can reproduce the failure with a simulate and get the same program counter.

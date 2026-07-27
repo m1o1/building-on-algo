@@ -498,7 +498,7 @@ app_call = transaction.ApplicationCallTxn(
 )
 ```
 
-Forgetting box references causes "box read/write budget exceeded" errors. Note that for an ARC-4 contract, the first app argument must be the 4-byte method selector (not a plain method-name string) --- or use the typed `AppClient`, as the book's projects do, and let it encode the call for you.
+Forgetting the reference that *names* a box causes `invalid Box reference 0x...` (the box name in hex). Forgetting a *padding* reference --- one carried purely for I/O budget --- leaves every name resolvable and fails on size instead, with `read budget exceeded` or `write budget exceeded`. The message tells you which kind went missing. Note that for an ARC-4 contract, the first app argument must be the 4-byte method selector (not a plain method-name string) --- or use the typed `AppClient`, as the book's projects do, and let it encode the call for you.
 
 
 ## 7. Assets (ASAs) {#7-assets-asas}

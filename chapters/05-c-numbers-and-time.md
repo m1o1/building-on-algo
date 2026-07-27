@@ -79,16 +79,17 @@ Now configure the same contract with `start` and `end` the same round --- a sche
 ```python
 >>> calc.send.configure(args=(1_000_000, 1000, 1000))
 >>> calc.send.vested_now().abi_return
-LogicError: Txn 7QW3...M2LP had error 'logic eval error: / 0.
-Details: app=1094, pc=214' at PC 214 and Source Line 33:
-    ... 11 lines of TEAL trace ...
+LogicError: Txn 7QW3...M2LP had error '/ 0' at PC 185 and Source Line 152:
+    ... 10 lines of TEAL trace ...
 ```
 
-Every `LogicError` in this book is printed in full the first time it appears in a chapter and then trimmed to its `.message` in the prose --- the transaction ID, the program counter, and the TEAL trace are real, and they are noise for everything this chapter is about.
+Every `LogicError` in this book is shown that way --- the first line, then the trace elided under a marker --- and then trimmed to its `.message` in the prose. The transaction ID, the program counter and the source line are real, and they are noise for everything this chapter is about. One thing about the shape is worth knowing here. The quotes hold a message that has already been trimmed for you: the node's string ran `transaction 7QW3...M2LP: logic eval error: / 0. Details: app=1094, pc=185, opcodes=...`, and `LogicError` keeps the middle and drops the wrapper on both sides.
 
-That is defect two, and read the message carefully, because it is not `assert failed`. No assertion of yours fired. The AVM's own divide opcode refused, and the phrase `logic eval error: / 0` is the AVM speaking, not your contract. There is nothing in the contract that could have caught it, because there is nothing in the contract that looks at `span` before dividing by it.
+That tail keeps going because `vested_now` is `readonly=True`, and a readonly method is answered by a simulation rather than a submission, which is also why the full traceback carries a chained line above the one printed here: `Transaction failed at transaction(s) 0 in the group.` Getting from `PC 185` or `Source Line 152` back to the line you actually wrote is {{ch:testing}}'s subject.
 
-Look at where line 33 sits, though, because the shape is worth more than the message. The contract *does* have a branch that handles a schedule already finished --- `if now >= self.end.value` on the next line --- and on a zero-length schedule that branch is exactly right and would have returned the total. It never runs. `fraction = elapsed // span` was hoisted above it, the way an intermediate gets hoisted when you are tidying a method and the value is wanted by both paths. **A guard cannot protect arithmetic that has already happened above it.** That is the single most common way an abort survives a code review: nobody deletes the guard, somebody moves the arithmetic.
+That is defect two, and read the message carefully, because it is not `assert failed`. No assertion of yours fired. The AVM's own divide opcode refused, and `/ 0` is the AVM speaking, not your contract. There is nothing in the contract that could have caught it, because there is nothing in the contract that looks at `span` before dividing by it.
+
+Look at where that PC lands. TEAL line 152 is the bare `/`, and the comment PuyaPy wrote three lines above it in the trace names the Python: `fraction = elapsed // span`. The shape is worth more than the message. The contract *does* have a branch that handles a schedule already finished --- `if now >= self.end.value` on the next line --- and on a zero-length schedule that branch is exactly right and would have returned the total. It never runs. `fraction = elapsed // span` was hoisted above it, the way an intermediate gets hoisted when you are tidying a method and the value is wanted by both paths. **A guard cannot protect arithmetic that has already happened above it.** That is the single most common way an abort survives a code review: nobody deletes the guard, somebody moves the arithmetic.
 
 Worse than the message is what it does to the contract. `configure` is init-once, so the schedule cannot be corrected. There is no other method. The contract is now a permanently uncallable object holding a grant, and the only thing wrong with it is that two numbers were equal.
 
@@ -97,10 +98,9 @@ Call the same contract before its schedule starts and a third failure appears, o
 ```python
 >>> calc.send.configure(args=(1_000_000, 5_000_000, 7_830_000))
 >>> calc.send.vested_now().abi_return
-LogicError: Txn J4KD...81XR had error 'logic eval error:
-- would result negative. Details: app=1094, pc=198' at PC 198
-and Source Line 31:
-    ... 9 lines of TEAL trace ...
+LogicError: Txn J4KD...81XR had error '- would result negative'
+at PC 173 and Source Line 138:
+    ... 10 lines of TEAL trace ...
 ```
 
 `elapsed = now - self.start.value` with `now` before `start` is a subtraction that would go below zero, and the AVM does not go below zero. **`- would result negative` is not a rounding message; it is the transaction ending.** For the entire period between deployment and the schedule's start --- which for a hiring grant is routinely months --- the contract answers every question with a failure.
@@ -207,7 +207,7 @@ ArithmeticError: - underflows
 
 Same contract, same line, same defect, different vocabulary. `ArithmeticError: - underflows` is a Python exception raised by a Python reimplementation of the AVM's semantics; `- would result negative` is a string emitted by the Go evaluator that actually runs consensus. The test shipped with that example asserts `pytest.raises(ArithmeticError)` --- the exception *class*, never the text --- and that is the habit to copy.
 
-The chain also wraps these in a little context before you see them. An application call produces `logic eval error: / 0. Details: app=1234, pc=57`; a LogicSig produces `rejected by logic err=/ 0. Details: pc=57`. The message you are looking for is in the middle.
+The chain also wraps these in a little context before you see them. Both sit inside the `transaction {id}: ` prefix named in the preceding section: an application call produces `logic eval error: / 0. Details: app=<app-id>, pc=<n>`; a LogicSig produces `rejected by logic err=/ 0. Details: pc=<n>`. The message you are looking for is in the middle.
 
 *What this section repairs in the vesting calculator:* defects two and three. `span` is a divisor established by `configure`, so `configure` is where it gets its guard; `now - start` is a subtraction whose operands are ordered only when the schedule has started, so the schedule-has-started case gets its own branch.
 

@@ -248,6 +248,24 @@ INCLUDE_FIG_RE = re.compile(
 )
 
 
+def figure_caption(display: str, title: str) -> str:
+    """Compose a figure's on-page caption: the number, then the caption text.
+
+    Module-level and separate from its one caller so that `scripts/validate.py`
+    check 21 can test the real composition rather than a copy of it. A copy is
+    what let the original defect stand: the caption text was being altered on
+    the way to the page and every check was looking at whether the figure
+    existed instead.
+
+    Not `.rstrip(". ")`. That takes a SET of characters, so it deleted the
+    caption's own terminal period from all 21 entries in figures/index.yaml,
+    every one of which is written as a sentence. The empty title it was
+    reaching for is handled as the special case it actually is.
+    """
+    title = str(title).strip()
+    return f"{display}. {title}" if title else str(display)
+
+
 def load_figure_index(manifest: Path | None) -> dict[str, dict]:
     """Map figure slug → entry from figures/index.yaml."""
     if manifest is None or not manifest.exists():
@@ -464,7 +482,7 @@ def _resolve_text(text: str, xrefs: dict, where: str, figures: dict[str, dict] |
         # extension for the LaTeX pass, which needs the PDF instead.
         slug = match.group(1)
         info = xrefs[f"fig:{slug}"]
-        caption = f"{info['display']}. {info['title']}".rstrip(". ")
+        caption = figure_caption(info["display"], info["title"])
         alt = caption.replace("[", r"\[").replace("]", r"\]")
         return f"![{alt}](figures/{slug}.svg)"
 
@@ -1418,6 +1436,15 @@ def build_pdf() -> None:
         # The resolved source names the SVG the HTML edition serves; graphicx
         # cannot read SVG, so this swaps in the PDF rendered beside it.
         f"--lua-filter={SCRIPTS_DIR / 'figures.lua'}",
+        # An example caption is a bold paragraph above its listing, so nothing
+        # holds the two together across a page break; this does. It runs BEFORE
+        # codebreak.lua, which wraps some paragraphs in raw-LaTeX blocks and
+        # would hide the caption-then-listing adjacency this one tests for.
+        f"--lua-filter={SCRIPTS_DIR / 'keeptogether.lua'}",
+        # The monospace font has HyphenChar=None, so a long identifier has no
+        # break opportunity of its own; this puts one after each `.`, `_` and
+        # `/` it already contains, printing no character to do it.
+        f"--lua-filter={SCRIPTS_DIR / 'codebreak.lua'}",
         # ...and this is what lets the swapped-in bare filename resolve.
         f"--resource-path=.:{(FIGURES_DIR / 'out').relative_to(ROOT)}",
         # Pandoc has never had a --syntax-highlighting flag; the option is

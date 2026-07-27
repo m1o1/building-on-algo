@@ -15,6 +15,12 @@ geometry:
 mainfont: "DejaVu Serif"
 sansfont: "DejaVu Sans"
 monofont: "DejaVu Sans Mono"
+# Inline code must never hyphenate: a hyphen inside a quoted identifier or an
+# error string is a character the tool never printed, and the reader has no way
+# to tell it from one that was. This kills the hyphen; scripts/codebreak.lua
+# supplies the break opportunities that removing it would otherwise cost.
+monofontoptions:
+  - HyphenChar=None
 fontsize: 11pt
 linestretch: 1.15
 toc: true
@@ -57,6 +63,12 @@ header-includes:
     % each one exactly where the author put it.
     \usepackage{float}
     \floatplacement{figure}{H}
+    % An example caption is a bold paragraph above its listing rather than a
+    % float caption, so nothing in LaTeX holds the two on the same page.
+    % scripts/keeptogether.lua reserves room ahead of each one with
+    % \Needspace*; the comment at the top of that file has the measurements and
+    % explains why the obvious \nopagebreak does nothing here.
+    \usepackage{needspace}
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
     % --- Callouts -------------------------------------------------------
@@ -121,5 +133,18 @@ header-includes:
     \usepackage{titlesec}
     \titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
     \titlespacing*{\chapter}{0pt}{-20pt}{40pt}
+    % Page breaking after a filter break is NOT handled here. It was, for one
+    % round: `\brokenpenalty=10000` set globally, which is the obvious knob and
+    % the wrong one. `\brokenpenalty` fires after *any* line that ends in a
+    % discretionary break, so a global setting also forbids the twenty-one
+    % ordinary hyphenated prose page-ends this book had -- which are correct
+    % typography, not defects -- and the pressure of forbidding them has to go
+    % somewhere. It went into two GOTCHA callouts reduced to a bare header bar
+    % at the page foot (folios 116 and 244) and two example captions stranded
+    % from their listings (folios 176 and 276).
+    %
+    % The mechanism now lives in `scripts/codebreak.lua`, scoped to the
+    % paragraphs the filter actually touched, and it is strictly better on
+    % every count. See the comment at the top of that file for the numbers.
     ```
 ---

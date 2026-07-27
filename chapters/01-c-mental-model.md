@@ -21,12 +21,14 @@ A team ships a small contract to LocalNet and then to TestNet. It has exactly tw
 The first problem arrives from a stranger. Somebody calls `greet` with an empty name, and the call is rejected --- correctly, the contract meant to reject it --- with this:
 
 ```console
-LogicError: Txn TFWY...J4A had error 'assert failed pc=78' at PC 78
+LogicError: Txn TFWY...J4A had error 'assert failed pc=78'
+at PC 78 and Source Line 63:
+    ... 10 lines of TEAL trace ...
 ```
 
 That is the entire diagnostic. Not which assertion. Not why. A number, twice. The team has the source in front of them and can guess, but the person integrating against the contract from another company cannot, and the support thread that follows is three days long.
 
-(Every failure transcript in this chapter is abridged to its first line, wrapped where the line is too long for this page. The real exception also prints the surrounding TEAL when the client happens to hold a source map, which the person calling your contract from another codebase usually does not.)
+(Every `LogicError` in this book is shown the same way: the message's first line, wrapped where it is too long for the page, and then the ten lines of *generated TEAL* the real exception prints around the failure, cut under the marker. The `Source Line` is a line of that TEAL, counted from zero, not of your Python --- a client that compiled the contract itself holds the map from program counters to TEAL lines, and nothing in the pipeline makes the next hop --- back to the file you wrote --- for you. {{ch:testing}} closes that gap.)
 
 The second problem is worse. The team decides to pull the contract and redeploy it with better error messages. They call `shut_down` from the deployer account. Rejected. They try the admin account, then every account they control. Rejected, all of them. Then somebody reads the guard properly:
 
@@ -84,13 +86,18 @@ The unhappy paths are where it gets interesting:
 
 ```python
 >>> greeter.send.greet(args=("",))
-LogicError: Txn 6ZQK...H2A had error 'assert failed pc=78' at PC 78
+LogicError: Txn 6ZQK...H2A had error 'assert failed pc=78'
+at PC 78 and Source Line 63:
+    ... 10 lines of TEAL trace ...
 >>> greeter.send.greet(args=("A" * 1100,))
 LogicError: Txn PN4T...K9C had error 'program logs too large.
-1113 bytes >  1024 bytes limit' at PC 106
+1113 bytes >  1024 bytes limit' at PC 106 and Source Line 80:
+    ... 10 lines of TEAL trace ...
 >>> greeter.send.shut_down()
-LogicError: Txn W2LD...R7B had error 'Runtime error when executing
-Greeter (appId: 1042) in transaction W2LD...R7B: admin only' at PC 115
+LogicError: Txn W2LD...R7B had error 'Runtime error when executing Greeter
+(appId: 1042) in transaction W2LD...R7B: admin only'
+at PC 115 and Source Line 92:
+    ... 10 lines of TEAL trace ...
 ```
 
 Three failures, and they fail in three different ways. The first is correct behavior reported uselessly: the contract meant to reject an empty name, and the only thing it can tell you is a number. The second is a limit the contract never mentions and never checked --- and note that the number in it, 1,113, is larger than the name you sent, for reasons this chapter will make exact. The third is a correct-looking guard that no caller on Earth can satisfy; the message is readable, which makes it worse, because it is confidently describing a rule that cannot ever be met.
@@ -217,7 +224,7 @@ Every account must keep a *minimum balance* to exist at all. This is the anti-sp
 - Each declared global slot: +28,500 for a `uint64`, +50,000 for a byte slot
 - Each box created: +2,500, plus 400 × (name bytes + value bytes)
 
-Minimum balance is not a fee. Nothing is deducted --- the floor simply rises, and only the Algo above the floor is spendable. A transaction that would push an account below its floor fails, which is why "balance below minimum" is the error new developers meet most often. {{fig:mbr-slab}} draws it to scale for a contract account holding two assets and one box: the balance an explorer reports, and the sliver of it the contract can actually move.
+Minimum balance is not a fee. Nothing is deducted --- the floor simply rises, and only the Algo above the floor is spendable. A transaction that would push an account below its floor fails with `account <address> balance <n> below min <m> (<k> assets)`, the error new developers meet most often. {{fig:mbr-slab}} draws it to scale for a contract account holding two assets and one box: the balance an explorer reports, and the sliver of it the contract can actually move.
 
 {{include-fig:mbr-slab}}
 

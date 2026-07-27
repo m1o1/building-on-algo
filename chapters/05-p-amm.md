@@ -348,7 +348,7 @@ print(f"LP Token ID: {lp_token_id}")
 print("Bootstrap complete!")
 ```
 
-Run with `python deploy_pool.py`. You should see three IDs printed: the two test tokens and the LP token. If you get `"Already bootstrapped"`, you are calling bootstrap on a pool that was already initialized --- reset LocalNet with `algokit localnet reset` and try again.
+Run with `python deploy_pool.py`. You should see three IDs printed: the two test tokens and the LP token. If you get `Already bootstrapped`, you are calling bootstrap on a pool that was already initialized --- reset LocalNet with `algokit localnet reset` and try again.
 
 You can verify the pool's state by reading its global state:
 

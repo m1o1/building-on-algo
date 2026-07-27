@@ -87,8 +87,9 @@ Now the defect the creator actually noticed. Call `withdraw` as the owner, on a 
 ```python
 >>> jar.send.withdraw()
 LogicError: Txn 5HRP...9QK2 had error 'inner tx 0 failed: overspend
-(account KRT4...5DVQ, data {...}, tried to spend 33.300000A)' at PC 204:
-    ... no source line: PuyaPy's ARC-56 output carries no TEAL map ...
+(account KRT4...5DVQ, data {...}, tried to spend 33.300000A)'
+at PC 204 and Source Line 166:
+    ... 10 lines of TEAL trace ...
 ```
 
 Read the message rather than the program counter. `overspend` is not a complaint about the minimum balance, and the reason it is not is the first thing to explain. `amount = app.balance` instructs the account to send every microAlgo it holds --- and the inner transaction's fee is taken from that same account *before* the payment is applied. The jar is a thousand microAlgo short of its own instruction before the payment is even attempted. That is defect four firing, and defect three is standing immediately behind it.
@@ -407,8 +408,9 @@ Redeploy and run the same three things that failed. This is an **on-chain run** 
 >>> jar.send.opt_in.tip(args=(pay(jar.app_address, 5_000_000),))
 >>> jar.send.tip(args=(pay(attacker.address, 5_000_000),))
 LogicError: Txn KQ7T...4WM3 had error 'Runtime error when executing TipJar
-(appId: 1211) in transaction KQ7T...4WM3: tip this jar, not an account' at PC 143:
-    ... no source line: PuyaPy's ARC-56 output carries no TEAL map ...
+(appId: 1211) in transaction KQ7T...4WM3: tip this jar, not an account'
+at PC 143 and Source Line 90:
+    ... 10 lines of TEAL trace ...
 >>> jar.send.withdraw()
 5000000
 ```

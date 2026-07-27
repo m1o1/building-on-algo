@@ -62,7 +62,10 @@ Now have Alice send an application call with `OnComplete=ClearState` instead of 
 >>> registry.send.members().abi_return
 2
 >>> registry.send.credits_of(args=(alice,)).abi_return
-LogicError: cannot fetch key, ... has not opted in to app 1042
+LogicError: Txn 4QXT...7MRB had error
+'cannot fetch key, V3ZK...6PDA has not opted in to app 1042'
+at PC 240 and Source Line 173:
+    ... 10 lines of TEAL trace ...
 ```
 
 The count still says 2. Alice is gone.

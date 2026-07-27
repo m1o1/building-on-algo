@@ -85,14 +85,18 @@ Top the account up and the guestbook works again --- for another forty-odd signa
 >>> guestbook.send.sign().abi_return
 102
 >>> guestbook.send.sign().abi_return
-LogicError: Txn RQ2M...H7VA had error 'concat produced a too big
-(4120) byte-array' at PC 214 and Source Line 19:
-    ... 12 lines of TEAL trace ...
+LogicError: Txn RQ2M...H7VA had error 'concat produced a too big (4120) byte-array'
+at PC 111 and Source Line 55:
+    ... 10 lines of TEAL trace ...
 ```
 
-Every `LogicError` in this book is printed that way and then trimmed to its
-`.message` in the prose --- the transaction ID, the program counter, and the
-trace are real, and they are noise for everything this chapter is about.
+Every `LogicError` in this book is shown that way --- the first line, then the
+trace elided under a marker --- and then trimmed to its `.message` in the
+prose. The transaction ID, the program counter and the source line are real,
+and they are noise for everything this chapter is about. The `Source Line` is
+there only because this client compiled the contract itself and kept the map
+algod returned; a caller handed nothing but the app spec gets the program
+counter and no line at all.
 
 That one has nothing to do with money, and topping up will not touch it. `sign` reads the whole blob into a value, concatenates forty bytes onto it, and writes the value back. A value on the AVM stack cannot exceed 4,096 bytes, and 4,120 is what 103 forty-byte records come to. The box itself is allowed to reach 32,768 bytes; the program is not allowed to *hold* more than 4,096 of them at once. The one-box design hit a limit on the value, not on the storage. (The broken `sign` returns the count *after* writing, so the call that answered `102` was the hundred and second signature and the failing one is the hundred and third. The corrected version returns the index it just wrote instead, which is why its transcript later in the chapter counts from zero.)
 
@@ -511,12 +515,15 @@ Deploy the fixed contract, fund it with the same one Algo, and sign it forty-one
 >>> guestbook.send.sign().abi_return
 39
 >>> guestbook.send.sign().abi_return
-LogicError: Txn 5KDA...92QP had error 'assert failed: app account
-underfunded' at PC 412 and Source Line 28:
-    ... 9 lines of TEAL trace ...
+LogicError: Txn 5KDA...92QP had error 'Runtime error when executing Guestbook
+(appId: 1103) in transaction 5KDA...92QP: app account underfunded'
+at PC 120 and Source Line 70:
+    ... 10 lines of TEAL trace ...
 ```
 
-It stops *sooner* --- at the forty-first signature rather than the fifty-sixth --- and that is the correction working, not failing. The broken contract got further on the same Algo because a shared blob is cheaper per entry, and it got there by accumulating three walls it could not see. One Algo genuinely does not pay for more than forty boxes, and no code can conjure a minimum balance. What changed is that the contract now says so, in a sentence an organizer at a check-in desk can act on, and says it before writing anything rather than after.
+That sentence is worth reading twice, because the AVM did not write any of it. The AVM emits `assert failed pc=120` and nothing more; the rest is the client reassembling the message from the app spec it already holds, by the mechanism {{ch:mental-model}} laid out --- which is why the transaction ID appears in it twice, and why a caller without your app spec gets `assert failed pc=120` and no explanation. Write assert messages for the operator holding the client, not for the chain.
+
+The fixed guestbook stops *sooner* --- at the forty-first signature rather than the fifty-sixth --- and that is the correction working, not failing. The broken contract got further on the same Algo because a shared blob is cheaper per entry, and it got there by accumulating three walls it could not see. One Algo genuinely does not pay for more than forty boxes, and no code can conjure a minimum balance. What changed is that the contract now says so, in a sentence an organizer at a check-in desk can act on, and says it before writing anything rather than after.
 
 **Correction one: one box per signature.** `self.entries` became `self.entry`, a `BoxMap[UInt64, Entry]` keyed by an index the contract maintains in global state. Signing creates a box instead of rewriting one, and that changes both currencies at once --- so it is worth being explicit about which is which, because they are easy to blur and they behave differently.
 

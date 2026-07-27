@@ -83,7 +83,7 @@ Cleanup is not housekeeping, it is the only way to get the money back. If an app
 
 ### A method that creates boxes fails unless the app account is funded first
 
-**Fund the app account before calling `initialize`.** The `initialize` method creates tally boxes (one per choice). Each tally box costs `2,500 + 400 * (10 + 8) = 9,700 microAlgos` in MBR. For 3 choices, the app account needs at least `3 * 9,700 = 29,100 microAlgos` plus its base MBR of `100,000 microAlgos` before `initialize` is called. Send a payment to the app's address before the `initialize` call, or you will see a "balance below minimum" error.
+**Fund the app account before calling `initialize`.** The `initialize` method creates tally boxes (one per choice). Each tally box costs `2,500 + 400 * (10 + 8) = 9,700 microAlgos` in MBR. For 3 choices, the app account needs at least `3 * 9,700 = 29,100 microAlgos` plus its base MBR of `100,000 microAlgos` before `initialize` is called. Send a payment to the app's address before the `initialize` call, or you will see `account <address> balance <n> below min <m> (<k> assets)`.
 
 *From {{ch:zk-voting}}.*
 
@@ -413,7 +413,7 @@ and 365 days.
 ### Identical app calls in quick succession collide as duplicate transaction IDs
 
 Sending identical app calls in rapid succession on LocalNet can
-produce identical transaction IDs, causing `"transaction already in ledger"`
+produce identical transaction IDs, causing `transaction already in ledger`
 errors. Add a unique `note` field to each transaction, such as
 `note=os.urandom(8)` or `note=f"test-{i}".encode()`. In practice, add
 `note=os.urandom(8)` to every `AppClientMethodCallParams` and

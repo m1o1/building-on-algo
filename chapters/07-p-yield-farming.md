@@ -315,6 +315,7 @@ The accumulator updates on every state-changing call (stake, unstake, claim). Th
 $$\text{reward\_per\_token} \mathrel{+}= \frac{\text{reward\_rate} \times \Delta t \times \text{PRECISION}}{\text{total\_staked}}$$
 
 Where:
+
 - `reward_rate` is tokens per second distributed to the entire pool
 - `delta_t` is seconds since the last update (`min(now, reward_end) - last_update`)
 - `PRECISION` is a scaling factor (we use $10^9$) to preserve fractional precision in integer math

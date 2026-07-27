@@ -80,7 +80,7 @@ Fix-hunks earn three extra checks that ordinary new prose does not:
 
 Every added or modified line is one of: a factual claim, a code artifact, a number, a quoted string, a cross-reference, or connective prose. The first five are checkable. Check them. Do not accept any of them on the grounds that they look right — looking right is precisely the property every defect in this repository's history has had.
 
-- **Quoted AVM/ledger error strings** — grep out of go-algorand, per `algorand-expert.md`'s error-literal section. Record file and line beside the quote in your report. If go-algorand is not on disk in this container, say so explicitly and mark the string UNVERIFIED rather than passing it.
+- **Quoted AVM/ledger error strings** — grep out of go-algorand, per `algorand-expert.md`'s error-literal section. Record file and line beside the quote in your report. **"go-algorand is not on disk" is no longer a reason to mark a string UNVERIFIED** — a 13 MB sparse clone takes under a minute and the recipe is in `algorand-verified-facts.md` under "go-algorand on disk". Clone it, then grep. Reserve UNVERIFIED for strings you looked for and could not find, and say where you looked.
 - **Quoted contract assert messages** — grep out of the contract file the example actually calls. `"No schedule"` and `"No vesting schedule"` are different strings in the same file, guarding different methods.
 - **Numbers** — MBR, opcode budgets, byte counts, overflow thresholds, timestamps. Recompute them. `python3 -c` is faster than deciding whether you believe them.
 - **Code fences** — parse every added Python fence. `python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())"` on the extracted body. If it is an example that should compile, compile it.

@@ -276,7 +276,7 @@ App Address: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ
 Admin: DEPLOYER_ADDRESS_HERE
 ```
 
-If you see an error like "balance below minimum," your deployer account may not have enough Algo. The LocalNet dispenser account is pre-funded with millions of Algo, so this should not happen with the default setup. If you are using a different account, fund it first.
+If you see `account <address> balance <n> below min <m> (<k> assets)`, your deployer account may not have enough Algo. The LocalNet dispenser account is pre-funded with millions of Algo, so this should not happen with the default setup. If you are using a different account, fund it first.
 
 You can inspect the deployed contract's state using the Algorand REST API. With LocalNet running, the algod endpoint is typically at `http://localhost:4001`:
 
@@ -446,7 +446,7 @@ for kv in app_info["params"]["global-state"]:
     print(f"  {kv}")
 ```
 
-Run it with `python test_initialize.py`. If everything works, you will see the token creation, deployment, and initialization succeed. If you see `"balance below minimum"`, increase the funding amount. If you see `"Only admin"`, make sure the same account that deployed the contract is calling `initialize`.
+Run it with `python test_initialize.py`. If everything works, you will see the token creation, deployment, and initialization succeed. If you see `account <address> balance <n> below min <m> (<k> assets)`, increase the funding amount. If you see `Only admin`, make sure the same account that deployed the contract is calling `initialize`.
 
 This workflow --- edit, compile, deploy, call, verify --- is the loop you will follow for the rest of this chapter. Each new method we add can be tested incrementally on LocalNet before moving on.
 
@@ -1048,7 +1048,7 @@ A second LocalNet quirk affects rapid-fire test transactions.
 
 ::: {.gotcha #duplicate-txid-in-tests topic="Testing and simulation" title="Identical app calls in quick succession collide as duplicate transaction IDs"}
 Sending identical app calls in rapid succession on LocalNet can
-produce identical transaction IDs, causing `"transaction already in ledger"`
+produce identical transaction IDs, causing `transaction already in ledger`
 errors. Add a unique `note` field to each transaction, such as
 `note=os.urandom(8)` or `note=f"test-{i}".encode()`. In practice, add
 `note=os.urandom(8)` to every `AppClientMethodCallParams` and

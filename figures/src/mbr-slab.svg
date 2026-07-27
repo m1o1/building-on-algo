@@ -69,5 +69,5 @@
   <text class="bs" x="571" y="622">unlocks again.</text>
 
   <text class="note" x="30" y="700">A fee is spent and gone. A minimum balance is not spent at all &#8212; it raises the floor the balance may never fall below.</text>
-  <text class="note" x="30" y="720">Fund a contract for its fees and forget its floor, and the first call that would dip under it fails with &#8220;balance below min&#8221;.</text>
+  <text class="note" x="30" y="720">Fund a contract for its fees and forget its floor, and the first call that would dip under it fails.</text>
 </svg>
