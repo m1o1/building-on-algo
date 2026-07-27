@@ -495,7 +495,7 @@ This separation is deliberate. LogicSigs are stateless and cannot read contract 
 
 Prices on Algorand are represented as rational numbers (numerator/denominator) because the AVM has no floating point. The convention: "I want at least N units of buy_asset per D units of sell_asset."
 
-Example: Alice wants 0.25 ALGO per USDC → `PRICE_N = 250_000` (0.25 ALGO in microAlgos), `PRICE_D = 1_000_000` (1 USDC with 6 decimals).
+Example: Alice wants 0.25 ALGO per USDC → `PRICE_N = 250_000` (0.25 ALGO in microAlgos), `PRICE_D = 1_000_000` (1 USDC with 6 decimals)
 
 The price check uses cross-multiplication to avoid division and potential precision loss:
 

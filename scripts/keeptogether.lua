@@ -37,16 +37,62 @@
 -- Five, not two or ten. framed itself ejects when fewer than `2\baselineskip`
 -- remain, so anything at or below two is already handled and would change
 -- nothing; ten would break pages that had room for a caption and half its
--- listing. Five puts the caption and roughly four lines of code together,
--- which is enough for the caption to be doing its job when the reader meets
--- it. Code sets at `\small`, so those four lines are a little less than four
--- `\baselineskip` of real estate -- the reservation is slightly generous,
--- deliberately.
+-- listing.
+--
+-- WHAT FIVE ACTUALLY BUYS IS ONE LINE OF CODE AT THE TIGHTEST SITE, not four.
+-- The arithmetic that says four runs the wrong way: `\Needspace*` counts
+-- `\baselineskip` at body size, while what gets spent inside the reservation
+-- is the caption paragraph, the `snugshade` frame's own padding, and then code
+-- lines set at `\small`. Measured on the shipped PDF, across all 138 caption
+-- sites, the number of lines sharing the page with the caption below it runs
+-- 1, 2, 2, 3, 3, 3, 3, 3, 4, 4, ... -- the tightest is p196
+-- (`Example 5-20. A cliff before the linear part`), which carries the caption
+-- and exactly one line, `from algopy import ARC4Contract, UInt64, arc4, op,
+-- subroutine`. Read the guarantee as *at least one line of code and usually
+-- three*. That is still enough for the caption to be doing its job -- a label
+-- with a line of its listing under it names something -- but "roughly four" is
+-- a claim the artifact does not support, and a maintainer who raises the
+-- reservation expecting to protect four lines will be surprised twice. If four
+-- is genuinely wanted, `7\baselineskip` is the place to start, and it has to
+-- be re-measured rather than reasoned about.
+--
+-- `\Needspace*` IS NOT INERT WHEN IT DECLINES TO BREAK. `\@sneedsp@` expands
+-- to `\par \penalty-100` BEFORE it compares `\pagegoal-\pagetotal` against the
+-- reservation (needspace.sty v1.3d), so the `\par` and the penalty fire at all
+-- 138 sites and not only at the handful where the space test bites. A penalty
+-- of -100 is a *bonus*: at every example caption in the book, TeX is now paid
+-- a little to end the page just above it. That is the mechanism behind this
+-- filter's share of the vertical redistribution, and it is why the price shows
+-- up on pages that have no stranded caption anywhere near them. Seven pages
+-- were rasterised before accepting it (p155 -59pt, p244 -52.6, p166 -46.7,
+-- p226 -45.5, p191 and p196 -27.5, p250 -25.4); all read as ordinary
+-- interparagraph loosening.
 --
 -- SCOPED TO `Example` CAPTIONS ON PURPOSE. A figure caption is already inside
 -- pandoc's `figure` environment with the graphic, and a table caption is
 -- inside the `longtable` with its rows; neither can be separated from what it
 -- names, so neither needs this and neither should be touched.
+--
+-- MEASURED on a matched pair built from the same source, this filter off the
+-- pandoc argv against this filter on and nothing else changed
+-- (`/tmp/r18w/measure_nokeep.sh` against the shipped build): six captions
+-- cured, none introduced. Without it, pages 108, 130, 133, 177, 226 and 277
+-- each end on the caption of Examples 3-12, 4-4, 4-6, 5-3, 6-12 and 7-14
+-- respectively; with it, the page-foot-caption scan returns only the front
+-- matter's List of Tables, which is a scanner false positive. The price is
+-- `Underfull \vbox` 196 -> 205 and no change at all to `Overfull \hbox`,
+-- `Underfull \hbox`, page count or errors (51 / 43 / 670 / 0), nor to the
+-- other three page-makeup statistics (8 broken page-ends, 9 benign
+-- ident-split candidates, 0 empty callout header bars in both). That is
+-- exactly the expected shape, because this decides where pages end and not
+-- where lines do. 138 `\Needspace*` are emitted against 138 example captions.
+--
+-- Re-derive it on a fresh pair rather than reusing an old build directory:
+-- the control has to be at the *current* source or it answers a question
+-- about an older manuscript. And remove the filter by dropping the single
+-- `--lua-filter=path` token -- it is one token in this argv, so the
+-- delete-the-token-and-its-neighbour idiom silently removes `figures.lua`
+-- as well.
 
 local CAPTION_LABEL = "^Example %d+%-%d+%.$"
 local RESERVE = "\\Needspace*{5\\baselineskip}"

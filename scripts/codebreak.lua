@@ -82,20 +82,31 @@
 -- TeX will happily end a page on one of the breaks inserted below. Setting it
 -- to 10000 in `chapters/metadata.yaml` was tried first and is the wrong fix,
 -- for a reason worth keeping: `\brokenpenalty` cannot tell one of these
--- breaks from an ordinary prose hyphen. The book had twenty-one hyphenated
--- page-ends, of which five were the defect above and sixteen were correct
--- typography, and forbidding all twenty-one puts the displaced material
+-- breaks from an ordinary prose hyphen. The book has twenty hyphenated
+-- page-ends, of which five are the defect above and fifteen are correct
+-- typography, and forbidding all twenty puts the displaced material
 -- somewhere. Measured, it went here:
 --
 --                              control   global bp   paragraph-scoped
---     page-ends on a break        21          0             8
---     mid-identifier page turns    5          0             0
+--     page-ends on a break        20         (0)            8
+--     mid-identifier page turns    5         (0)            0
 --     callouts cut to a bare
---       header bar at page foot    1          2             0
+--       header bar at page foot    1         (2)            0
 --
 -- (All three columns are built PDFs with `scripts/keeptogether.lua` absent,
 -- so the comparison isolates this mechanism. That filter changes the caption
 -- row of the same scan and none of these three.)
+--
+-- THE PARENTHESISED COLUMN IS FROM AN OLDER SOURCE STATE and the other two
+-- were re-derived on the current one; the global variant has not been rebuilt
+-- since. At the round-16 source the control column read 21 / 5 / 1, so the
+-- one-page drift is in the outer column and the argument is untouched -- but
+-- do not quote 0 / 0 / 2 as a current measurement, and rebuild it before
+-- using it to decide anything. The five sites themselves were re-confirmed
+-- present in the current control at PDF pages 171, 264, 286, 312 and 318.
+-- The scan that produces the middle row reports 13 candidates on the control
+-- and 9 on the shipped book; the five are what remains after discarding
+-- sentence-final periods before a code fence, which is the bulk of both.
 --
 -- So the blunt setting fixed five sites, introduced two stranded callouts,
 -- and left a third standing; the scoped one fixes the same five sites, cures

@@ -1131,16 +1131,28 @@ def check_structure(strict: bool = False) -> None:
             )
         # `display` is computed at build time from where the placement sits, so
         # a representative one stands in here; the invariant under test is not
-        # about the number but about whether the caption text survives having a
-        # number put in front of it, which is exactly what `rstrip` broke.
+        # about which number it is but about whether both halves of the caption
+        # survive the composition -- the number at the front and the author's
+        # text at the back.
+        #
+        # BOTH ENDS, NOT ONE. The first version of this test checked only
+        # `endswith`, and that half-check is demonstrably blind: replacing the
+        # body of `figure_caption` with `return str(title)` -- dropping the
+        # figure number from all 21 captions in the built manuscript -- passes
+        # it silently, because the caption text is still intact at the end of a
+        # string that has lost its front. `rstrip` damaged the tail, so the tail
+        # is what the first draft watched; the number is the other thing this
+        # function composes and the other thing that can go missing.
+        display = "Figure 4-2"
         written = source_caption.strip()
-        composed = _figure_caption("Figure 4-2", written)
-        if not composed.endswith(written):
+        composed = _figure_caption(display, written)
+        if not composed.startswith(display) or not composed.endswith(written):
             problems.append(
                 Problem(21, "error", "figures/index.yaml",
-                        f"{slug}: build.py composes this caption as {composed[-48:]!r}, "
-                        f"which does not end with the caption as written "
-                        f"({written[-48:]!r}) -- the builder is altering caption text "
+                        f"{slug}: build.py composes this caption as {composed[:24]!r}"
+                        f"...{composed[-48:]!r}, which does not begin with the figure "
+                        f"number ({display!r}) and end with the caption as written "
+                        f"({written[-48:]!r}) -- the builder is altering the caption "
                         f"rather than only prefixing the figure number")
             )
         if source_caption.strip().lower().startswith("figure"):
