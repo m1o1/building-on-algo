@@ -21,13 +21,16 @@
 -- typesetting tradition, so a break after one of them is unambiguous.
 --
 -- THE ACCEPTED PRICE, three sites named -- and *named* is not *all*. Of the
--- residual 51 overfull boxes, 14 contain a monospace span; these three sites
--- are five of those 14, picked because each shows a different reason the
--- filter cannot help. The other nine are ordinary residue, four of them wide
--- (`ImmutableArray` and `ReferenceArray` at 48.04pt each,
--- `gtxn.PaymentTransaction(0)` at 46.67pt, `self.joining_fee.maybe()` at
--- 42.95pt). Read the list below as an illustration, never as a bound on what
--- is left. The three: `GlobalState(UInt64)` (51.62pt) has no separator at all;
+-- residual 29 overfull boxes, 18 contain a monospace span -- 11 in prose and 7
+-- in table cells; these three sites are five of those 18, picked because each
+-- shows a different reason the filter cannot help. The rest are ordinary
+-- residue, four of them wide, and the kind matters more than the width:
+-- `ImmutableArray` and `ReferenceArray` at 48.04pt each are TABLE CELLS, where
+-- this filter's break would not help because the cell's width is set by the
+-- column and not by the line, while `gtxn.PaymentTransaction(0)` at 46.67pt
+-- and `self.joining_fee.maybe()` at 42.95pt are PROSE. Read the list below as
+-- an illustration, never as a bound on what is left.
+-- The three: `GlobalState(UInt64)` (51.62pt) has no separator at all;
 -- `algorand-python-testing` (26.01pt) has only hyphens, which are excluded
 -- above; and the chapter-7 exercise-2 statement list, which the filter
 -- improves greatly without repairing. That third one is one paragraph carrying
@@ -43,10 +46,23 @@
 -- is the "read the middle term" argument in miniature and at one site: taking
 -- hyphenation away adds a fifth box here rather than removing any of the four.
 --
--- Measured 2026-07-27 over the whole book, xelatex `Overfull \hbox` count:
--- 102 with neither mechanism, 116 with `HyphenChar=None` alone, 51 with both.
--- Underfull 89 / 105 / 43. Page count 670 in all three, zero LaTeX errors,
--- zero hyperref "Token not allowed in a PDF string" warnings.
+-- Re-measured on the current tree, 2026-07-27, over the whole book, xelatex
+-- `Overfull \hbox` count: 80 with neither mechanism, 94 with `HyphenChar=None`
+-- alone, 29 with both. Underfull 88 / 104 / 42. Page count 674 in all three,
+-- zero LaTeX errors, zero hyperref "Token not allowed in a PDF string"
+-- warnings. Produce the two stripped variants with
+-- `/tmp/r20w/measure_var.sh <tag> <nohyphen> <nocodebreak>`; the three build
+-- directories those numbers came off are `/tmp/r20w/neither`,
+-- `/tmp/r20w/hyphenonly` and `/tmp/meas/r20ragged`.
+--
+-- THESE SUPERSEDE A RECORDED 102 / 116 / 51, 89 / 105 / 43 AND 670 PAGES,
+-- which were correct for the tree they were taken on and went stale the moment
+-- the manuscript moved. Naming the build directories is the point: the next
+-- person re-derives rather than inherits. Every other figure in this comment
+-- that quotes the old triple, or the old page count, or a tuple containing
+-- them, is annotated where it stands rather than silently updated, because a
+-- number measured on a variant that has not been rebuilt cannot be refreshed
+-- by editing it.
 --
 -- READ THE MIDDLE TERM BEFORE TOUCHING EITHER MECHANISM. Turning hyphenation
 -- off *costs* 14 overfull boxes on its own (15 new, 1 repaired, per-paragraph);
@@ -55,16 +71,36 @@
 -- keeping `HyphenChar=None` ships a book measurably worse than doing neither.
 --
 -- Re-measure with that same statistic if this file changes; a hyphen count or
--- a word-position proxy will not show what this affects. Of that residual 51,
--- 21 are bibliography URLs or `\href` link text, which reach LaTeX as `Link`
--- and `Str` rather than `Code` and so never enter this filter at all; 14 carry
--- a monospace span, 4 are `in alignment`, and 12 are ordinary prose or table
--- cells. The URLs are the next target and need a different mechanism -- but
--- they are 41%, a plurality and not a majority, so fixing them leaves thirty
--- boxes standing. Classify by hand off `book.log` if you re-derive this: a
--- regex misses `dev.algorand.co` on the TLD and misses the resource-table
--- links entirely, because those reach the log as `[][]` with the scheme
--- swallowed. Doing it by regex returns 10, and 10 would change the plan.
+-- a word-position proxy will not show what this affects.
+--
+-- THE "21 BIBLIOGRAPHY URLS" CLAIM THAT STOOD HERE IS RETRACTED. It said that
+-- 21 of the residual boxes were bibliography URLs or `\href` link text, that
+-- URLs were therefore "the next target and need a different mechanism", and
+-- that a by-hand classification off `book.log` was the only way to see it
+-- because a regex undercounts. Every part of that is wrong, and the last part
+-- is what made it durable: it argued *against* the instrument that would have
+-- caught it.
+--
+-- Re-derived by mapping each box's `lines N--M` back onto `book.tex`, the
+-- residual 29 are 13 table cells (7 of them carrying `\texttt`), 11
+-- prose-with-monospace, 4 `in alignment` at 48.4726pt each, 1 table-of-contents
+-- entry at 3.41pt -- and ZERO URLs. Falsified a second way for good measure:
+-- source-mapping the 80-box control returns exactly one `href`-bearing box,
+-- and it is the mono-in-prose `class Smallest(ARC4Contract)` paragraph rather
+-- than a bibliography line; the book has 161 link texts, the longest 63
+-- characters, and only two over 60. There was never a population of 21.
+--
+-- CLASSIFY AN OVERFULL BOX BY MAPPING ITS `lines N--M` ONTO `book.tex`. NEVER
+-- BY READING THE LOG'S RENDERING OF IT. The log prints the box's *typeset*
+-- content, which has already lost the markup that says what the thing is -- a
+-- URL arrives with its scheme swallowed, which is exactly the observation the
+-- retracted paragraph made and then drew the wrong conclusion from. "A regex
+-- undercounts, so classify by hand" is the wrong repair; the right one is to
+-- classify against the source rather than against the rendering. A hand pass
+-- over the same 29 reported 13 mono-in-prose and 11 table cells, and source
+-- mapping reverses it to 11 and 13, because the two `available_tokens` boxes
+-- sit inside `\begin{minipage}` table cells and read as prose on the page.
+-- Tables, not URLs, are the largest remaining target.
 --
 -- Splitting the element into several `Code` inlines rather than emitting raw
 -- LaTeX leaves pandoc's own escaping in charge of the text, so a span
@@ -125,7 +161,10 @@
 -- using it to decide anything. The five sites themselves were re-confirmed
 -- present in the current control at PDF pages 171, 264, 286, 312 and 318.
 -- The scan that produces the middle row reports 13 candidates on the control
--- and 9 on the shipped book; the five are what remains after discarding
+-- and 9 on the shipped book of that era; the shipped book returns **10** on
+-- the current tree, whose full pagescan line reads `broken page-ends 6 |
+-- ident-split candidates 10 | stranded captions 0 | empty callout bars 0`.
+-- The five are what remains after discarding
 -- sentence-final periods before a code fence, which is the bulk of both.
 -- `scripts/pagescan.py` is that scan, and it prints the candidate sites under
 -- the count precisely so the discarding is done by reading and not by
@@ -135,13 +174,32 @@
 -- and left a third standing; the scoped one fixes the same five sites and
 -- cures the pre-existing callout, at the cost of the caption row above. Both
 -- are identical on Overfull \hbox, Underfull \hbox, page count and errors
--- (51 / 43 / 670 / 0), and the scoped one was marginally better on
+-- (51 / 43 / 670 / 0 ON THE TREE THEY WERE COMPARED ON, WHICH IS NOT THE
+-- CURRENT ONE -- the same four statistics now read 29 / 42 / 674 / 0, and
+-- neither `\brokenpenalty` variant has been rebuilt since, so do not read the
+-- two tuples as a before-and-after of anything), and the scoped one was
+-- marginally better on
 -- Underfull \vbox as well, 194 against 195 -- BOTH OF THOSE TWO FIGURES ARE
 -- FROM THE SAME OLDER SOURCE STATE as the parenthesised column, and the
 -- global variant has not been rebuilt since. The current source's scoped
 -- build with `keeptogether.lua` off reads 196, so nobody re-measuring will
 -- reproduce 194 and nobody should read the difference as a regression. The
 -- pair is quoted here for the method lesson below and for nothing else.
+--
+-- EVERY `Underfull \vbox` FIGURE IN THIS REPOSITORY -- 192, 194, 195, 196,
+-- 203, 205, wherever it appears and in whichever file -- WAS MEASURED UNDER
+-- `\flushbottom`, AND THE BOOK NOW SETS `\raggedbottom`. The class default for
+-- a `twoside` document is `\flushbottom` (`report.cls:729-733`), which is what
+-- produced those boxes: a short page's missing height had to come out of
+-- stretchable glue, and the output routine reported the shortfall. Under
+-- `\raggedbottom` the output-active population is empty -- a matched pair
+-- reads 208 boxes flush against 75 ragged, and the 75 are the same
+-- non-output-active residue present in both (133 + 75 = 208). None of the
+-- numbers above can be reproduced on the shipped configuration. They remain
+-- here because the comparison they support was between two `\brokenpenalty`
+-- variants measured against each other under identical conditions, and that
+-- comparison is still valid; the absolute values are not, and re-measuring
+-- them today returns a statistic that no longer distinguishes anything.
 --
 -- THAT LAST NUMBER IS WHY THIS ENTRY EXISTS. An earlier round compared the
 -- two variants on `Underfull \vbox` alone, read 192 against 195, called a

@@ -78,13 +78,37 @@
 -- (`/tmp/r18w/measure_nokeep.sh` against the shipped build): six captions
 -- cured, none introduced. Without it, pages 108, 130, 133, 177, 226 and 277
 -- each end on the caption of Examples 3-12, 4-4, 4-6, 5-3, 6-12 and 7-14
--- respectively; with it, `scripts/pagescan.py` returns zero. The price is
+-- respectively; with it, `scripts/pagescan.py` returns zero. The price was
 -- `Underfull \vbox` 196 -> 205 and no change at all to `Overfull \hbox`,
 -- `Underfull \hbox`, page count or errors (51 / 43 / 670 / 0), nor to the
 -- other three page-makeup statistics (8 broken page-ends, 9 benign
 -- ident-split candidates, 0 empty callout header bars in both). That is
 -- exactly the expected shape, because this decides where pages end and not
--- where lines do. 137 `\Needspace*` are emitted against the book's 137
+-- where lines do.
+--
+-- THE PRICE IS NOW ZERO, AND NOT BECAUSE THIS FILTER CHANGED. The book sets
+-- `\raggedbottom` in `chapters/metadata.yaml`; the class default for a
+-- `twoside` document is `\flushbottom` (`report.cls:729-733`), and it was
+-- `\flushbottom` that generated the `Underfull \vbox` reports in the first
+-- place -- a page short of its full height had to make the height up out of
+-- stretchable glue, and the output routine reported the shortfall. Under
+-- `\raggedbottom` the output-active population is empty. A matched pair reads
+-- 208 boxes on the flush build and 75 on the ragged one, and those 75 are the
+-- same non-output-active residue present in both, so the flush figure
+-- decomposes exactly as 133 + 75. **The 196 -> 205 step cannot be reproduced
+-- on the shipped configuration**: both arms of it now report the same 75. Do
+-- not go looking for the nine boxes and do not read their absence as this
+-- filter having become free -- what it costs is unchanged, and the instrument
+-- that used to price it has stopped resolving. Every `Underfull \vbox` figure
+-- in this repository, in any file, is `\flushbottom`-era for the same reason.
+-- The four statistics in the tuple above are also from an older tree; they
+-- read 29 / 42 / 674 / 0 today, and neither arm of this comparison has been
+-- rebuilt since, so the tuple stands as the record of a matched pair rather
+-- than as a current measurement. The current shipped book's pagescan line is
+-- `broken page-ends 6 | ident-split candidates 10 | stranded captions 0 |
+-- empty callout bars 0`.
+--
+-- 137 `\Needspace*` are emitted against the book's 137
 -- anchored example captions, and the two counts match because every one of
 -- those captions is followed by a fence -- which is the invariant worth
 -- checking, rather than the coincidence of two equal numbers.

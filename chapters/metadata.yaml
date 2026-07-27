@@ -146,5 +146,44 @@ header-includes:
     % The mechanism now lives in `scripts/codebreak.lua`, scoped to the
     % paragraphs the filter actually touched, and it is strictly better on
     % every count. See the comment at the top of that file for the numbers.
+    %
+    % Slack at the foot of a page collects at the foot, rather than being
+    % pushed up between the paragraphs. `report.cls` runs `\raggedbottom` only
+    % when `twoside` is off (`report.cls:731-733`), and this book is twoside,
+    % so the class default here is `\flushbottom` -- and `\flushbottom` has to
+    % put a short page's missing height somewhere. It puts it in whatever glue
+    % on the page can stretch, which in a page of ordinary prose is pandoc's
+    % `\parskip 6pt plus 2pt minus 1pt`, shared equally between however few
+    % paragraphs happen to be there. Printed folio 147 was the demonstration:
+    % Figure 4-3 is 402.9pt tall and pinned in place by `\floatplacement{H}`
+    % above, so it cannot be split and it cannot float away, and when it did
+    % not fit in what was left of that page TeX broke before it and handed the
+    % output routine 400.9pt of slack for three paragraphs to absorb. All three
+    % interparagraph gaps came out at exactly 156.0pt against a 15.6pt
+    % baseline, and the page reads as four short blocks adrift in three voids.
+    % Twenty-six pages carried a gap over 80pt, six of them more than one.
+    %
+    % THAT FIGURE READ 421pt HERE AND IN TWO OTHER FILES, AND IT WAS WRONG BY
+    % A SUBTRACTION. Measure it: the last word on printed folio 147 has its
+    % baseline at 710.2 under `\flushbottom` and at 309.3 under `\raggedbottom`,
+    % so the slack relocated is 400.9pt. The arithmetic check is
+    % `3 x (156.0 - 22.4) = 400.8`, where 22.4pt is the page's own natural
+    % paragraph gap -- the 15.6pt baseline plus the 6pt `\parskip` -- and it is
+    % measurable on the ragged build, which shows three gaps of exactly 22.4pt
+    % where the three 156.0pt voids used to be. The 421 came from
+    % `3 x (156.0 - 15.6)`: subtracting the *baselineskip* where the *natural
+    % paragraph gap* belongs, which counts the 6pt `\parskip` as slack three
+    % times over. Everything else in the demonstration reproduces exactly.
+    %
+    % `\raggedbottom` is inserted by `\@makecol`, which runs *after* the page
+    % builder has already chosen the break, so this moves no line and no page
+    % break: measured 674 pages before and after, with the page scan's four
+    % statistics unchanged at 6/10/0/0. What it changes is where the slack
+    % sits. The alternative repairs were both worse: shrinking the figure to
+    % fit would take its type back under the 8pt on-page floor, and dropping
+    % the `H` placement would let figures drift pages away from the sentence
+    % that introduces them, which is the thing `\floatplacement` above exists
+    % to prevent.
+    \raggedbottom
     ```
 ---

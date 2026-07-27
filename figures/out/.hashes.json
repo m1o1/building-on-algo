@@ -7,7 +7,7 @@
   "four-clocks.mmd": "ebac79be7c3e5cd4f370a39f2d70ba31f6a7853ead422f206ccf5fc5973c634d",
   "group-commit.mmd": "70ede90b86d05a28ee63b6ed6308b132fa4f3e7d0e34c3e9d424fa73b5803781",
   "logicsig-modes.mmd": "ed1eb1e807953db9690c05576090c79ca355d5b10e06102586e1b77b9eb232a6",
-  "mbr-rising-floor.svg": "6648f0d2a081a7787791b8fa70a9e93ca37b00191f556559a3218220d3619a57",
+  "mbr-rising-floor.svg": "f4e350f84abd8d50075b9dfe9f66f5ba26bac5eaa3ded3d0b766270052ad7314",
   "mbr-slab.svg": "fc8953c8c92190bcf7c867f0879c650af8ac9c3483de2dedb4fdbe68c6e3dce1",
   "notional-machine.mmd": "c21d720f3dffe9d98f3c5acb9336f608ad358d6ddde215ebd730bef720814cec",
   "oncompletes.mmd": "cbce6ad1a0ca179a914c4ea82e9b8b89a91519f280e4637625a91c467db4dd47",
@@ -15,9 +15,9 @@
   "provenance-trust-graph.mmd": "110944590acac0e99a1968d300087fcdf89f315fe3ffff75ba388e8b83acd328",
   "registry-break-trace.mmd": "7df054955e7efffbd3311beccf5f1413a7b2a9b34678bc761c6757b5fd7903bf",
   "reward-accumulator.svg": "3dd4e9f5c34a0fd25f97024785b730ce2491cce02d5d71eb11cea23a61f43105",
-  "router-decision.mmd": "6faa2db650a67108b91abfa8e7bdf991ede662c745d25c02f9e9a20679b0c0f0",
+  "router-decision.mmd": "f66bd0c2cec015364ef1315bfa71c78d542fce97c253ad32fc4a5374849ca582",
   "simulate-trace.svg": "c3d89adc28e8fb35cbc64fe9aedd273558e15dcd5b0cb9ba07edf510506324c3",
   "state-scopes.mmd": "21715b84bdc557aa22f00eaf669af0ed0c94c9594f9168cfb4b4cac28ac64759",
-  "storage-decision-tree.svg": "d4a2408c9a6dd3f0d7391fdc3a58de5b9a17f2ca7c55095849eda1cd3abd66b1",
+  "storage-decision-tree.svg": "99cd6c0ff5ea60f0f7de298a18a6e2719134cd388ad99acf764cafd7679054db",
   "who-pays.svg": "a34161fb3a09f9818b8fc0c1aa5f715d02d44bf0e20888a23b31c27671f2944c"
 }

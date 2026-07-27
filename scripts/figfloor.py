@@ -1,9 +1,12 @@
-"""On-page glyph sizes for every figure PDF, against the 8pt house floor.
+"""On-page glyph sizes and page footprints for every figure PDF.
 
-On-page size = native size x min(1, LINEWIDTH / natural width). pdfplumber
-reports the native size, so the scale has to be applied here. The *minimum*
-is what the floor is about: a drawing whose modal type clears 8pt can still
-set its edge labels at six.
+Two measurements, because a figure can fail two ways and the second one was
+invisible to this script for a whole round.
+
+TYPE SIZE. On-page size = native size x scale. pdfplumber reports the native
+size, so the scale has to be applied here. The *minimum* is what the floor is
+about: a drawing whose modal type clears 8pt can still set its edge labels at
+six.
 
 DO NOT USE `char["size"]` -- IT IS NOT THE FONT SIZE FOR ROTATED TEXT. For an
 upright glyph pdfplumber's `size` is the font matrix's vertical scale, which is
@@ -21,6 +24,53 @@ looked like a real cluster of tiny type rather than like noise.
 The font size is the magnitude of the text matrix's y-axis vector,
 `sqrt(b^2 + d^2)` for `matrix = (a, b, c, d, e, f)`, which is rotation-
 invariant and agrees with `size` exactly on upright text.
+
+THE SCALE IS NOT `LINEWIDTH / width`, AND ASSUMING IT WAS COST A ROUND.
+`graphicx` is configured with `width=\\maxwidth, height=\\maxheight,
+keepaspectratio`, so the factor is `min(1, LINEWIDTH / W, TEXTHEIGHT / H)` and
+a figure taller than `1.316 x W` is bound by its HEIGHT, not its width. For any
+such figure the old formula reported type LARGER than the page actually sets
+it, which is the one direction an instrument must never err in.
+
+PAGE FOOTPRINT. Type size is not the only way a figure damages a page, and it
+was not the way that got through. `mbr-rising-floor` was redrawn to clear the
+type floor and did clear it -- at 604.8pt of on-page height, 97.7% of the
+619pt text block, leaving nothing for the caption that has to sit beneath the
+drawing. The caption's last line bottomed 15.6pt below every neighbouring
+page's and cleared the folio by 3.4pt where the book's normal gap is about
+19pt. Nothing in this script could see it, because this script only ever read
+`page.width`. It reads both now and warns above `FOOTPRINT_WARN`.
+
+`FOOTPRINT_WARN` is 570pt rather than 619pt precisely because 619 is the
+number that misled the redraw: `\\textheight` is what the drawing may occupy
+only if it has no caption, and every figure in this book has a two-to-three
+sentence caption worth roughly 40-60pt. A figure between 570 and 619 does not
+overflow on its own; it leaves too little for the caption, and the caption is
+what falls off the bottom.
+
+THE EVIDENCE FOR 570 IS THE TALLEST FIGURE THAT DEMONSTRABLY SETS CLEANLY,
+AND IT HAS MOVED. This docstring cited three figures between 500 and 535pt
+(`router-decision`, `group-commit`, `four-clocks`) as the whole of the
+evidence, which left the band from 535 to 570 asserted rather than measured --
+and then `mbr-rising-floor` grew to **547.01pt** and landed inside it, so the
+threshold was carrying a figure it had never been shown to cover. It does
+cover it, checked rather than assumed: Figure 4-2 sets on printed page 130
+with the drawing above, its caption run-in starting at `top` 643.8 and ending
+at 668.3, and a further line of body prose after that at 706.6. Four figures
+now exceed 500pt -- 547.01, 533.89 (`router-decision`), 521.93
+(`group-commit`), 510.38 (`four-clocks`) -- and the tallest of them clears its
+caption with a body line to spare. That is where the threshold comes from, and
+570 keeps roughly 23pt of headroom above the tallest measured pass.
+
+RE-CHECK THIS WHEN A FIGURE GROWS PAST 547pt, not when one trips the warning.
+The warning fires at 570; the evidence stops at 547. A figure landing in
+between is inside the gate and outside the demonstration, which is exactly the
+state `mbr-rising-floor` was in for several rounds. Find the printed page the
+figure lands on, confirm the caption is on it, and extend the note above.
+
+A footprint warning does not fail the run; only the type floor does. The
+threshold is a judgement about caption length rather than a hard geometric
+limit, and a gate that fails on a judgement gets switched off.
 """
 import glob
 import math
@@ -31,8 +81,12 @@ from pathlib import Path
 
 import pdfplumber
 
-LINEWIDTH = 470.4   # \linewidth in this book, from chapters/metadata.yaml geometry
-FLOOR = 8.0        # the house minimum, in points ON THE PAGE
+# \linewidth and \textheight for this book, from chapters/metadata.yaml's
+# geometry: letter paper, margin=1in, top=1.2in, bottom=1.2in.
+LINEWIDTH = 470.4
+TEXTHEIGHT = 619.0
+FLOOR = 8.0          # the house minimum type size, in points ON THE PAGE
+FOOTPRINT_WARN = 570.0   # on-page height above which the caption runs out of room
 FIG_OUT = Path(__file__).resolve().parent.parent / "figures" / "out"
 
 
@@ -44,31 +98,57 @@ def font_size(char) -> float:
     return math.hypot(float(b), float(d))
 
 
+def page_scale(width: float, height: float) -> float:
+    """`keepaspectratio` against both \\maxwidth and \\maxheight."""
+    return min(1.0, LINEWIDTH / width, TEXTHEIGHT / height)
+
+
 rows = []
 for path in sorted(glob.glob(str(FIG_OUT / "*.pdf"))):
     slug = os.path.basename(path)[:-4]
     with pdfplumber.open(path) as pdf:
         page = pdf.pages[0]
         width = float(page.width)
+        height = float(page.height)
         by_size = defaultdict(list)
         for char in page.chars:
             by_size[round(font_size(char), 2)].append(char["text"])
     if not by_size:
         continue
-    scale = min(1.0, LINEWIDTH / width)
+    scale = page_scale(width, height)
     smallest = min(by_size)
-    sample = "".join(by_size[smallest])[:34].replace("\n", " ")
-    rows.append((round(smallest * scale, 2), slug, width, smallest, max(by_size), sample))
+    sample = "".join(by_size[smallest])[:30].replace("\n", " ")
+    rows.append((
+        round(smallest * scale, 2), slug, width, height, scale,
+        smallest, max(by_size), sample,
+    ))
 
 rows.sort()
-for on_page, slug, width, native_min, native_max, sample in rows:
+for on_page, slug, width, height, scale, native_min, native_max, sample in rows:
     flag = "FAIL" if on_page < FLOOR else "ok  "
-    need = FLOOR * width / LINEWIDTH if width > LINEWIDTH else FLOOR
+    need = FLOOR / scale
+    on_h = height * scale
+    # Which constraint actually binds, or `-` where neither does: a figure
+    # smaller than the text block in both axes is set at 1:1 and is not
+    # "width-bound" in any useful sense. Six of the twenty-one are in that
+    # case, and labelling them by whichever ratio happened to be smaller read
+    # as a claim about scaling that was not being applied.
+    if scale == 1.0:
+        bound = "-"
+    else:
+        bound = "H" if TEXTHEIGHT / height < LINEWIDTH / width else "W"
+    tall = " TALL" if on_h > FOOTPRINT_WARN else ""
     print(
-        f"{flag} {slug:24s} min {on_page:5.2f}pt  canvas {width:7.2f}pt  "
-        f"native {native_min:5.2f}-{native_max:5.2f}  "
-        f"needs >= {need:5.2f}pt ({need / 0.75:5.2f}px)  {sample!r}"
+        f"{flag} {slug:24s} min {on_page:5.2f}pt  page {width * scale:6.2f}x"
+        f"{on_h:6.2f}pt [{bound}]{tall:5s}  native {native_min:5.2f}-"
+        f"{native_max:5.2f}  needs >= {need:5.2f}pt ({need / 0.75:5.2f}px)  "
+        f"{sample!r}"
     )
 bad = sum(1 for r in rows if r[0] < FLOOR)
+tall = [r[1] for r in rows if r[3] * r[4] > FOOTPRINT_WARN]
 print(f"\n{bad} of {len(rows)} below the {FLOOR}pt floor")
+print(
+    f"{len(tall)} of {len(rows)} above the {FOOTPRINT_WARN:.0f}pt footprint "
+    f"warning{': ' + ', '.join(tall) if tall else ''}"
+)
 sys.exit(1 if bad else 0)

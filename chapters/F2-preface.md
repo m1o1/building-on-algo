@@ -57,6 +57,7 @@ The book is fifteen chapters in four parts. The chapters come in two kinds and t
 **{{part:cryptography}}** pushes the AVM to its limits.
 
 - **{{ch:zk-voting}} --- Private Governance Voting with Zero-Knowledge Proofs.** A private governance vote built on zero-knowledge proofs, elliptic curve operations over BN254, and the MiMC hash, closing with Algorand's Falcon-based post-quantum roadmap.
+
 {{fig:book-map}} shows how those chapters depend on one another. A solid arrow means you will be lost without the earlier chapter; a dashed one means the later chapter builds on it but stands on its own. If you are here for one specific thing, follow the solid arrows backwards from it and read only those.
 
 {{include-fig:book-map}}

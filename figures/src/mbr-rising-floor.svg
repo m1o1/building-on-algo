@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 900" width="700" height="900" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 814" width="700" height="814" font-family="DejaVu Sans, sans-serif">
   <!-- The guestbook's balance against its own minimum balance, drawn to scale. The
        balance is flat because nobody sends the contract money; the floor is a
        staircase because every signature adds 40 bytes of box at 400 microAlgos a byte.
@@ -15,11 +15,25 @@
        this figure's 11px inset labels landed at 5.39pt, the worst in the book, and
        960px was forced by nothing but the inset sitting BESIDE the main plot. Moving
        the inset below it is what let the canvas come in to 700px, where the floor
-       needs 11.9px and the smallest type here is 12.5px. Height is the other
-       constraint: past width x 619/470.4 = 921px the height binds instead and every
-       size shrinks again, so 900 is deliberately just inside that. Scaling the whole
+       needs 11.9px and the smallest type here is 12.5px. Scaling the whole
        drawing uniformly would change nothing at all, since the ratio is what the
-       page sees. -->
+       page sees.
+
+       HEIGHT IS A SEPARATE CONSTRAINT, AND THE CAPTION HAS TO FIT UNDER IT. Past
+       width x 619/470.4 = 921px the height binds instead of the width and every type
+       size shrinks again, so a first redraw came in at 900px, deliberately just
+       inside that ceiling. It overflowed the page anyway: 900px is 604.8pt on the
+       page, 97.7% of the 619pt text block, leaving nothing for the two-to-three
+       sentence caption that has to sit beneath the drawing. The caption's last line
+       bottomed 15.6pt below every neighbouring page and cleared the folio by 3.4pt
+       where the book's normal figure-to-folio gap is about 19pt. The 921px ceiling
+       is real but it is not the working limit; budget about 60pt of page for the
+       caption and hold the drawing near 545pt, which at 700px wide is 811px of
+       canvas. This figure is 814px, or 547.0pt. The height came out of layout and
+       not out of type, because 12.5px against a 700px canvas is only 0.6px above the
+       floor: the inset panel lost its dead top margin and its vertical scale came
+       down from 7.5 to 6.0 pixels per 1,000 microAlgos, which is 66px of the 86px
+       saved. -->
   <style>
     text { fill: #111111; }
     .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
@@ -111,26 +125,31 @@
        marks the crossing and the leader that points at the magnification are the same
        stroke. An earlier version routed it out past x=660 and back, which drew a
        three-sided box around the plot and read as a frame rather than as a pointer. -->
-  <path class="lead" d="M 622.7 109.6 L 622.7 525.0 L 610.0 546.0"/>
+  <path class="lead" d="M 622.7 109.6 L 622.7 519.0 L 610.0 540.0"/>
 
-  <text class="ihead" x="150.0" y="532.0">Magnified: the last step that fits, and the first that does not</text>
-  <rect class="ipanel" x="150.0" y="546.0" width="460.0" height="224.0"/>
-  <!-- Vertical scale 7.5 px per 1,000 microAlgos, about twenty-four times the main
-       plot's 0.34, which is the whole reason the panel exists. -->
-  <line class="bal" x1="166.0" y1="609.8" x2="594.0" y2="609.8"/>
-  <path class="floor" d="M 166.0 720.0 L 380.0 720.0 L 380.0 600.0 L 594.0 600.0"/>
-  <text class="ival" x="394.0" y="592.0">1,001,300</text>
-  <circle class="dot" cx="495.0" cy="600.0" r="3"/>
-  <text class="ilab" x="172.0" y="603.0">balance, 1,000,000</text>
-  <text class="ilab" x="394.0" y="632.0">56 signatures.</text>
-  <text class="ilab" x="394.0" y="648.0">Short by 1,300.</text>
-  <text class="ival" x="172.0" y="712.0">985,300</text>
-  <circle class="dot" cx="265.0" cy="720.0" r="3"/>
-  <text class="ilab" x="172.0" y="740.0">55 signatures. Fits, by 14,700.</text>
+  <text class="ihead" x="150.0" y="526.0">Magnified: the last step that fits, and the first that does not</text>
+  <rect class="ipanel" x="150.0" y="540.0" width="460.0" height="158.0"/>
+  <!-- Vertical scale 6.0 px per 1,000 microAlgos, about eighteen times the main
+       plot's 0.34, which is the whole reason the panel exists. The 16,000 microAlgo
+       step is 96px here against 5.44px up there. It was 7.5 px per 1,000 until the
+       page-footprint measurement came in; 6.0 still separates the two steps by more
+       than a line of type, and the 24px it gives back is page the caption needs.
+       The panel is sized to its contents now rather than to a round number: 10px of
+       clearance above the first label and 11px below the last. -->
+  <line class="bal" x1="166.0" y1="575.8" x2="594.0" y2="575.8"/>
+  <path class="floor" d="M 166.0 664.0 L 380.0 664.0 L 380.0 568.0 L 594.0 568.0"/>
+  <text class="ival" x="394.0" y="560.0">1,001,300</text>
+  <circle class="dot" cx="495.0" cy="568.0" r="3"/>
+  <text class="ilab" x="172.0" y="569.0">balance, 1,000,000</text>
+  <text class="ilab" x="394.0" y="600.0">56 signatures.</text>
+  <text class="ilab" x="394.0" y="616.0">Short by 1,300.</text>
+  <text class="ival" x="172.0" y="656.0">985,300</text>
+  <circle class="dot" cx="265.0" cy="664.0" r="3"/>
+  <text class="ilab" x="172.0" y="684.0">55 signatures. Fits, by 14,700.</text>
 
-  <text class="note" x="30" y="802">Nothing here is a bug in the contract&#8217;s logic. The contract does on the fifty-sixth signature</text>
-  <text class="note" x="30" y="820">exactly what it did on the first; what changed is a number kept outside it, in the ledger, by a</text>
-  <text class="note" x="30" y="838">rule the code never mentions. That is why the fix is a check the code makes before it writes.</text>
-  <text class="note" x="30" y="862">Both plots are to scale. In the main plot the two steps the whole story turns on are five and a</text>
-  <text class="note" x="30" y="880">half pixels apart, which is why the inset has to exist.</text>
+  <text class="note" x="30" y="720">Nothing here is a bug in the contract&#8217;s logic. The contract does on the fifty-sixth signature</text>
+  <text class="note" x="30" y="738">exactly what it did on the first; what changed is a number kept outside it, in the ledger, by a</text>
+  <text class="note" x="30" y="756">rule the code never mentions. That is why the fix is a check the code makes before it writes.</text>
+  <text class="note" x="30" y="780">Both plots are to scale. In the main plot the two steps the whole story turns on are five and a</text>
+  <text class="note" x="30" y="798">half pixels apart, which is why the inset has to exist.</text>
 </svg>

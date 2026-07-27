@@ -141,6 +141,24 @@ Bulk reference material that is not review material — node sizing, public endp
 
 **Box MBR** is `2,500 + 400 × (name_len + data_len)` µAlgo, charged to the APPLICATION account. (Global-schema MBR follows the creator; local-schema MBR follows the opting-in account.)
 
+**THREE DIFFERENT NUMBERS BOUND A BOX, AND TWO OF THEM HAVE ALREADY BEEN TRANSPOSED IN THIS BOOK.** Quote them from this list, never from memory:
+
+| Quantity | Limit | Constant | Citation (go-algorand `3bfc8c1`) |
+|---|---|---|---|
+| Box **value** size | 0–32,768 bytes | `MaxBoxSize` | `config/consensus.go:1410` (v36) |
+| Box **name** length | 1–64 bytes | `MaxAppKeyLen` | `config/consensus.go:1144` (v24) |
+| I/O allowance **per reference** | 2,048 bytes | `BytesPerBoxReference` | `config/consensus.go:1518` (v41, up from 1,024 at `:1414` in v36) |
+
+The name cap and the per-reference allowance are unrelated quantities that differ by a factor of 32, and `figures/src/storage-decision-tree.svg` shipped "32,768 B of value, 2,048 B of name" — the I/O budget printed as the name limit — while `chapters/04-c-boxes.md` and `chapters/A2-avm-limits.md` both said 64 correctly two chapters apart. A figure is exactly where this class of error survives, because no prose sentence sits beside it to contradict.
+
+Corroborating evidence beyond the constant declarations, since a `consensus.go` line alone does not prove which quantity a limit governs:
+
+- `config/consensus.go:363-364` — the comment on the `MaxBoxSize` declaration reads "Maximum length of a box (Does not include name/key length. That is capped by MaxAppKeyLen)". The source says in words that these are two different caps.
+- `data/transactions/logic/box.go:276` — the runtime check is `"name too long: length was %d, maximum is %d"` against `cx.Proto.MaxAppKeyLen`. The name is validated against the key length, not against anything box-specific.
+- `data/transactions/application.go:552-553` and `:240-241` — well-formedness enforces the name cap on **both** reference paths (the legacy `boxes` array and the v41 unified `Access` list), so neither path is a way around it.
+
+The 2,048 is a per-reference I/O allowance and nothing else: it is what `cx.ioBudget = MulSaturate(bumps, BytesPerBoxReference)` multiplies, and `32,768 ÷ 2,048 = 16` is the v41 `MaxAppAccess` cap, which is why a maximum-size box needs sixteen references to read.
+
 **`Box[T].value = ...` is NOT lowered to a bare `box_put`.** PuyaPy emits `box_get … box_del … box_put` — read, delete, write fresh. This is why assigning a LARGER value to an existing box succeeds, charging the full new size against the write budget, rather than failing with `attempt to box_put wrong size` as a naive reading of the opcode would predict. The `box_del` also means the sequence hits the delete refund path, so the accounting is "old size out, new size in," not "new size in." **Verify this class of claim by reading the generated `.approval.teal`, never by reasoning about the Python.** Any statement of the form "this Python line becomes this opcode" is a claim about the compiler's lowering and requires the TEAL as evidence.
 
 **Error transcripts in this book are PYTHON transcripts, and two of them are routinely written wrong.**

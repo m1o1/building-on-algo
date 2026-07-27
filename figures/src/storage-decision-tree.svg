@@ -73,7 +73,7 @@
   <text class="qt" x="176" y="300" text-anchor="middle">past what one key-value pair holds?</text>
   <rect class="a" x="396" y="247" width="280" height="76" rx="4"/>
   <text class="at"  x="536" y="273" text-anchor="middle">Box, or BoxMap</text>
-  <text class="sub" x="536" y="293" text-anchor="middle">32,768 B of value, 2,048 B of name</text>
+  <text class="sub" x="536" y="293" text-anchor="middle">32,768 B of value, 64 B of name</text>
   <text class="sub" x="536" y="311" text-anchor="middle">2,500 + 400 &#215; (name + size) µA</text>
   <path class="edge" d="M 336 285 L 390 285" marker-end="url(#arrow)"/>
   <text class="lbl" x="363" y="277" text-anchor="middle">yes</text>

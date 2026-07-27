@@ -1835,6 +1835,161 @@ def check_structure(strict: bool = False) -> None:
                         f"digits in running prose")
             )
 
+    # -- check 24: a paragraph lazily continuing the list above it -------------
+    #
+    # Check 20 is about a block element that needed a blank line ABOVE it. This
+    # is the mirror image: a block element that needed a blank line BELOW the
+    # list it follows. Nothing in check 20 can see it, because check 20 only
+    # ever asks what the previous line was, and the previous line here is a
+    # perfectly ordinary bullet.
+    #
+    # The surface is worse than check 20's, not better. A swallowed heading is
+    # at least missing from the table of contents, so a second instrument finds
+    # it. A paragraph absorbed into the last bullet still sets as a paragraph --
+    # correct type, correct wording, correct everything except that it is
+    # indented inside a list item it has nothing to do with. It reads as
+    # deliberate on the page. The instance that produced this check,
+    # `F2-preface.md:60`, is the sentence introducing the book's own dependency
+    # map: it typeset inside the Chapter 15 bullet, and survived every round
+    # until a raster of printed p23 was read line by line.
+    #
+    # EVERY CARVE-OUT HERE WAS RUN THROUGH PANDOC SEPARATELY FROM CHECK 20's,
+    # AND THEY ARE NOT THE SAME SET. That is the whole reason this is a second
+    # loop rather than a second branch of the first one:
+    #
+    #     printf -- '- item one\n```python\nx=1\n```\n' | pandoc -t html
+    #         -> <ul><li>item one</li></ul><pre>...
+    #   A code fence does close the list. It is carved out at the top of the
+    #   loop rather than here, by the `fence_re` branch that maintains
+    #   `in_fence`, which is also why this check has never had a `~~~` case to
+    #   answer for: neither delimiter ever reaches the flagging branch.
+    #
+    #   A FENCED DIV IS NOT SYMMETRICAL AND MUST NOT BE CARVED OUT BY SHAPE.
+    #   This check shipped asserting that `:::` closes a list the way a code
+    #   fence does. Pandoc says otherwise, and which way it goes depends on
+    #   whether the `:::` opens a div or closes one:
+    #
+    #     printf -- '::: {.note}\n- item one\n:::\nAfter.\n' | pandoc -t html
+    #         -> <div class="note"><ul><li>item one</li></ul></div><p>After.</p>
+    #     printf -- '- item one\n- item two\n::: {.gotcha}\nBody.\n:::\n' \
+    #         | pandoc -t html
+    #         -> <ul><li>item one</li>
+    #            <li>item two ::: {.gotcha} Body. :::</li></ul>
+    #
+    #   A CLOSER is safe because the list was already inside the div: the
+    #   delimiter ends the div and the list with it, and the corpus instance at
+    #   `10-p-zk-voting.md:478` is exactly this shape. An OPENER under a bullet
+    #   is destroyed -- the div never opens, its attributes set as literal text,
+    #   and the whole callout body is absorbed into the last list item. That is
+    #   a worse defect than the paragraph case this check was written for, and
+    #   the original unconditional `:::` carve-out was silent on it: injecting
+    #   the opener above into a chapter produced no problem report.
+    #
+    #   So the loop tracks div nesting instead of matching the delimiter's
+    #   shape. A line of three-or-more colons and nothing else is a closer when
+    #   `div_depth > 0` and an opener otherwise -- a bare `:::` at depth zero
+    #   opens a div in pandoc, and under a bullet it is swallowed like any other
+    #   opener (`printf -- '- item one\n:::\nbody\n:::\n'` -> one list item
+    #   containing all four lines). Openers are flagged; closers are excused.
+    #
+    #     printf -- '- item one\n| a | b |\n|---|---|\n| 1 | 2 |\n' | pandoc -t html
+    #         -> <ul><li>item one | a | b | |---|---| | 1 | 2 |</li></ul>
+    #   A TABLE ROW DOES NOT CLOSE A LIST, even though check 20 carves it out as
+    #   a previous line that closes its own block. Both facts are true: a table
+    #   that FOLLOWS a paragraph closes itself so the next element parses, and a
+    #   table that follows a LIST is lazily continued into the last item. Carve
+    #   `|` out here and the check goes blind to a whole swallowed table.
+    #
+    #     printf -- '- item one\n> quoted\n' | pandoc -t html
+    #         -> <ul><li>item one &gt; quoted</li></ul>
+    #   A blockquote does not close a list either, and sets its `>` literally.
+    #
+    #     printf -- '- item one\n  continued\n' | pandoc -t html
+    #         -> <ul><li>item one continued</li></ul>
+    #     printf -- '- item one\n  continued\nunindented para\n' | pandoc -t html
+    #         -> <ul><li>item one continued unindented para</li></ul>
+    #   An indented line is a deliberate continuation of the item and is not a
+    #   defect, so indent is the one shape that is skipped rather than flagged.
+    #   The second line above is why skipping is not the same as forgetting: an
+    #   indented continuation does NOT end the list, so a `continue` that also
+    #   cleared `in_list` would blind the check to the very next unindented
+    #   paragraph, which pandoc swallows just the same. The list context
+    #   therefore survives an indented line. No corpus instance has this shape
+    #   today; the hole was closed because it costs one line to close and
+    #   nothing detects it if it opens.
+    #
+    # Headings and Setext underlines are skipped here only to keep from
+    # reporting the same line twice: `printf -- '- a\n## H\n'` is swallowed, and
+    # check 20 already fires on it because the bullet above is not a block that
+    # closes itself.
+    #
+    # Injection-tested the way `CLAUDE.md` requires, against the real defect
+    # rather than a convenient one. Over `git archive HEAD chapters` at
+    # `1c6c974` this reports ONE problem, `F2-preface.md:60` -- the sentence
+    # that produced the check. It is one hit and not two: `10-p-zk-voting.md:478`
+    # is a div closer, and closers are correct markdown, so nothing is reported
+    # there and nothing is suppressed there either. Over the working tree with
+    # the blank line inserted it reports nothing. The `:::`-opener defect above,
+    # injected into a chapter, is reported at the opener's line; injected inside
+    # an already-open div it is reported too, because a nested opener is still
+    # an opener.
+    div_open_re = re.compile(r"^:{3,}")
+    div_close_re = re.compile(r"^:{3,}\s*$")
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if not path.exists():
+            continue
+        rel = f"chapters/{entry['file']}"
+        lines = path.read_text(encoding="utf-8").split("\n")
+        in_fence = False
+        in_list = False
+        div_depth = 0
+        for i, line in enumerate(lines):
+            if fence_re.match(line):
+                in_fence = not in_fence
+                in_list = False
+                continue
+            if in_fence:
+                continue
+            if bullet_re.match(line):
+                in_list = True
+                continue
+            if not line.strip():
+                in_list = False
+                continue
+            is_div = bool(div_open_re.match(line))
+            is_closer = is_div and bool(div_close_re.match(line)) and div_depth > 0
+            if is_div:
+                div_depth += -1 if is_closer else 1
+            if not in_list:
+                continue
+            # An indented line continues the item deliberately. It is not a
+            # defect and it does not end the list, so `in_list` stays set.
+            if line.startswith((" ", "\t")):
+                continue
+            in_list = False
+            if is_closer:
+                continue
+            if heading_re.match(line) or setext_re.match(line):
+                continue
+            if is_div:
+                problems.append(
+                    Problem(24, "error", f"{rel}:{i + 1}",
+                            f"fenced-div opener {line.strip()[:46]!r} has no "
+                            f"blank line above it, so pandoc never opens the "
+                            f"div -- the delimiter and its attributes set as "
+                            f"literal text and the whole callout body is "
+                            f"absorbed into the last list item")
+                )
+                continue
+            problems.append(
+                Problem(24, "error", f"{rel}:{i + 1}",
+                        f"{line.strip()[:46]!r} has no blank line above it, so "
+                        f"pandoc reads it as a lazy continuation of the last "
+                        f"list item and typesets it indented inside that "
+                        f"bullet rather than as a paragraph of its own")
+            )
+
     # -- check 22: a caption-shaped lead-in that is not a caption -------------
     #
     # `build.py`'s CAPTION_RE requires the `{#ex:slug}` anchor, so a line that

@@ -21,9 +21,9 @@ version: 1
 figures:
   - slug: notional-machine
     caption: >-
-      What the AVM lets a contract see and what it lets a contract do. The top
-      band is what a contract may read; the bottom is what it may stage, and
-      nothing staged lands unless the program approves.
+      What the AVM lets a contract see and what it lets a contract do.
+      Everything in the lower band is staged rather than applied; nothing lands
+      until the branch at the foot approves.
     source: src/notional-machine.mmd
 
   - slug: atomic-group
