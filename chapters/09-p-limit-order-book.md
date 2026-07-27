@@ -1110,7 +1110,7 @@ atc.execute(algorand.client.algod, wait_rounds=4)
 print("Order filled! Alice received ALGO, keeper received USDC.")
 ```
 
-If you see `"Logic eval error"`, check that the LogicSig's template variables match the order parameters exactly --- a mismatch in any field produces a different program hash, invalidating Alice's signature. If you see `"box read budget exceeded"`, add box references to the app call transaction.
+If the group is rejected before the LogicSig program runs at all, check that the template variables you compiled match the parameters Alice signed over exactly. Her signature covers the program *bytes*, so a mismatch in any field produces a different program and her signature no longer validates it --- the failure is in signature verification, not in the program's logic. If the failure comes from the program and mentions `read budget exceeded` --- note there is no `box` prefix on that string --- add box references to the app call transaction. That budget is charged before the program runs, against the full stored size of every box referenced, whether you read it or not.
 
 ::: {.gotcha #lsig-last-valid-vs-expiry topic="LogicSigs" title="suggested_params() can hand you a last_valid past the LogicSig's expiry"}
 **`last_valid` must respect EXPIRY_ROUND.** The LogicSig asserts `Txn.last_valid <= EXPIRY_ROUND`. If `suggested_params()` returns a `last_valid` round beyond the LogicSig's expiry, the fill transaction will be rejected by the LogicSig. Always set `sp.last = min(sp.last, expiry_round)` on the sell-side transaction before submitting.

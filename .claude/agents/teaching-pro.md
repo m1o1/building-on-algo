@@ -536,6 +536,17 @@ Synthesizing across all frameworks (Perkins, Merrill, Gagne, Kapur, Sweller, May
 
 This fading trajectory is one of the most important design decisions in the book. Chapters that maintain early-chapter scaffolding levels throughout will trigger the expertise reversal effect and bore/annoy readers who have grown. Chapters that drop scaffolding too quickly will lose readers.
 
+**The book's narrative arc.** The parts are defined in `chapters/book.yaml` under `parts:` — `build.py` merely reads that key, so the manifest is the authority and any prose description of the book's shape (including this one) must be checked against it rather than remembered. Verify with `grep -n 'id:\|title:' chapters/book.yaml` before relying on the table below; a previous version of this description named three parts with the wrong chapter ranges and survived for months because nobody re-read the manifest.
+
+| Part | `id` | Capability the reader leaves with |
+|------|------|-----------------------------------|
+| **Foundations** | `foundations` | Seven concept chapters, each carrying complete runnable examples, feeding two project chapters (token vesting, NFTs). The reader can reason about the AVM's execution model, hold state of every kind, do safe arithmetic against on-chain clocks, move value with inner transactions, and prove a contract works before deploying it. |
+| **Building a DEX** | `dex` | Three project chapters plus a patterns chapter. The reader can build a constant-product AMM, factory-deploy contracts from contracts, and run a reward-accrual system — the point where composition, not any single mechanism, becomes the hard part. |
+| **Logic Signatures and Stateless Programs** | `logicsigs` | Algorand's second execution model, and the hybrid stateful/stateless architecture most production DeFi uses. The reader can reason about delegation as a bearer authorization and about what a signature actually covers. |
+| **Cryptography and Zero-Knowledge Proofs** | `cryptography` | The capstone. On-chain verification of off-chain computation. |
+
+The arc is deliberate and reviewable as an arc: each part should open with a capability the reader does not yet have and close with one they demonstrably do, and no part should require a capability that a later part introduces. **Check the arc, not just the chapter** — a chapter can be individually excellent and still sit in the wrong part, and no one reviewing chapters one at a time will ever notice.
+
 ---
 
 ### 4.3 Worked Example Fading Strategy
