@@ -43,7 +43,7 @@
 -- The arithmetic that says four runs the wrong way: `\Needspace*` counts
 -- `\baselineskip` at body size, while what gets spent inside the reservation
 -- is the caption paragraph, the `snugshade` frame's own padding, and then code
--- lines set at `\small`. Measured on the shipped PDF, across all 138 caption
+-- lines set at `\small`. Measured on the shipped PDF, across all 137 caption
 -- sites, the number of lines sharing the page with the caption below it runs
 -- 1, 2, 2, 3, 3, 3, 3, 3, 4, 4, ... -- the tightest is p196
 -- (`Example 5-20. A cliff before the linear part`), which carries the caption
@@ -59,7 +59,7 @@
 -- `\Needspace*` IS NOT INERT WHEN IT DECLINES TO BREAK. `\@sneedsp@` expands
 -- to `\par \penalty-100` BEFORE it compares `\pagegoal-\pagetotal` against the
 -- reservation (needspace.sty v1.3d), so the `\par` and the penalty fire at all
--- 138 sites and not only at the handful where the space test bites. A penalty
+-- 137 sites and not only at the handful where the space test bites. A penalty
 -- of -100 is a *bonus*: at every example caption in the book, TeX is now paid
 -- a little to end the page just above it. That is the mechanism behind this
 -- filter's share of the vertical redistribution, and it is why the price shows
@@ -78,14 +78,38 @@
 -- (`/tmp/r18w/measure_nokeep.sh` against the shipped build): six captions
 -- cured, none introduced. Without it, pages 108, 130, 133, 177, 226 and 277
 -- each end on the caption of Examples 3-12, 4-4, 4-6, 5-3, 6-12 and 7-14
--- respectively; with it, the page-foot-caption scan returns only the front
--- matter's List of Tables, which is a scanner false positive. The price is
+-- respectively; with it, `scripts/pagescan.py` returns zero. The price is
 -- `Underfull \vbox` 196 -> 205 and no change at all to `Overfull \hbox`,
 -- `Underfull \hbox`, page count or errors (51 / 43 / 670 / 0), nor to the
 -- other three page-makeup statistics (8 broken page-ends, 9 benign
 -- ident-split candidates, 0 empty callout header bars in both). That is
 -- exactly the expected shape, because this decides where pages end and not
--- where lines do. 138 `\Needspace*` are emitted against 138 example captions.
+-- where lines do. 137 `\Needspace*` are emitted against the book's 137
+-- anchored example captions, and the two counts match because every one of
+-- those captions is followed by a fence -- which is the invariant worth
+-- checking, rather than the coincidence of two equal numbers.
+--
+-- COUNT IT WITH `grep -c '^\Needspace\*{5\\baselineskip}$'` AND NOT WITH
+-- `grep -c Needspace`, which returns 138 because the preamble carries a
+-- comment mentioning the macro. Count the captions from the anchors --
+-- `grep -rc '{#ex:' chapters/` -- and not from `grep -r '^Example: '`, which
+-- also returned 138 for months because one prose sentence in chapter 9 began
+-- with the word and carried no anchor. Two different off-by-ones, in
+-- opposite files, arriving at the same wrong number from opposite directions:
+-- 138 looked corroborated because two independent counts agreed, and neither
+-- was counting captions. `validate.py` check 22 now refuses the second one.
+--
+-- TWO OF THE SIX ARE THIS BOOK'S OWN DOING, not TeX's. With `codebreak.lua`'s
+-- `Para` handler also off -- a build with neither page-makeup mechanism --
+-- only five captions strand, at pages 108, 130, 133, 195 and 226. Scoping
+-- `\brokenpenalty` moves Example 5-19 off the foot of p195 and puts Examples
+-- 5-3 and 7-14 onto the feet of p177 and p277, so the six this filter cures
+-- are five pre-existing defects plus one net new one that the other mechanism
+-- created. Both filters are still worth their price and the shipped book has
+-- none of the six, but the honest statement of the pair is that these two
+-- mechanisms are coupled through page makeup: neither can be evaluated on a
+-- build where the other is on, and the one that pays is not the one that
+-- caused it. `scripts/codebreak.lua`'s table carries the same row.
 --
 -- Re-derive it on a fresh pair rather than reusing an old build directory:
 -- the control has to be at the *current* source or it answers a question

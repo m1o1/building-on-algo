@@ -266,6 +266,36 @@ def figure_caption(display: str, title: str) -> str:
     return f"{display}. {title}" if title else str(display)
 
 
+# A run of backticks, whatever runs to the matching run of the same length.
+# `(?!`)` stops the closing run being cut short in the middle of a longer one.
+CODE_SPAN_RE = re.compile(r"(?P<ticks>`+)(?P<body>.+?)(?P=ticks)(?!`)", re.DOTALL)
+
+
+def escape_alt_brackets(caption: str) -> str:
+    """Escape `[` and `]` in image alt text, but not inside a code span.
+
+    A bare `[` in alt text can open a link, so the brackets do have to be
+    escaped -- but only where pandoc is still looking for link syntax. Inline
+    code is parsed BEFORE links, so brackets inside a code span are already
+    literal, and a backslash put there is not an escape at all: it is a
+    backslash, and it is typeset. The whole-string
+    `caption.replace("[", r"\\[")` this replaced put one there and shipped
+    Figure 1-5's caption to the page reading ``args\\[0\\]`` in monospace,
+    backslashes and all.
+
+    Module-level rather than inlined into `_place_figure` so a test can drive
+    it directly; see tests/test_build_alt_text.py.
+    """
+    parts: list[str] = []
+    pos = 0
+    for span in CODE_SPAN_RE.finditer(caption):
+        parts.append(caption[pos:span.start()].replace("[", r"\[").replace("]", r"\]"))
+        parts.append(span.group(0))
+        pos = span.end()
+    parts.append(caption[pos:].replace("[", r"\[").replace("]", r"\]"))
+    return "".join(parts)
+
+
 def load_figure_index(manifest: Path | None) -> dict[str, dict]:
     """Map figure slug → entry from figures/index.yaml."""
     if manifest is None or not manifest.exists():
@@ -483,8 +513,7 @@ def _resolve_text(text: str, xrefs: dict, where: str, figures: dict[str, dict] |
         slug = match.group(1)
         info = xrefs[f"fig:{slug}"]
         caption = figure_caption(info["display"], info["title"])
-        alt = caption.replace("[", r"\[").replace("]", r"\]")
-        return f"![{alt}](figures/{slug}.svg)"
+        return f"![{escape_alt_brackets(caption)}](figures/{slug}.svg)"
 
     text = INCLUDE_FIG_RE.sub(_place_figure, text)
 

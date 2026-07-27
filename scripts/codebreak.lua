@@ -92,10 +92,30 @@
 --     mid-identifier page turns    5         (0)            0
 --     callouts cut to a bare
 --       header bar at page foot    1         (2)            0
+--     captions stranded at a
+--       page foot                  5         (--)           6
 --
 -- (All three columns are built PDFs with `scripts/keeptogether.lua` absent,
--- so the comparison isolates this mechanism. That filter changes the caption
--- row of the same scan and none of these three.)
+-- so the comparison isolates this mechanism. Produce them with
+-- `python3 scripts/pagescan.py ctl=<pdf> scoped=<pdf>`, which defines all
+-- four statistics in its own header.)
+--
+-- THE FOURTH ROW IS A COST OF THIS MECHANISM AND WAS MISSING FROM THIS TABLE
+-- FOR SEVERAL ROUNDS. Both this comment and `publishing-pro.md` said the
+-- scoped setting "introduces none", on the reasoning that stranded captions
+-- belong to `keeptogether.lua` and so were not this table's business. That is
+-- true of the *cure* and false of the *cause*: moving 716 paragraphs' worth of
+-- material around changes where pages end, and where pages end is what strands
+-- a caption. Isolated -- both arms with `keeptogether.lua` off, the only
+-- difference being the `Para` handler below -- the scoped setting moves
+-- Example 5-19 off the foot of p195 and strands Examples 5-3 and 7-14 on p177
+-- and p277, so five real stranded captions become six. `keeptogether.lua`
+-- then cures all six, which is why the shipped book has none and why this cost
+-- was invisible in every scan of the shipped book. A maintainer who keeps this
+-- filter and drops that one gets six, not five, and until now would have read
+-- a comment here promising none. When a mechanism is measured with a second
+-- mechanism switched off, the row that second mechanism owns is the one most
+-- likely to be moved and least likely to be looked at.
 --
 -- THE PARENTHESISED COLUMN IS FROM AN OLDER SOURCE STATE and the other two
 -- were re-derived on the current one; the global variant has not been rebuilt
@@ -107,20 +127,35 @@
 -- The scan that produces the middle row reports 13 candidates on the control
 -- and 9 on the shipped book; the five are what remains after discarding
 -- sentence-final periods before a code fence, which is the bulk of both.
+-- `scripts/pagescan.py` is that scan, and it prints the candidate sites under
+-- the count precisely so the discarding is done by reading and not by
+-- subtracting a remembered number.
 --
 -- So the blunt setting fixed five sites, introduced two stranded callouts,
--- and left a third standing; the scoped one fixes the same five sites, cures
--- the pre-existing callout, and introduces none. Both are identical on
--- Overfull \hbox, Underfull \hbox, page count and errors (51 / 43 / 670 / 0);
--- the scoped one is also slightly better on Underfull \vbox, 194 against 195.
+-- and left a third standing; the scoped one fixes the same five sites and
+-- cures the pre-existing callout, at the cost of the caption row above. Both
+-- are identical on Overfull \hbox, Underfull \hbox, page count and errors
+-- (51 / 43 / 670 / 0), and the scoped one was marginally better on
+-- Underfull \vbox as well, 194 against 195 -- BOTH OF THOSE TWO FIGURES ARE
+-- FROM THE SAME OLDER SOURCE STATE as the parenthesised column, and the
+-- global variant has not been rebuilt since. The current source's scoped
+-- build with `keeptogether.lua` off reads 196, so nobody re-measuring will
+-- reproduce 194 and nobody should read the difference as a regression. The
+-- pair is quoted here for the method lesson below and for nothing else.
 --
 -- THAT LAST NUMBER IS WHY THIS ENTRY EXISTS. An earlier round compared the
 -- two variants on `Underfull \vbox` alone, read 192 against 195, called a
 -- three-box difference not worth the code, and shipped the global setting --
 -- whose two stranded callouts that statistic cannot see. The variants differ
--- by 1.5% on the aggregate and by *everything* on the page. Compare
--- typography variants on the artifact the reader holds; an aggregate is a
--- search tool for finding pages to look at, never the comparison itself.
+-- by well under one percent on the aggregate and by *everything* on the page.
+-- Compare typography variants on the artifact the reader holds; an aggregate
+-- is a search tool for finding pages to look at, never the comparison itself.
+-- (An earlier draft of this paragraph put the gap at 1.5%, which is the
+-- arithmetic of the 192-against-195 reading it exists to repudiate -- the
+-- discredited number's conclusion quoted inside the sentence discrediting it.
+-- Percentages outlive the measurements they came from more quietly than
+-- counts do, because a count invites the question "off which build?" and a
+-- percentage does not.)
 local BROKENPENALTY_OPEN = "\\begingroup\\brokenpenalty=10000"
 local BROKENPENALTY_CLOSE = "\\par\\endgroup"
 

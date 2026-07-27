@@ -94,12 +94,11 @@ figures:
   - slug: abi-call-wire
     caption: >-
       An ABI call on the wire, byte by byte. The method signature is hashed and
-      its first four bytes become the selector that occupies args[0]; each
+      its first four bytes become the selector that occupies `args[0]`; each
       argument follows in its own slot, big-endian and fixed-width unless the
       type is dynamic, in which case it carries its own two-byte length. The
-      return value comes back as a log entry behind the prefix 151f7c75, which
-      is the same on every ABI method in every contract and is how a client
-      tells a return value from an ordinary log line.
+      return value does not come back in a slot at all -- it is a log entry
+      behind its own four-byte prefix.
     source: src/abi-call-wire.svg
 
   - slug: logicsig-modes

@@ -1146,14 +1146,28 @@ def check_structure(strict: bool = False) -> None:
         display = "Figure 4-2"
         written = source_caption.strip()
         composed = _figure_caption(display, written)
-        if not composed.startswith(display) or not composed.endswith(written):
+        # The test is a disjunction, so the message has to name whichever half
+        # actually failed. Reporting both -- which the first draft did -- tells
+        # a maintainer chasing a damaged tail to go and look at the figure
+        # numbering as well, and the wrong half of a two-part error message is
+        # a worse lead than no message, because it reads as corroboration.
+        lost_number = not composed.startswith(display)
+        lost_text = not composed.endswith(written)
+        if lost_number or lost_text:
+            if lost_number and lost_text:
+                damage = (f"neither begins with the figure number ({display!r}) "
+                          f"nor ends with the caption as written")
+            elif lost_number:
+                damage = f"does not begin with the figure number ({display!r})"
+            else:
+                damage = (f"does not end with the caption as written "
+                          f"({written[-48:]!r})")
             problems.append(
                 Problem(21, "error", "figures/index.yaml",
                         f"{slug}: build.py composes this caption as {composed[:24]!r}"
-                        f"...{composed[-48:]!r}, which does not begin with the figure "
-                        f"number ({display!r}) and end with the caption as written "
-                        f"({written[-48:]!r}) -- the builder is altering the caption "
-                        f"rather than only prefixing the figure number")
+                        f"...{composed[-48:]!r}, which {damage} -- the builder is "
+                        f"altering the caption rather than only prefixing the "
+                        f"figure number")
             )
         if source_caption.strip().lower().startswith("figure"):
             problems.append(
@@ -1754,6 +1768,58 @@ def check_structure(strict: bool = False) -> None:
                         f"paragraph and the bullets render as literal hyphens or "
                         f"digits in running prose")
             )
+
+    # -- check 22: a caption-shaped lead-in that is not a caption -------------
+    #
+    # `build.py`'s CAPTION_RE requires the `{#ex:slug}` anchor, so a line that
+    # opens `Example: ` without one is ordinary prose: it never becomes an
+    # `**Example N-M.**` run-in, never enters the numbering, never gets
+    # `keeptogether.lua`'s `\Needspace*`, and never appears in any list of
+    # examples. It nonetheless reads as a caption to every grep anyone writes
+    # about captions, and that is the whole reason this check exists.
+    #
+    # THIS IS A CHECK ABOUT COUNTING, NOT ABOUT RENDERING. The manuscript
+    # carried exactly one such line for months and rendered it correctly the
+    # whole time. What it broke was arithmetic: an audit of caption punctuation
+    # grepped `^Example: `, got 138 where the book has 137 captions, found the
+    # one "caption" ending in a period, and deleted the period -- mutilating a
+    # prose sentence to make a statistic come out even. The count then
+    # propagated into five separate comments in two files as "138 sites", none
+    # of which matched the 137 `\Needspace*` the build actually emits. One
+    # unanchored line cost a sentence and five wrong numbers, so the cheap fix
+    # is to refuse to let the two populations differ at all.
+    #
+    # `warning` and not `error`: an author may legitimately want a paragraph to
+    # begin with the word, and the remedy is a rephrase rather than an anchor.
+    # The check's job is to make sure nobody counts it as a caption, which a
+    # warning does as well as an error does.
+    caption_lead_re = re.compile(r"^[ \t]*(Example|Figure|Table):[ \t]")
+    for entry in entries:
+        path = CHAPTERS_DIR / entry["file"]
+        if not path.exists():
+            continue
+        rel = f"chapters/{entry['file']}"
+        lines = path.read_text(encoding="utf-8").split("\n")
+        in_fence = False
+        for i, line in enumerate(lines):
+            if fence_re.match(line):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            match = caption_lead_re.match(line)
+            if match and "{#" not in line:
+                kind = match.group(1).lower()
+                article = "an" if kind[0] in "aeiou" else "a"
+                problems.append(
+                    Problem(22, "warning", f"{rel}:{i + 1}",
+                            f"{line.strip()[:52]!r} opens like {article} {kind} caption but "
+                            f"carries no {{#{kind[:3]}:slug}} anchor, so build.py "
+                            f"treats it as prose -- it takes no number, joins no "
+                            f"list, and gets no page-makeup handling, yet it will "
+                            f"be counted as a caption by anything that greps for "
+                            f"one; rephrase the lead-in or add the anchor")
+                )
 
     errors = [p for p in problems if p.severity == "error"]
     warnings = [p for p in problems if p.severity == "warning"]
