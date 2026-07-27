@@ -88,7 +88,7 @@
 --
 -- THE PRICE IS NOW ZERO, AND NOT BECAUSE THIS FILTER CHANGED. The book sets
 -- `\raggedbottom` in `chapters/metadata.yaml`; the class default for a
--- `twoside` document is `\flushbottom` (`report.cls:729-733`), and it was
+-- `twoside` document is `\flushbottom` (`report.cls:731-734`), and it was
 -- `\flushbottom` that generated the `Underfull \vbox` reports in the first
 -- place -- a page short of its full height had to make the height up out of
 -- stretchable glue, and the output routine reported the shortfall. Under

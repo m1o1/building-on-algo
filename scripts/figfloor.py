@@ -54,9 +54,16 @@ AND IT HAS MOVED. This docstring cited three figures between 500 and 535pt
 evidence, which left the band from 535 to 570 asserted rather than measured --
 and then `mbr-rising-floor` grew to **547.01pt** and landed inside it, so the
 threshold was carrying a figure it had never been shown to cover. It does
-cover it, checked rather than assumed: Figure 4-2 sets on printed page 130
-with the drawing above, its caption run-in starting at `top` 643.8 and ending
-at 668.3, and a further line of body prose after that at 706.6. Four figures
+cover it, checked rather than assumed: Figure 4-2 sets on **printed folio 129,
+which is pdf page index 130** -- in this book the folio is always the index
+minus one, because the cover is index 1 and carries no folio, so a page
+citation that does not say which of the two it is will send the next reader one
+page off. The drawing's last line of in-figure text sits at `top` 615.5 /
+`bottom` 623.9; the caption sets in two lines, `top` 643.8 (`bottom` 654.7) and
+`top` 657.3 (`bottom` 668.3); and a further line of body prose follows at `top`
+695.7 (`bottom` 706.6), above the folio at 729.2. Note that 668.3 and 706.6 are
+`bottom` values -- this note quoted them as `top`s for a round, which understates
+the caption's and the body line's reach by a full line height. Four figures
 now exceed 500pt -- 547.01, 533.89 (`router-decision`), 521.93
 (`group-commit`), 510.38 (`four-clocks`) -- and the tallest of them clears its
 caption with a body line to spare. That is where the threshold comes from, and
@@ -65,8 +72,12 @@ caption with a body line to spare. That is where the threshold comes from, and
 RE-CHECK THIS WHEN A FIGURE GROWS PAST 547pt, not when one trips the warning.
 The warning fires at 570; the evidence stops at 547. A figure landing in
 between is inside the gate and outside the demonstration, which is exactly the
-state `mbr-rising-floor` was in for several rounds. Find the printed page the
-figure lands on, confirm the caption is on it, and extend the note above.
+state `mbr-rising-floor` was in for several rounds. Find the page the figure
+lands on, confirm the caption is on it, and extend the note above. Find it by
+the folio printed on the page -- the lone arabic word with `726 < top < 745` --
+rather than by counting pages, and say in the note which of the two numbers you
+are quoting. Do not look for the figure in `page.images`: these drawings are
+form XObjects, so `page.images` is empty on exactly the pages that carry one.
 
 A footprint warning does not fail the run; only the type floor does. The
 threshold is a judgement about caption length rather than a hard geometric

@@ -149,13 +149,13 @@ header-includes:
     %
     % Slack at the foot of a page collects at the foot, rather than being
     % pushed up between the paragraphs. `report.cls` runs `\raggedbottom` only
-    % when `twoside` is off (`report.cls:731-733`), and this book is twoside,
+    % when `twoside` is off (`report.cls:731-734`), and this book is twoside,
     % so the class default here is `\flushbottom` -- and `\flushbottom` has to
     % put a short page's missing height somewhere. It puts it in whatever glue
     % on the page can stretch, which in a page of ordinary prose is pandoc's
     % `\parskip 6pt plus 2pt minus 1pt`, shared equally between however few
     % paragraphs happen to be there. Printed folio 147 was the demonstration:
-    % Figure 4-3 is 402.9pt tall and pinned in place by `\floatplacement{H}`
+    % Figure 4-3 is 402.9pt tall and pinned in place by `\floatplacement{figure}{H}`
     % above, so it cannot be split and it cannot float away, and when it did
     % not fit in what was left of that page TeX broke before it and handed the
     % output routine 400.9pt of slack for three paragraphs to absorb. All three

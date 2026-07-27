@@ -1918,10 +1918,23 @@ def check_structure(strict: bool = False) -> None:
     #   today; the hole was closed because it costs one line to close and
     #   nothing detects it if it opens.
     #
-    # Headings and Setext underlines are skipped here only to keep from
-    # reporting the same line twice: `printf -- '- a\n## H\n'` is swallowed, and
-    # check 20 already fires on it because the bullet above is not a block that
-    # closes itself.
+    # ATX headings are skipped here only to keep from reporting the same line
+    # twice: `printf -- '- a\n## H\n'` is swallowed, and check 20 already fires
+    # on it because the bullet above is not a block that closes itself.
+    #
+    # Setext underlines are NOT skipped -- they are flagged above, because
+    # check 20 demonstrably does not fire on them from the other side.
+    # Verified: `printf -- '- item one\n---\nAfter para.\n' | pandoc -t html`
+    # yields `<ul><li><h2 id="item-one">item one</h2> After para.</li></ul>` --
+    # the underline is swallowed into the bullet (the item's own text becomes
+    # an `<h2>` inside the list item) and NEITHER check fires. Check 20's Setext
+    # branch (~line 1800) cannot see it: it requires `lines[i - 2].strip()` to
+    # be paragraph text, but under a bullet `lines[i - 2]` is the blank line
+    # above the list (or another bullet), so its branch never fires; and
+    # neither `heading_re` nor `bullet_re` matches `---`. Zero corpus instances
+    # of a Setext underline directly under a bullet, so this closes an
+    # uncovered hole rather than a live defect -- closed because it costs one
+    # branch and nothing else detects it if it opens.
     #
     # Injection-tested the way `CLAUDE.md` requires, against the real defect
     # rather than a convenient one. Over `git archive HEAD chapters` at
@@ -1932,7 +1945,12 @@ def check_structure(strict: bool = False) -> None:
     # the blank line inserted it reports nothing. The `:::`-opener defect above,
     # injected into a chapter, is reported at the opener's line; injected inside
     # an already-open div it is reported too, because a nested opener is still
-    # an opener.
+    # an opener. The Setext branch was injection-tested the same way: a bullet
+    # `- item one` with `---` on the next line, no blank between, injected into
+    # a clean chapter, fires exactly ONE new check-24 error at the underline's
+    # line and check 20 does NOT also fire on it (its `lines[i - 2]` is the
+    # blank line above the injected bullet); reverting restores the tree byte-
+    # identical and the full run returns to 0 errors, 38 warnings.
     div_open_re = re.compile(r"^:{3,}")
     div_close_re = re.compile(r"^:{3,}\s*$")
     for entry in entries:
@@ -1970,7 +1988,20 @@ def check_structure(strict: bool = False) -> None:
             in_list = False
             if is_closer:
                 continue
-            if heading_re.match(line) or setext_re.match(line):
+            if setext_re.match(line):
+                problems.append(
+                    Problem(24, "error", f"{rel}:{i + 1}",
+                            f"Setext underline {line.strip()[:20]!r} directly "
+                            f"under a list item -- pandoc turns the item's own "
+                            f"text into a heading inside the bullet "
+                            f"(<li><h2>...</h2> After.</li>), so the list entry "
+                            f"silently becomes an <h2> and the underline "
+                            f"vanishes; a blank line above the underline's text, "
+                            f"outside the list, makes it the heading it was "
+                            f"meant to be")
+                )
+                continue
+            if heading_re.match(line):
                 continue
             if is_div:
                 problems.append(

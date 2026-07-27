@@ -189,7 +189,7 @@
 -- EVERY `Underfull \vbox` FIGURE IN THIS REPOSITORY -- 192, 194, 195, 196,
 -- 203, 205, wherever it appears and in whichever file -- WAS MEASURED UNDER
 -- `\flushbottom`, AND THE BOOK NOW SETS `\raggedbottom`. The class default for
--- a `twoside` document is `\flushbottom` (`report.cls:729-733`), which is what
+-- a `twoside` document is `\flushbottom` (`report.cls:731-734`), which is what
 -- produced those boxes: a short page's missing height had to come out of
 -- stretchable glue, and the output routine reported the shortfall. Under
 -- `\raggedbottom` the output-active population is empty -- a matched pair
