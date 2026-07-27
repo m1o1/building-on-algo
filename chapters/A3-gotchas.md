@@ -69,12 +69,6 @@ A `BoxMap` box name is nothing but `key_prefix + encode(key)`, so a map with pre
 
 *From {{ch:boxes}}.*
 
-### A BoxMap key prefix counts toward the box name length
-
-The `name_len` in `2,500 + 400 * (name_len + data_size)` is the length of the *full* box name, prefix included. A `BoxMap` declared with `key_prefix=b"v_"` and keyed by a 32-byte address has a name length of 34, not 32 --- and if you leave `key_prefix` off, PuyaPy uses the attribute name, so `self.schedules` silently gives you a 9-byte prefix and a 41-byte name. A funding calculation that forgot the prefix underfunds every box, and the failure surfaces as a balance error inside `create_schedule` rather than as anything about box names. Declare the prefix explicitly so the arithmetic is visible in the source.
-
-*From {{ch:token-vesting}}.*
-
 ### Every method that touches a box needs its own box reference
 
 Every method that accesses box storage requires box references on the client side --- not just `create_schedule`. The `claim`, `revoke`, `cleanup_schedule`, `get_vesting_info`, and `get_claimable` methods all read or write the beneficiary's box and must include the same `box_references` declaration. Forgetting this on read-only methods like `get_vesting_info` is a common mistake --- the AVM enforces the I/O budget regardless of whether the access is a read or write.
@@ -124,12 +118,6 @@ Reading `Txn.last_valid` as "now" hands the caller control of your clock: they m
 `op.Block` can only read rounds at or before `Txn.first_valid - 1`, and that round is committed and public before the transaction exists --- so a caller can compute your contract's "random" answer off-chain, check whether they win, and submit only when they do, for free, as many times as they like. The common objection to `blk_seed` --- that a proposer might choose a favourable seed --- is actually false, since the seed is a VRF output the proposer can compute but not select. The real problem is worse and needs no proposer at all, and no arrangement of the code fixes it. Use a commit-reveal shape against the ARC-21 randomness beacon: commit publicly to a future round, close entries, then read that round's value once it exists. Note also that the readable window is `1001 - (last_valid - first_valid)` rounds wide, so a transaction with a full validity window can read exactly one block --- and that `blk_timestamp(Global.round - 1)` never works at all. The readable window ends at `first_valid - 1`, and `first_valid` is the last round already committed when the transaction was built, so `Global.round - 1` is always at least one round too new. Reach for `Txn.first_valid - 1` instead.
 
 *From {{ch:numbers-and-time}}.*
-
-### Block timestamps come from a proposer's clock, not from a trusted clock
-
-`Global.latest_timestamp` is whatever the block proposer's system clock said, bounded only by monotonicity and a ceiling of roughly 25 seconds ahead of the previous block. It is fine for a cliff measured in months and useless for anything measured in seconds. Any logic where a 25-second skew changes who wins --- an auction close, a rate lock, a first-come claim --- must key on round numbers or accept that the boundary is fuzzy. And never compare it against a client-supplied timestamp for equality; compare with `>=` and let the window be wide.
-
-*From {{ch:token-vesting}}.*
 
 ### UInt64 overflow fails the transaction; it does not wrap
 
@@ -402,17 +390,18 @@ desired duration, then sends a dummy transaction to trigger a new block:
 
 ```python
 import time
+
 def advance_time(algorand, seconds):
-"""Sleep, then send a dummy txn to produce a block with updated timestamp."""
-time.sleep(seconds)
-dispenser = algorand.account.localnet_dispenser()
-algorand.send.payment(
-algokit_utils.PaymentParams(
-sender=dispenser.address,
-receiver=dispenser.address,
-amount=algokit_utils.AlgoAmount.from_micro_algo(0),
-)
-)
+    """Sleep, then send a dummy txn to produce a block."""
+    time.sleep(seconds)
+    dispenser = algorand.account.localnet_dispenser()
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=dispenser.address,
+            receiver=dispenser.address,
+            amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+        )
+    )
 ```
 
 For testing, use short durations for cliff and vesting periods. For example,

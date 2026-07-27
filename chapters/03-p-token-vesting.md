@@ -2,11 +2,11 @@
 
 # A Token Vesting Contract
 
-A startup has raised funds and needs to distribute tokens to its team. The tokens should not arrive all at once --- team members receive their allocation gradually over 12 months, with nothing released during the first 3 months (the "cliff"). If someone leaves early, the company can revoke their unvested tokens. This is a **token vesting contract**, and building one will teach you every foundational concept in Algorand smart contract development.
+A startup has raised funds and needs to distribute tokens to its team. The tokens should not arrive all at once --- team members receive their allocation gradually over 12 months, with nothing released during the first 3 months (the "cliff"). If someone leaves early, the company can revoke their unvested tokens. This is a **token vesting contract**, and it is the first thing in this book that needs every foundational mechanism at once.
 
-In {{ch:testing}}, you built a simplified version of this contract and discovered its limitations through testing --- overflow on large amounts, no multi-beneficiary support, no revocation. Now we build the production version that solves every gap those tests revealed.
+{{ch:testing}} ended with a single-beneficiary version of this contract: deployed, funded, demonstrably paying out, and wrong in three ways no compiler catches --- a claim that returned zero instead of refusing, an overflow that only fires at a supply nobody had tested, and an assertion with nothing to say when it failed. You found all three and fixed them. What that contract still cannot do is vest to more than one person, price the storage for doing so, or take anything back when somebody leaves. That is this chapter.
 
-We will build it one capability at a time. Each section adds a new feature to the contract and introduces the Algorand concepts required to implement it. By the end, you will have a production-quality contract and a thorough understanding of how Algorand smart contracts work.
+We will build it one capability at a time. Each section adds a feature and says where the mechanism it needs came from. Almost nothing here is new: the concept chapters of {{part:foundations}} were written to make this one an assembly rather than an introduction, and the sections below are mostly a matter of putting pieces you already have in the order that makes a working contract.
 
 ## Run It First
 
@@ -52,6 +52,71 @@ you are ready to build the contract yourself, work through the setup steps that
 follow in a fresh project.
 
 
+## What You Need First
+
+Every concept chapter in {{part:foundations}} ended with a Handoff table naming
+the examples this project would lean on. {{tbl:vesting-what-you-need-first}} is
+the other side of those seven tables, collected in one place.
+
+It is not a reading list to finish before you start. The sections below are
+written to be read in order and each one says where its ingredients came from.
+This table is for two other moments: now, to see what the contract is made of
+before any of it is in front of you, and later, when a line assumes something
+you would rather look up than reconstruct. Each reference in the first column
+carries its chapter in the number: {{ex:two-clocks}} lives in
+{{ch:numbers-and-time}}, {{ex:validate-at-boundary}} in {{ch:testing}}.
+
+Answer the predict column before you follow the link. A prediction you have
+committed to is worth more than one you were about to make, including --- and
+especially --- when it turns out wrong.
+
+Table: What {{part:foundations}} built that this project assumes {#tbl:vesting-what-you-need-first}
+
+| Prerequisite | Where it lands here | Predict before you read it |
+|--------------|---------------------|----------------------------|
+| {{ex:smallest-contract}} | The `TokenVesting` class and its `create` method | What does subclassing `ARC4Contract` generate that you would otherwise write by hand? |
+| {{ex:reference-types}} | `beneficiary: Account` on `revoke`, `vesting_asset: Asset` on `initialize` | The contract receives an `Account`. What does it actually receive, and what must the transaction declare? |
+| {{ex:assert-message}} | The admin, cliff and amount guards --- and seven asserts that carry no message at all | A beneficiary claims before the cliff. What should the failure tell them, and where will that sentence be stored? |
+| {{ex:without-arc4contract}} | `reject_lifecycle`, which refuses updates and deletes | Which on-completion actions must a contract holding other people's tokens refuse, and why? |
+| {{ex:typed-call}} | Every deployment and interaction script below | `claim` returns a number. By what mechanism does it reach your Python? |
+| {{ex:create-modes}} | `create`, which captures the admin exactly once | Configuration happens once. Which `create` value makes that the router's job rather than a flag you maintain? |
+| {{ex:arc4-boundary}} | Every read of a `VestingSchedule` field before arithmetic | How many conversions belong in a method that does arithmetic on two numeric arguments, and where do they go? |
+| {{ex:readonly-method}} | `get_claimable`, which a wallet polls before showing a claim button | A wallet polls this many times a second. What must the method avoid doing for those calls to cost nothing? |
+| {{ex:tuple-return}} | `get_vesting_info`, which returns a whole schedule in one call | Six fields, one call. What return type hands a generated client six named values rather than a blob? |
+| {{ex:allow-actions}} | The two actions `reject_lifecycle` claims in order to refuse them | It holds assets it owes to people. Which two on-completion actions must it never accept, and how do you say so? |
+| {{ex:state-schema-fixed}} | The five globals declared in `__init__`, four of them for methods still forty pages away | How many slots does a contract reserve when the number of beneficiaries is not known at creation? |
+| {{ex:clear-state-drops-local}} | The decision to put schedules in boxes rather than local state | A vesting schedule is an obligation the contract owes a beneficiary. Where can it not live? |
+| {{ex:struct-arc4}} | `VestingSchedule`, six fields in one 41-byte record | Six numbers, one record. How many state slots should that cost? |
+| {{ex:global-get-default}} | `available_tokens` and `beneficiary_count`, read before anything has ever written them | Two counters, declared at creation and first read in a method that may run before the method that increments them. What comes back? |
+| {{ex:init-defaults}} | `self.admin.value = Txn.sender.bytes`, in `create` and nowhere else | Which of `Txn.sender` and `Global.creator_address` is safe to store as the admin, and why are they the same value exactly once? |
+| {{ex:boxmap-declare}} | `self.schedules`, one box per beneficiary, keyed by address | Why can a vesting schedule not live in the beneficiary's local state? |
+| {{ex:box-mbr-math}} | The 32,500 microAlgo payment grouped with every `create_schedule` | A 32-byte address key, a 2-byte prefix, and a 41-byte record. What does one schedule cost? |
+| {{ex:app-mbr-floor}} | Funding the application account before the first schedule exists | What does the signer see if that funding is short? |
+| {{ex:box-refs-auto}} | Every client call that touches a schedule box | The method takes the beneficiary as an argument. Does that alone make the box available? |
+| {{ex:boxmap-scan-cost}} | Why this contract has no "list all schedules" method | How many schedules could such a method return before it failed, and would that number be stable? |
+| {{ch:boxes}}, Exercise 5 | The grouped MBR payment `create_schedule` takes as a typed argument | You wrote down what the contract must verify about that payment. Which of your checks does this one actually make? |
+| {{ex:linear-vesting}} | `calculate_vested`, the release curve all three payout paths call | This project's schedules are per beneficiary. What must be stored per beneficiary that the example held in three globals? |
+| {{ex:mul-div}} | The wide multiply-then-divide inside `calculate_vested` | The grant is an ASA with decimals. Which ordering survives that, and at what size does the other one abort? |
+| {{ex:vesting-cliff}} | `cliff_end` and `vesting_end`, and the guard that orders them | Three parameters, three orderings to enforce. Write the assertions before you read them. |
+| {{ex:two-clocks}} | `Global.latest_timestamp`, read by claim, revoke, and the status query | Which of the two globals does a schedule measured in months want, and what does choosing it cost in precision? |
+| {{ex:divide-by-zero}} | `create_schedule`, which fixes a divisor for that beneficiary's whole schedule | The divisor is `vesting_end - start_time`, set once and never revisited. What does getting the guard wrong cost here? |
+| {{ch:numbers-and-time}}, Exercise 3 | `revoke`, which reduces a total that has already been partly claimed | You worked out how a divisor reaches zero with no attacker involved. Which method here could drive `total - claimed` to zero the same way? |
+| {{ex:grouped-asset-transfer}} | `deposit_tokens`, which takes the grant supply from the admin | This contract checks the transfer's asset, amount and destination, but authorizes on the *app call's* sender. Say why those are different accounts. |
+| {{ex:asa-self-optin}} | `initialize`, which opts the application into the grant asset before any deposit | Who pays the 100,000 microAlgo, and what breaks if they pay it late? |
+| {{ex:inner-payment}} | The `itxn.AssetTransfer` that ends `claim` | The payout is an asset transfer, not a payment. Which of the example's two guards still applies, and what replaces the other? |
+| {{ex:inner-fee-zero}} | `fee=UInt64(0)` on every inner transaction in the contract | A claim is one app call and one inner transfer. Write the pooled-fee arithmetic before you read it. |
+| {{ex:group-bounds}} | `Global.group_size == UInt64(2)` in `deposit_tokens` and `create_schedule` | The transfer arrives as a typed argument rather than by index. Say what that changes about the size check, and what it does not. |
+| {{ex:balance-is-not-ledger}} | `available_tokens`, decremented whenever a schedule is created | This contract tracks unpromised supply in state rather than reading its own holding. What could an outsider do to it if it read the holding instead? |
+| {{ex:optin-gate-eager}} | The payout, against a beneficiary who may never have opted in | The transfer is allowed to fail rather than being gated. Predict what the beneficiary sees, and what one line would change that. |
+| {{ex:assert-message-home}} | Every rejection on the claim path | Pick the authorization check on `claim` and write the message you would put on it, then compare. |
+| {{ex:validate-at-boundary}} | `deposit_tokens` and its typed transfer parameter | It asserts the transfer's asset, amount and receiver, and not its position. Say which of those the router had already guaranteed. |
+| {{ex:requirement-vs-code}} | Deciding, per method, what the requirement says rather than what the draft does | Vesting has one requirement that is easy to state and easy to implement wrongly. Write it as a sentence, then write the assertion that would fail if the contract broke it. |
+| {{ex:unit-test-context}} | The fast half of the test suite, over the schedule arithmetic | Which of this contract's methods can be tested with `patch_global_fields` alone, and which cannot, and why? |
+| {{ex:negative-test-simulate}} | One test per security assertion, each pinned to its message | The admin-only methods each need a stranger test. What must such a test assert beyond "an exception was raised"? |
+| {{ex:simulate-extra-budget}} | Sizing a group that pays several beneficiaries at once | How would you find the point at which the group needs a second app call, without deploying twice? |
+| {{ex:pc-to-source-line}} | The procedure for a claim that fails on LocalNet | What do you do with a `pc` from a failed claim, in order, and where does the procedure stop working? |
+
+
 ## Project Setup
 
 If you scaffolded a project while working through {{ch:setup}}, you can reuse it. Otherwise, scaffold a new one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it, which we rename to match the chapter:
@@ -87,20 +152,14 @@ Each `arc4.UInt64` occupies 8 bytes (big-endian), `arc4.Bool` occupies 1 byte, s
 
 Keeping all six fields in one struct, in one box, is a deliberate choice rather than a stylistic one. Recall the box MBR formula from {{ch:boxes}}: 2,500 microAlgos per box, plus 400 per byte of *name and value combined*. The per-box constant and the 32-byte beneficiary address in the name are charged once per box, not once per field --- so splitting a struct across several boxes pays for the same address several times over. {{fig:packed-box-layout}} priced that comparison in the abstract; a vesting schedule is the same comparison with a real payload attached: six fields, one name, one constant.
 
-Notice the `arc4.UInt64` fields in the struct --- these are not the same as the plain `UInt64` you will see in the contract's `__init__` method below. Algorand Python has two parallel type systems that you will encounter throughout this book. **Native types** (`UInt64`, `Bytes`) are what the AVM operates on directly --- arithmetic, comparisons, and most function parameters use these. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`, `arc4.Struct`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic: `schedule.total_amount.as_uint64()` converts `arc4.UInt64` to `UInt64`. We will see this conversion pattern in detail when we build the `claim` method later in this chapter.
+Notice the `arc4.UInt64` fields, which are not the plain `UInt64` the contract's `__init__` uses two sections from now. This is {{ex:arc4-boundary}}'s division showing up in a data structure for the first time: ARC-4 types are the encoded wire format, native types are what the AVM computes on, and a field read out of a box arrives encoded. Every arithmetic path in this contract therefore opens with a conversion and closes with one, and {{ex:struct-arc4}} is the reason there are six fields to convert rather than six state slots to read. The `claim` method is where you will watch it happen line by line.
 
 
 ## A Contract That Exists
 
-Before we can vest tokens, we need a contract on the blockchain. Let us start with the absolute minimum: a contract that can be created and that knows who created it.
+Before we can vest tokens, we need a contract on the blockchain. Start with the least that can exist: something that can be created and that remembers who created it.
 
-Recall from {{ch:mental-model}} that a smart contract executes once per transaction --- it validates, decides to approve or reject, and stops. With that model in mind, let us build our first contract. The clear state program handles a special case we will discuss later --- for now, just know it exists and that we will give it a default implementation that simply returns true.
-
-ARCs (Algorand Requests for Comments) are community standards for the Algorand ecosystem, similar to Python's PEPs or internet RFCs. Modern Algorand contracts inherit from `ARC4Contract`, which implements the [ARC-4 Application Binary Interface](https://dev.algorand.co/concepts/smart-contracts/abi/). ARC-4 is the standard calling convention for Algorand smart contracts. It defines how method names are mapped to 4-byte selectors (computed as the first 4 bytes of `SHA-512/256` of the method signature string), how arguments are encoded on the wire, and how return values are communicated back to the caller via transaction logs. When you inherit from `ARC4Contract`, the PuyaPy compiler generates all of this routing logic automatically --- you never write a manual switch statement or parse raw bytes. (See the [ARC-4 specification](https://dev.algorand.co/arc-standards/arc-0004/) and the [Algorand Python ARC-4 guide](https://algorandfoundation.github.io/puya/lg-arc4.html).)
-
-Methods decorated with `@arc4.abimethod` become publicly callable endpoints. Each method gets a unique selector derived from its full signature, including parameter types. For example, `hello(string)string` and `greet(string)string` produce different selectors even though they take the same parameter types, because the method name differs.
-
-The `__init__` method has special semantics: it runs exactly once, during the application creation transaction. After that initial execution, the state it sets up persists on-chain, but `__init__` itself never runs again. Think of deploying a contract as instantiating a class --- `__init__` is the constructor, and every subsequent transaction is a method call on that instance.
+That is {{ex:smallest-contract}} with a name change, and the two things it gets for free are the two you would otherwise have to write --- {{ex:without-arc4contract}} showed what subclassing `ARC4Contract` saves you, which is the selector dispatch and the argument decoding for every method below, and {{ex:init-defaults}} showed that `__init__` runs during the creation transaction and never again. Read the class that follows as an inventory of what this contract will need to remember, because after the create transaction that inventory is fixed.
 
 Add the following class to `smart_contracts/token_vesting/contract.py`, after the `VestingSchedule` struct defined in the previous section:
 
@@ -132,30 +191,39 @@ class TokenVesting(ARC4Contract):
         return arc4.Address.from_bytes(self.admin.value)
 ```
 
-We declare `beneficiary_count`, `available_tokens`, and `schedules` in
-`__init__` even though they are not used until later sections. As with
-`asset_id`, the global state schema is fixed at deployment, so all fields must
+Four of those five globals are declared for sections that are still forty pages
+away, and `schedules` for a method that does not exist yet. That is
+{{ex:state-schema-fixed}} being paid for rather than described: the schema is
+written into the create transaction, so a slot you have not thought of yet is a
+slot this contract will never have. Reserving `beneficiary_count` and
+`available_tokens` now costs 28,500 microAlgos each and buys the option to use
+them later; declaring them later is not an option at any price.
 
 ::: {.gotcha #schema-is-immutable topic="Global and local state" title="The state schema is fixed at creation and can never be widened"}
 The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch --- a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
 :::
-be declared upfront. The `available_tokens` counter tracks deposited tokens that
-have not yet been reserved for a vesting schedule. The `BoxMap` declaration uses
-box storage (introduced in {{ch:mental-model}}) --- it does not create any boxes on-chain.
-It tells the compiler the type signature for the mapping: keys are `Account`
-addresses, values are `VestingSchedule` structs, and each box name is prefixed
-with `b"v_"`. Boxes are created individually on demand when `create_schedule`
-is called later.
 
-`GlobalState` declares a piece of persistent storage tied to this application. The AVM has exactly two native types: `UInt64` (unsigned 64-bit integer, maximum value approximately 1.8 times 10 to the 19th power) and `Bytes` (a byte array, maximum 4,096 bytes in the AVM stack). Everything else --- addresses, strings, structs, arrays --- is encoding on top of these two primitives. Here we store the admin address as raw `Bytes` and the asset ID as `UInt64`.
+`available_tokens` will track deposited tokens not yet reserved against a
+schedule. The `BoxMap` line is {{ex:boxmap-declare}} with this contract's
+payload in it, and it creates nothing on-chain: it tells the compiler that keys
+are `Account` addresses, values are `VestingSchedule` structs, and every box
+name begins with `b"v_"`. Boxes appear one at a time, when `create_schedule`
+writes them.
 
-`Txn.sender` provides the address of whoever sent the current transaction. By recording it during creation, we establish an admin identity that we will check in later methods to enforce authorization.
+Two details in `create` are worth pausing on, and both are {{ex:init-defaults}}
+being applied rather than explained. Storing `Txn.sender` establishes an
+authority only because this method can run exactly once, in the create
+transaction, where the sender and the creator are necessarily the same account
+--- in any method that can be called twice, the same line hands the contract to
+whoever called last. And `@arc4.baremethod(create="require")` is
+{{ex:create-modes}}'s `"require"`: the router, not a flag you maintain, is what
+guarantees the once. It is a *bare* method because there is nothing to select
+on, so the router matches it on the transaction's on-completion action instead.
 
-The `@arc4.baremethod(create="require")` decorator marks this as a **bare method** --- one that matches on the transaction's OnCompletion action rather than an ABI method selector. The `create="require"` parameter means this method only runs during the initial app creation transaction. Bare methods are used for lifecycle events (creation, opt-in, close-out, update, delete) where no ABI arguments are needed.
-
-The `readonly=True` flag on `get_admin` signals to client libraries that this method does not modify state. Clients can use Algorand's `simulate` endpoint to execute the method without submitting a real transaction --- getting the result instantly without paying fees. This is purely an optimization hint for clients; it does not enforce read-only behavior at the protocol level.
-
-We also declared `asset_id` and `is_initialized` in `__init__` even though we do not use them yet. This is deliberate: the **global state schema** --- how many `UInt64` slots and how many `Bytes` slots the contract uses --- is fixed at deployment and can never be changed afterward. If you need 5 uint slots later but only declared 3, you must deploy an entirely new contract. The marginal cost of extra slots is small (28,500 microAlgos per uint slot, 50,000 per byte-slice slot), so it is good practice to allocate a few spares. The maximum is 64 key-value pairs, with each key plus value limited to 128 bytes combined.
+`readonly=True` on `get_admin` promises exactly what {{ex:readonly-method}} said
+it promises and nothing more: clients may route the call through `simulate` and
+get an answer with no fee and no block. It is a claim you are making to the
+client, not a constraint the protocol enforces on you.
 
 To deploy this contract, you compile it with PuyaPy and use AlgoKit. If you set up the environment as described in {{ch:mental-model}} and renamed the contract directory as shown in the Project Setup section above, your contract code should be in `smart_contracts/token_vesting/contract.py`. Compile:
 
@@ -224,14 +292,14 @@ This returns the application's global state, the approval and clear program hash
 
 The compilation step produces three artifacts: `TokenVesting.approval.teal` (the approval program in human-readable TEAL assembly), `TokenVesting.clear.teal` (the clear state program), and `TokenVesting.arc56.json` (the ARC-56 application specification containing method signatures, state schema, type information, and source maps for debugging). The ARC-56 spec is what clients use to construct properly formatted transactions --- it is the equivalent of an ABI JSON file in the Ethereum ecosystem.
 
-Every deployed contract gets a deterministic address derived from its application ID: `SHA512_256("appID" || big_endian_8_byte(app_id))`. This address can hold Algos and Algorand Standard Assets. No one has a private key for this address --- the contract's code is the sole authority over outgoing transactions. This is what makes smart contracts trustless: the rules are enforced by code, not by any individual's goodwill.
+The application account {{ex:app-account}} read from and {{ex:inner-payment}} spent out of now belongs to something you deployed. Its address is derived from the application ID and nothing else --- `SHA512_256("appID" || big_endian_8_byte(app_id))` --- so it existed as an address before it existed as an account, and nobody holds a private key for it. Everything this contract will ever custody sits there, and the code you are about to write is the only thing that can move it.
 
 Your contract now exists on-chain. It knows who created it. It cannot do anything else yet.
 
 
 ## Making It Immutable
 
-Before we add any real functionality, we need to lock the contract down. Every Algorand application call includes an **OnCompletion** field --- a misnomer that confuses everyone the first time they see it. Despite the name, it does not describe something that happens *after* the call. It specifies the *type* of operation being requested: a normal method call, an opt-in to the app's local state, a state cleanup, a code update, or a deletion. Think of it as the "action verb" of the application call. The possible actions are: `NoOp` (a normal method call), `OptIn` (user opts into the app's local state), `CloseOut` (user exits the app), `UpdateApplication` (replace the contract's code), and `DeleteApplication` (remove the contract entirely). (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)
+Before we add any real functionality, we lock the contract down. {{ex:allow-actions}} enumerated the five on-completion actions an application call can carry and showed how a method declares which of them it will answer to; two of the five are the ones that matter to a contract holding somebody else's tokens. `UpdateApplication` replaces the code. `DeleteApplication` removes the contract. (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)
 
 If you do not explicitly handle `UpdateApplication` and `DeleteApplication`, the default behavior depends on your base class. For `ARC4Contract`, unhandled actions are rejected by default --- but relying on defaults for security-critical behavior is risky. It is better to be explicit. Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -251,15 +319,9 @@ There are legitimate reasons to want upgradeable contracts --- bug fixes, featur
 
 ## Accepting Tokens
 
-Our vesting contract needs to hold the tokens it will distribute. On Algorand, fungible tokens are implemented as **Algorand Standard Assets (ASAs)** --- protocol-level primitives built directly into the blockchain. This is a fundamental architectural difference from other blockchains where every token is its own smart contract with its own transfer logic, its own potential bugs, and its own execution costs.
+Our vesting contract must hold the tokens it distributes, which means holding an Algorand Standard Asset. All three of {{ch:moving-value}}'s rules for an asset a contract did not create for itself bind here: an account holds an asset only after opting in, the opt-in raises that account's minimum balance by 100,000 microAlgos for as long as the holding lasts, and a transfer to an account that has not opted in fails --- inside a group, taking every other transaction down with it. {{ex:app-mbr-floor}} is the arithmetic that decides whether this particular account can afford the opt-in it is about to attempt. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/).)
 
-On Algorand, the blockchain itself handles ASA creation, transfers, freezing, and destruction. Every ASA benefits from the same speed (approximately 2.85-second finality), security, and atomic transfer guarantees as native Algo. When you transfer an ASA, there is no token contract to call, no fallback function that might reenter your code, no custom transfer logic that might behave unexpectedly. It is a native protocol operation, as fundamental as sending Algo. (See [Assets Overview](https://dev.algorand.co/concepts/assets/overview/).)
-
-Every ASA has four configurable role addresses that determine who can manage it. The **Manager** can reconfigure the other three roles; setting this to the zero address makes the asset permanently immutable. The **Reserve** is purely informational --- some block explorers display it, but it has no protocol-level power. The **Freeze** address can freeze or unfreeze any account's holdings of this asset, preventing transfers; setting to zero means no one can ever freeze the asset. The **Clawback** address can transfer tokens from any account without the account owner's consent; this enables regulatory compliance use cases but also custodial control, and setting to zero makes the token fully permissionless. For vesting tokens and LP tokens, you almost always want no freeze and no clawback.
-
-Before any account --- including your smart contract --- can hold an ASA, it must explicitly **opt in** to that asset. An opt-in is a zero-amount asset transfer to yourself. On some blockchains, anyone can send you tokens you never asked for, polluting your wallet with worthless or malicious assets. Algorand prevents this by requiring you to choose to accept each asset. The cost of opting in is 100,000 microAlgos (0.1 Algo) in additional **Minimum Balance Requirement (MBR)**.
-
-MBR is Algorand's anti-spam mechanism. Every account must maintain a minimum Algo balance proportional to the resources it consumes on-chain. The base MBR is 100,000 microAlgos (0.1 Algo) just to exist. Each ASA opt-in adds 100,000 more. Each piece of global state, local state, or box storage adds more (with its own formula). If a transaction would cause an account's balance to drop below its MBR, the transaction fails. This is one of the most common errors new developers encounter: the contract cannot opt into an asset because no one has sent it enough Algo to cover the MBR.
+The asset itself is chosen before this contract is deployed and not by it, and one of the four authorities {{ex:asa-roles}} priced is worth naming here as a project decision. A grant token the beneficiary is meant to own outright should have no freeze address and no clawback address, because either one means the tokens this contract pays out on schedule are tokens a third party can take back off schedule. Nothing in the code below can check that for you. A vesting contract enforcing a schedule against an asset with a live clawback address is enforcing it with an asterisk, and the asterisk belongs in the grant agreement rather than in the contract.
 
 The contract opts itself into the vesting token with an *inner transaction*, which {{ch:moving-value}} introduced: the application account signs for itself and sends an asset transfer of zero units to itself. The `fee=UInt64(0)` below is the rule from that chapter, unchanged --- an inner transaction's fee comes out of the application account's own balance, so it is set to zero and the caller's fee covers both transactions instead. Note what that means here, where there is no group at all: `initialize` is a single application call carrying one inner transaction, so the caller sets its fee to 2,000 microAlgo and the accounting works out the same way. Pooling is what makes a zero-fee inner transaction legal, and a lone application call is a group of one.
 
@@ -292,18 +354,20 @@ for the MBR and set the outer transaction fee high enough to cover the inner
 transaction. The following script demonstrates the complete initialize flow
 using AlgoKit Utils.
 
-Asset and box references are part of Algorand's **resource reference system**.
-Every application call must declare which blockchain resources it will access
---- accounts, assets, applications, and boxes. The AVM pre-loads these resources
-before execution, like declaring your read-set before running a database query.
-
-ARC-4 asset arguments, explicit `asset_references`, and explicit
-`box_references` are all client-side ways to make those resources available.
-In AlgoKit Utils Python 4.x, missing app-call resources are populated
-automatically by default (via simulation) before sending. This book still
-declares references explicitly so you understand what the client is doing
-under the hood --- and so you can work with tooling that does not
-auto-populate, such as the raw SDK.
+The `vesting_asset: Asset` parameter is {{ex:reference-types}} arriving where it
+matters: the method takes an `Asset`, and since PuyaPy 5.0 the ABI argument
+travels as a plain `uint64` asset ID rather than as an index into a foreign
+array. The declaration is still required, and it is still the thing that decides
+whether the call runs --- it has only moved. The ID arrives by value; the
+*availability* of that asset to this call comes from the transaction's resource
+references, and a method that reaches for an asset nobody declared fails at the
+first opcode that touches it, with `unavailable Asset` and the ID.
+{{ex:box-refs-auto}} made the same point about boxes and added the
+part that catches people --- algokit-utils populates missing references for you
+by simulating first, so a call that would fail from the raw SDK succeeds from
+the typed client and teaches you nothing. Every script in this chapter names its
+references explicitly. That is not because the tooling needs it; it is so that
+the transactions you read here are the transactions the AVM actually sees.
 
 ## Compiling and Running What We Have So Far
 
@@ -391,9 +455,9 @@ This workflow --- edit, compile, deploy, call, verify --- is the loop you will f
 
 The admin needs to deposit the tokens that will be distributed. This means the contract must accept an incoming asset transfer bundled in an atomic group with the method call.
 
-Algorand's **atomic groups** bundle up to 16 transactions that all succeed or all fail. The protocol guarantees there is no partial execution. If any transaction in the group is rejected, the entire group is rolled back atomically. This is the foundation of DeFi on Algorand: a user bundles "send tokens to the pool" and "call the swap method" into one group, guaranteeing they never lose tokens without receiving the expected output.
+This is {{ex:grouped-asset-transfer}}, scaled up from a vault to a grant. The transfer arrives as a typed parameter rather than by index, which {{ex:validate-at-boundary}} showed is the router promising three things before your first assertion runs: that the transaction at that position is an asset transfer, that it is in this group, and that it is directly before this call. What the router does not promise is *which* asset, *how much*, or *where it went*, and those are exactly the assertions below.
 
-In Algorand Python, you declare **typed transaction parameters** in your method signature. The ABI router expects a transaction of that type at the corresponding position in the group and gives you type-safe access to its fields.
+{{ex:group-bounds}} is the other half. A typed parameter fixes what sits at one position; it says nothing about how many other transactions the caller has attached, which is why `Global.group_size` is still checked explicitly.
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
@@ -424,59 +488,46 @@ After validation, `available_tokens` increases by the amount received. Later, `c
 
 The same `+=` is also the all-or-nothing rule from {{ch:moving-value}} doing real work for the first time in a contract you are shipping, so it is worth naming what it buys you here. The write does not go to the ledger when the line runs; it goes to a copy the whole group shares, and the ledger takes that copy only if every transaction in the group approves, as {{fig:group-commit}} showed. So the deposit and the increment to `available_tokens` are one indivisible thing: there is no state in which the contract believes it holds tokens it did not receive, and no cleanup path to write for the case where the transfer is rejected.
 
-You may see Algorand tutorials that also add `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` assertions on every incoming grouped transaction. These checks are **critical for Logic Signatures** (covered in {{ch:limit-order-book}}), where the LogicSig authorizes transactions *from* its own account and the program is the sole line of defense against draining or rekeying that account. But in a stateful smart contract, these fields on the *caller's* transaction affect the *caller's* account, not the contract's:
-
-- **`close_remainder_to`** / **`asset_close_to`** --- drain the *sender's* balance to another address. The sender is the user, not the contract. The contract receives the specified `amount` regardless.
-- **`rekey_to`** --- reassigns the *sender's* signing authority. Again, the user's account, not the contract's.
-
-A stateful contract's own account can only be affected by transactions it signs itself (inner transactions), and inner transactions default these fields to the zero address automatically. Asserting them on incoming grouped transactions just restricts what the user's wallet can do for no security benefit to the contract. It is the wallet's responsibility to warn users about dangerous fields on their own transactions. (See [Transactions Overview](https://dev.algorand.co/concepts/transactions/overview/) for the full set of transaction fields, and [Rekeying](https://dev.algorand.co/concepts/accounts/rekeying/) for the `rekey_to` field and its security implications.)
+::: {.note}
+**A check you will see, and should not copy here.** Tutorials often assert `asset_close_to == Global.zero_address` and `rekey_to == Global.zero_address` on every incoming grouped transaction. Both fields belong to the *sender's* account --- one drains that account's balance, the other reassigns its signing authority --- and the sender here is the admin, not the contract. The contract receives the `amount` it asserted either way, and its own account is reachable only by transactions it signs itself, which default both fields to zero. So the assertion buys the contract nothing and costs the admin's wallet a legal transaction shape. Where these checks *are* the whole game is Logic Signatures, whose program is the only thing standing between an account and anyone who cares to drain it; {{ch:limit-order-book}} takes that up properly. (See [Rekeying](https://dev.algorand.co/concepts/accounts/rekeying/).)
+:::
 
 
 ## Creating Vesting Schedules
 
-Now we need to record each team member's vesting schedule. This is per-user data, and the choice of where to store it is the most important architectural decision in this contract. Recall from {{ch:mental-model}} that Algorand offers three storage types --- global state, local state, and box storage --- each with different ownership and deletion semantics.
+Now we record each team member's vesting schedule. This is per-user data, and where it lives is the most consequential decision in the contract.
 
-*Before reading on: which of the three storage types would you choose for per-user vesting data? Consider what happens if a user can delete their own data. Think about this for a moment before we discuss the solution.*
+*Before reading on: {{ch:state}} and {{ch:boxes}} gave you three places this could go. Pick one, and say what a beneficiary could do to the contract's books if you picked wrong.*
 
-Your first instinct might be **local state**. The MBR is charged to the opting-in account, which seems fair, and each user gets their own key-value pairs.
-
-But recall local state's fatal flaw: **users can clear their local state at any time by sending a ClearState transaction, and this always succeeds regardless of what your clear state program does**. For a vesting contract, the implication is devastating. If Bob has claimed 500 of his 1,000 vesting tokens and clears his local state, the contract loses track of his claims. Bob could potentially re-register and claim another 1,000 tokens.
+Local state is the tempting answer, because the minimum balance is charged to the account that opts in, which feels like the right party paying. {{ex:clear-state-drops-local}} is why it is the wrong answer, and a vesting schedule is close to the worst case for it. Suppose Bob has claimed 500 of his 1,000 units and then sends a ClearState transaction. It succeeds --- it always succeeds, whatever the clear state program says --- and the record of those 500 units is gone. Bob re-registers and claims 1,000 more. The contract's own accounting was deletable by the person it was accounting against.
 
 ::: {.gotcha #clear-state-always-succeeds topic="Global and local state" title="ClearState always succeeds, so local state cannot hold an obligation"}
 Users can delete their local state at any time via ClearState, and the protocol guarantees this always succeeds. Never use local state as the sole record of financial obligations, debts, or token claims.
 :::
 
-Refer to the storage comparison in {{ch:mental-model}} for a full breakdown of each type's ownership semantics, limits, and tradeoffs. The critical distinction here is: local state is user-deletable, box storage is application-controlled.
+So the schedules go in boxes. The rule that decides it is short enough to carry: **a record the contract owes somebody cannot live somewhere that somebody can delete.** (See [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
 
 ::: {.check}
-Without looking back at {{ch:mental-model}}, name the three Algorand storage types and state one key constraint of each. Which one can users delete unilaterally? Which one has an immutable schema? Which one does the application fully control?
+Without looking back, name the three Algorand storage types and one hard constraint on each. Which can a user delete unilaterally? Which has a schema fixed at creation? Which does the application fully control, and who pays for it?
 :::
 
-The correct solution is **box storage** --- application-controlled key-value storage where the application decides when boxes are created and deleted. Users cannot unilaterally remove them. (See [Box Storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/).)
+That makes the declaration in `__init__` {{ex:boxmap-declare}} and {{ex:struct-arc4}} used together: a `BoxMap` for the per-account mapping, an `arc4.Struct` so six fields cost one box rather than six. The box name is the `"v_"` prefix plus a 32-byte address, so 34 bytes, and the record is 41. Run that through {{ex:box-mbr-math}} and one beneficiary costs `2,500 + 400 * (34 + 41) = 32,500` microAlgos, about 0.033 Algo.
 
-::: {.note}
-**Design decision: why box storage over local state.** When I encounter per-user data, I ask three questions: (1) Can the user delete it unilaterally? If yes, local state is dangerous. (2) Is the data small enough for local state's 128-byte limit? (3) Does the application need to control the data's lifecycle? For vesting schedules, the answers are yes, maybe, and definitely yes --- making box storage the clear choice.
-:::
+The `key_prefix=b"v_"` is declared rather than left to default for the sake of that arithmetic. Omit it and PuyaPy uses the attribute name instead, so `self.schedules` gives you a nine-byte prefix and a 41-byte name --- a different MBR, silently, in a funding calculation you wrote by hand two sections from here. The failure surfaces as a balance error inside `create_schedule` and says nothing about box names.
 
-Recall the `VestingSchedule` struct we defined at the start of the chapter. We use `arc4.Struct` for typed, ABI-encoded data structures and `BoxMap` for a typed mapping where each entry is its own box. The box name (with prefix `"v_"` plus 32-byte address) is 34 bytes. The MBR per beneficiary: `2,500 + 400 * (34 + 41) = 32,500 microAlgos`, about 0.033 Algo.
+`start_time`, `cliff_end`, and `vesting_end` are all written from one read of `Global.latest_timestamp`, which is {{ex:two-clocks}}'s second clock: seconds from the proposer's wall clock rather than rounds from the ledger's own counter. This contract is denominated in seconds because a grant agreement is, and the skew {{ex:two-clocks}} measured --- bounded only by monotonicity and a ceiling of roughly 25 seconds over the previous block --- is invisible against a three-month cliff. Reading the clock once is not a defence against the value moving --- `Global.latest_timestamp` is the previous block's timestamp and is fixed for the whole transaction, so three reads inside one method would return three identical values. It is a defence against the reader having to know that. One named `now`, three fields derived from it, and the relationship between `start_time`, `cliff_end`, and `vesting_end` is visible on the page instead of resting on a protocol guarantee you would have to go and look up.
 
-::: {.gotcha #box-prefix-mbr topic="Box storage" title="A BoxMap key prefix counts toward the box name length"}
-The `name_len` in `2,500 + 400 * (name_len + data_size)` is the length of the *full* box name, prefix included. A `BoxMap` declared with `key_prefix=b"v_"` and keyed by a 32-byte address has a name length of 34, not 32 --- and if you leave `key_prefix` off, PuyaPy uses the attribute name, so `self.schedules` silently gives you a 9-byte prefix and a 41-byte name. A funding calculation that forgot the prefix underfunds every box, and the failure surfaces as a balance error inside `create_schedule` rather than as anything about box names. Declare the prefix explicitly so the arithmetic is visible in the source.
-:::
+Which is also why every comparison against that clock in this contract is a `>=` and never an `==`. A cliff is a threshold you cross, not an instant you hit; {{ex:two-clocks}} showed what happens to code that assumes otherwise.
 
-`Global.latest_timestamp` returns a Unix epoch timestamp from the current block header. The block proposer sets it from their system clock, constrained to be monotonically non-decreasing and at most 25 seconds ahead of the previous block. For vesting schedules measured in months, this imprecision is negligible.
-
-::: {.gotcha #block-timestamp-is-approximate topic="Arithmetic and time" title="Block timestamps come from a proposer's clock, not from a trusted clock"}
-`Global.latest_timestamp` is whatever the block proposer's system clock said, bounded only by monotonicity and a ceiling of roughly 25 seconds ahead of the previous block. It is fine for a cliff measured in months and useless for anything measured in seconds. Any logic where a 25-second skew changes who wins --- an auction close, a rate lock, a first-come claim --- must key on round numbers or accept that the boundary is fuzzy. And never compare it against a client-supplied timestamp for equality; compare with `>=` and let the window be wide.
-:::
-
-Now we encounter **box references** in practice --- the concept introduced in
-{{ch:mental-model}}. Every transaction that reads or writes a box must declare which
-boxes it will access in a `boxes` array on the transaction. The AVM uses these
-declarations to allocate I/O budget: each reference grants 2,048 bytes (2KB)
-of read/write capacity for box data. For `create_schedule`, the stored data is
-41 bytes, well within a single reference. The 34-byte box name matters for MBR,
-but not for the I/O budget.
+Every call that touches a box has to say so in advance, and this is the first
+place in the book where you write that declaration by hand rather than let the
+client infer it. {{ex:box-refs-auto}} is why: algokit-utils simulates the call,
+watches which boxes it reaches for, and fills the array in for you, so a script
+that would fail from the raw SDK succeeds from the typed client. {{ex:box-io-budget}}
+priced what the declaration buys --- 2,048 bytes of read/write capacity per
+reference. A 41-byte `VestingSchedule` fits inside one with room to spare, and
+the 34-byte name that drove the MBR arithmetic above does not count against the
+budget at all.
 
 The full grouped call has three moving pieces: create the MBR payment, pass it
 as the typed transaction argument, and include the beneficiary's box reference
@@ -500,10 +551,16 @@ app_client.send.call(
 )
 ```
 
-Forgetting this declaration produces "box read/write budget exceeded" --- an
-error you will hit whenever auto-population is disabled or you build
-transactions with the raw SDK. If you see this error, your first check should
-always be: did I declare the box references?
+Forgetting this declaration produces `invalid Box reference` followed by the
+box name in hex --- an error you will hit whenever auto-population is disabled
+or you build transactions with the raw SDK. Do not confuse it with `read budget
+exceeded`, which is a different failure: that one means the references were
+declared and there were not enough of them for the combined size of every box
+the transaction referenced --- a budget charged before the program runs, against
+each referenced box's full stored size whether or not you read a byte of it. If
+you see `invalid Box reference`, your first check should always be: did I
+declare the box references?
+
 For boxes larger than 2KB, you need multiple references to the same box (for
 example, a 4KB box needs two references). The Cookbook (Recipe 6.5) shows this
 pattern in detail. Raw SDK `boxes`, AlgoKit Utils `box_references`, and
@@ -565,17 +622,101 @@ overpayment would strand the excess Algo in the app account because
 
 This is the core logic. A beneficiary calls `claim` and receives whatever tokens have vested since their last claim. The math must be exact.
 
-The AVM has no floating point. All math is `UInt64`. The vesting calculation is straightforward conceptually --- linear interpolation between start and end --- but requires careful handling of integer overflow. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) for AVM type and budget details.)
+The release curve itself you have already written. {{ex:linear-vesting}} is this
+calculation for one grant held in globals, {{ex:vesting-cliff}} adds the cliff
+branch and settles the question of whether the linear term measures from `start`
+or from `cliff` --- this contract measures from `start`, so arriving at the cliff
+releases a lump sum covering everything since the grant began --- and
+{{ex:mul-div}} is the multiply-then-divide underneath both. What is new here is
+only that the three parameters come out of a box instead of out of state, and
+that the same subroutine has to serve three callers.
 
-Consider a 100 million token allocation with 6 decimal places: that is 10 to the 14th base units. Multiplied by an elapsed time of approximately 31 million seconds (one year), the product is approximately 3 times 10 to the 21st --- exceeding `UInt64`'s maximum. The AVM panics on overflow rather than wrapping silently (which is better than getting a wrong answer), but you must handle it.
+Two things about `calculate_vested` deserve a second look, because both are
+places where {{ch:numbers-and-time}} drew a line and this code sits right on it.
 
-The solution is **wide arithmetic**. `op.mulw(a, b)` returns a 128-bit product as two `UInt64` values (high and low 64 bits). `op.divmodw` divides a 128-bit value by another. The intermediate product never overflows, and the final result fits in `UInt64` because vested is always less than or equal to total_amount.
+The first is the width. `total * elapsed` is the expression the arithmetic asks
+for and the one that must never be written narrow. {{ex:linear-vesting}} put a
+number on it for a ninety-day schedule; for the four-year schedule this contract
+is built around, the elapsed seconds reach 126,143,999 on the last second before
+the schedule closes, and a narrow multiply overflows for any grant *above*
+146,235,605,498 base units --- about 146,235 tokens at six decimals. That is not
+a large grant. It is a mid-size employee
+allocation, and the contract that used the narrow form would pay out correctly
+for months and then abort on every call for the rest of the term. Hence
+`op.mulw`, which cannot fail: it multiplies two `UInt64`s into a 128-bit product
+returned as a high word and a low word.
 
-**Worked example.** With `total_amount = 1,000,000`, `elapsed = 500`, `duration = 1000`: `op.mulw(1_000_000, 500)` returns `(high=0, low=500_000_000)`. Then `op.divmodw(0, 500_000_000, 0, 1000)` returns `(q_hi=0, vested=500_000, r_hi=0, r_lo=0)`. Result: 500,000 tokens vested --- exactly half, as expected. If `total_amount` were 10^14 and `elapsed` were 31 million seconds, `mulw` would produce a `high` value above zero, but `divmodw` still handles it correctly.
+*Predict before reading on: the narrow version of this contract pays out
+correctly for months and then aborts. Which call is the first one to fail --- and
+does the grant that triggers it have to be unusually large, or does it just have
+to be old?*
 
-Integer division rounds down (floor). This means beneficiaries get slightly less than their exact entitlement at each intermediate claim. This is correct --- the contract should never release more than the total allocation. The rounding dust resolves on the final claim when the `now >= vesting_end` branch bypasses the division entirely.
+The second is the division, and it is the one to be careful about, because the
+code below does not do what {{ch:numbers-and-time}} told you to do. That chapter
+was blunt: `divw` fails loudly on an overflowing quotient, `divmodw` fails
+silently, and for money you take the loud one. This subroutine calls
+`op.divmodw`. What makes it safe is the line immediately after:
 
-We extract the vesting calculation into a **subroutine** because it appears in three places (claim, revoke, get_claimable). The `@subroutine` decorator makes the compiler emit a single TEAL subroutine called via `callsub`/`retsub`, saving program bytes.
+```python
+    q_hi, vested, r_hi, r_lo = op.divmodw(high, low, UInt64(0), duration)
+    assert q_hi == 0, "Overflow in vesting calculation"
+```
+
+`divmodw` returns a 128-bit quotient in two words, and `q_hi == 0` says that
+quotient fit in sixty-four. `divw` phrases the same condition differently: it
+aborts when the divisor is not strictly greater than the numerator's high word.
+The two are the same test. Write the numerator as $N = h \cdot 2^{64} + l$ and
+the divisor as $d$. (Both opcodes abort outright at $d = 0$, so take $d \ge 1$
+throughout.) If $d > h$ then $N \le h \cdot 2^{64} + (2^{64} - 1) <
+(h+1) \cdot 2^{64} \le d \cdot 2^{64}$, so the quotient is below $2^{64}$ and
+`q_hi` is zero. If $d \le h$ then $N \ge d \cdot 2^{64}$, so the quotient is at
+least $2^{64}$ and `q_hi` is not. No pair of inputs separates them --- and that
+equivalence holds *here* only because the divisor's own high word is the
+hardcoded `UInt64(0)` on the line above. The assertion is not a belt-and-braces
+extra; it is `divw`'s abort condition written out by hand.
+
+In *this* subroutine it can never fire. The division is reached only when
+`now < vesting_end` and `now >= cliff_end >= start`, so `elapsed < duration`,
+so the quotient is strictly less than `total` and therefore fits by
+construction. Delete the assert and all fourteen unit tests still pass, because
+no input can make it fire. That is worth knowing and worth not relying on: the
+invariant lives four branches away from the line it protects, and the next edit
+to `create_schedule` is under no obligation to preserve it. Swapping the pair
+for `op.divw(high, low, duration)` moves the same guarantee into the opcode,
+where no edit can drop it --- Exercise 3 asks you to make that swap. The version
+below is here because it is the shape you will meet in real codebases, and
+because the point worth carrying is not which opcode to prefer but that
+**a four-word return you only wanted one word from is a place where an
+overflow check has to be written, not assumed** --- and {{ex:divmodw-silent}} is
+what its absence buys you in a routine that lacks this one's luck.
+
+Everything else follows the rules already established. The division floors, so a
+beneficiary is paid slightly less than the exact fraction at each intermediate
+claim and the dust stays in the contract, which is the direction
+{{ch:numbers-and-time}} argued for at length; the `now >= vesting_end` branch
+bypasses the division entirely and pays the exact total, so the dust comes back
+on the last claim.
+
+`duration` cannot be zero on any path that reaches the division, and the
+argument takes two steps rather than one. The first is
+{{ex:divide-by-zero}}'s rule applied at the point of establishment:
+`create_schedule` asserts `vesting_duration > cliff_duration` before writing
+either field, so a freshly created schedule has `vesting_end > start_time` and
+`duration` is positive. The second step is the one that is easy to skip.
+`revoke` also writes those fields --- it sets both `cliff_end` and `vesting_end`
+to the revocation timestamp --- so a revocation at the exact second the grant
+began leaves `vesting_end == start_time` and a `duration` of zero. What saves
+it is the guard immediately above: the division runs only when
+`now < vesting_end`, and `now` is at least the revocation time, so the
+zero-duration schedule takes the `now >= vesting_end` branch and never reaches
+the divide. The divisor is guarded where it is established *and* the one method
+that can un-establish it is closed off by the branch, which is the shape this
+argument has to have whenever a second writer exists.
+
+`calculate_vested` is a `@subroutine` because `claim`, `revoke`, and
+`get_claimable` all need it, and the decorator makes the compiler emit one TEAL
+subroutine called via `callsub`/`retsub` rather than three inlined copies
+competing for the 8,192-byte program limit.
 
 Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Module-level subroutines can be shared across multiple contracts in the same file. Class methods decorated with `@subroutine` are also valid and are scoped to that contract --- we will use class-method subroutines in Chapters {{chn:amm}} and {{chn:amm-factory}}. We use a module-level subroutine here because `calculate_vested` is pure logic that could be reused by other contracts (see the [PuyaPy structure guide](https://algorandfoundation.github.io/puya/lg-structure.html)):
 
@@ -599,10 +740,14 @@ def calculate_vested(
     return vested
 ```
 
-Algorand Python has two parallel type systems. **Native types** (`UInt64`, `Bytes`) are what the AVM works with directly --- they are what arithmetic, comparisons, and function parameters use. **ARC-4 types** (`arc4.UInt64`, `arc4.String`, `arc4.Bool`) are the ABI-encoded wire format used for method arguments, return values, and struct fields stored in boxes. When you read a field from an `arc4.Struct`, you get an ARC-4 value and must convert it to native before doing arithmetic or comparisons. The conversion method `.as_uint64()` is the explicit numeric conversion for `arc4.UInt64`, and it is the recommended approach. An older alternative, `.native`, is deprecated on numeric ARC-4 types (`UIntN`, `BigUIntN`) in favor of the explicit `.as_uint64()` and `.as_biguint()` methods (see the `@deprecated` annotations in the [PuyaPy `arc4` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/arc4.pyi)). For non-numeric types (`String`, `Bool`, `Address`, `DynamicBytes`), `.native` remains the standard conversion. This book uses `.as_uint64()` for numeric fields and `.native` for booleans and other non-numeric types where it remains the natural conversion.
+The method below is where {{ex:arc4-boundary}} stops being a rule and starts
+being four lines of code in a row. Every argument `calculate_vested` receives is
+a field read out of a box and converted on the way in; the result comes back
+native, gets compared and subtracted natively, and is re-encoded only when it
+goes back into the box. Convert at the edge, compute in the middle.
 
 ::: {.spec}
-**Quick reference: ARC-4 ↔ native conversions.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. This conversion is required every time you cross the boundary between box storage (ARC-4 encoded) and computation (native types).
+**Quick reference: converting between ARC-4 and native types.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. Use `.as_uint64()` and `.as_biguint()` on the numeric ARC-4 types, where `.native` is deprecated (see the `@deprecated` annotations in the [PuyaPy `arc4` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/arc4.pyi)); use `.native` for `String`, `Bool`, `Address`, and `DynamicBytes`, where it remains the standard conversion.
 :::
 
 Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
@@ -648,14 +793,22 @@ Add this method to the `TokenVesting` class in `smart_contracts/token_vesting/co
 ```
 
 ::: {.setup}
-**Beneficiary prerequisites.** Before calling `claim`, the beneficiary must (1) have a funded account (at least 0.2 Algo for the base MBR plus ASA opt-in MBR), and (2) have opted into the vesting ASA (a zero-amount self-transfer of the asset). Without the opt-in, the inner `AssetTransfer` will fail with "receiver not opted in." In a production system, you might add an `opt_in_beneficiary` method that handles this in one atomic group, but for this contract the beneficiary manages it themselves.
+**Beneficiary prerequisites.** Before calling `claim`, the beneficiary must (1) have a funded account (at least 0.2 Algo for the base MBR plus ASA opt-in MBR), and (2) have opted into the vesting ASA (a zero-amount self-transfer of the asset). Without the opt-in, the inner `AssetTransfer` fails with `receiver error: must optin, asset <id> missing from <address>`, surfaced through the AVM's inner-transaction wrapper as `inner tx 0 failed: receiver error: must optin, ...`. The `receiver error:` prefix is the part that matters --- the same `asset <id> missing from <address>` tail appears without it when the *sender* is the one not opted in, and the two send you to different accounts. In a production system, you might add an `opt_in_beneficiary` method that handles this in one atomic group, but for this contract the beneficiary manages it themselves.
 :::
 
-Notice that we send the tokens *before* updating the schedule's `claimed_amount`. On Ethereum, this would be a critical reentrancy vulnerability --- the recipient could call back into `claim()` before `claimed_amount` is updated, draining the contract. On Algorand, this is perfectly safe.
+Two details in this method are settled by earlier chapters rather than by
+anything local. The inner transfer carries `fee=UInt64(0)`, which is
+{{ex:inner-fee-zero}}: the caller's fee covers it through pooling, so the
+application account never quietly drains itself paying for its own outbound
+transactions. And the transfer goes out *before* `claimed_amount` is updated,
+which on Ethereum would be the textbook reentrancy bug and here is
+{{ex:no-reentrancy}} --- nothing on the receiving side gets control back, so the
+ordering is a readability choice and not a security one.
 
-::: {.spec}
-**No reentrancy on Algorand.** When your contract sends tokens via an inner transaction, no user code executes on the receiving side. There are no fallback functions, no callbacks, no hooks triggered by token receipt. The contract maintains uninterrupted control flow throughout its entire execution. If any part of the execution fails --- including the inner transaction --- *all* state changes roll back atomically. This means the ordering of state updates and inner transactions has no security implications. Write your code in whatever order tells the clearest story. This eliminates the entire class of reentrancy exploits that has caused hundreds of millions of dollars in losses on Ethereum.
-:::
+The failure mode that does bite is the recipient's, not the contract's.
+{{ex:optin-gate-eager}} is the shape of it: a beneficiary who has never opted
+into the grant asset cannot receive it, and the inner transfer takes the whole
+call down with it.
 
 
 ## Revoking Unvested Tokens
@@ -774,20 +927,55 @@ The `calculate_vested` subroutine is now used in three places. Without it, the v
 ## Testing the Vesting Contract
 
 ::: {.note}
-Use the {{ch:testing}} pytest setup for this project: check whether `pytest` is already listed in the generated `pyproject.toml`, add it to the project environment if it is missing, and create a `tests/` directory in your project root.
-Avoid installing pytest into an unrelated system Python.
-Run it from the project environment created by `algokit project bootstrap all`.
-(See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
+Check whether `pytest` and `algorand-python-testing` are already listed in the generated `pyproject.toml`, add whichever is missing, and create a `tests/` directory in your project root. Run pytest from the project environment created by `algokit project bootstrap all` rather than installing it into an unrelated system Python. (See [Testing](https://dev.algorand.co/algokit/utils/python/testing/) for AlgoKit testing patterns.)
 :::
 
-The following tests are outline examples showing *what* to test and *how* to assert.
-The helper functions (`create_test_asa`, `deposit_tokens`, `create_schedule`,
-`get_claimable`, `advance_time`, etc.) are project-specific wrappers around the
-AlgoKit Utils calls shown earlier in this chapter. The patterns here ---
-lifecycle tests, failure-path tests, invariant tests --- are the ones you
-should implement for any production contract.
+{{ch:testing}} argued that a contract needs two test suites rather than one, and
+this contract is the case that makes the argument concrete. Vesting is almost
+entirely a function of the clock, and a four-year schedule is not something you
+can wait for. So the suite splits along the line {{tbl:integration-vs-unit}}
+drew.
 
-To show how {{ch:testing}}'s `setup_initialized_contract` pattern translates to a new contract, here is the complete `deploy_vesting` helper. The remaining helpers follow the same approach --- adapt the interaction patterns from the deployment section above:
+The fast half is {{ex:unit-test-context}} applied to the schedule arithmetic.
+`algorand-python-testing` runs `calculate_vested` and the read-only methods as
+ordinary Python against an in-memory ledger, and
+`ctx.ledger.patch_global_fields(latest_timestamp=...)` moves the clock four
+years in one assignment. Every test in that half runs in under a millisecond,
+which is what makes it reasonable to test the cliff boundary, the floor
+direction, the freeze `revoke` applies to the curve, and the overflow threshold
+individually rather than picking one and hoping.
+
+*Before reading on: of the eleven methods on this contract, some can be tested
+that way and some cannot. Sort them, and say what the dividing line is.*
+
+If you sorted them into two piles you drew the line in the wrong place. It is
+not between methods. It runs through the middle of them.
+
+The line is the AVM. `patch_global_fields` can lie about the time; it cannot
+conjure an asset holding, a box minimum-balance payment, or an inner transfer
+that actually leaves the application account. But almost every method here is a
+sequence of assertions followed by an effect, and only the effect needs a chain.
+`create_schedule`'s "Only admin" check runs happily in memory against a
+synthesized group; the 32,500-microAlgo payment that same method verifies does
+not. `revoke` recomputes the curve, caps the total, and freezes the schedule
+entirely in Python; its refund transfer does not. So the shipped unit file tests
+the authorization prefix of `create_schedule`, all of `revoke` and
+`cleanup_schedule` and `reject_lifecycle`, and none of `claim` --- not because
+`claim`'s admin check is unreachable, but because everything interesting past it
+is an inner transaction. `initialize` and `deposit_tokens` are the only two that
+are AVM all the way down.
+
+That is the useful shape of the answer: the slow suite is not "the methods you
+could not unit-test," it is "the last few lines of most of them." LocalNet, real
+accounts, real MBR, and the {{ex:negative-test-simulate}} pattern for every
+security assertion. The project directory for this chapter ships both:
+`tests/test_vesting_unit.py` for the fast half and `tests/test_token_vesting.py`
+for the slow one, with a `conftest.py` that skips the slow file entirely when
+LocalNet is not running.
+
+Here is the deployment helper the LocalNet half is built on. The remaining
+helpers follow the same approach --- adapt the interaction patterns from the
+deployment section above:
 
 ```python
 from pathlib import Path
@@ -822,7 +1010,7 @@ def deploy_vesting(algorand, admin):
 ```
 
 ::: {.tryit}
-**Exercise.** Implement the `deposit_tokens` and `create_schedule` helpers yourself, using the deployment script patterns from earlier in this chapter and the `setup_initialized_contract` function from {{ch:testing}} as a template.
+**Exercise.** Write the `deposit_tokens` and `create_schedule` helpers yourself, using the deployment script patterns from earlier in this chapter. Both build a two-transaction group, so both are places where {{ex:group-bounds}}'s assertion and the helper's construction have to agree; if they disagree, the test fails for a reason that has nothing to do with vesting.
 :::
 
 Before diving into the test code, there are two LocalNet behaviors that will affect how you write your test helpers.
@@ -837,17 +1025,18 @@ desired duration, then sends a dummy transaction to trigger a new block:
 
 ```python
 import time
+
 def advance_time(algorand, seconds):
-"""Sleep, then send a dummy txn to produce a block with updated timestamp."""
-time.sleep(seconds)
-dispenser = algorand.account.localnet_dispenser()
-algorand.send.payment(
-algokit_utils.PaymentParams(
-sender=dispenser.address,
-receiver=dispenser.address,
-amount=algokit_utils.AlgoAmount.from_micro_algo(0),
-)
-)
+    """Sleep, then send a dummy txn to produce a block."""
+    time.sleep(seconds)
+    dispenser = algorand.account.localnet_dispenser()
+    algorand.send.payment(
+        algokit_utils.PaymentParams(
+            sender=dispenser.address,
+            receiver=dispenser.address,
+            amount=algokit_utils.AlgoAmount.from_micro_algo(0),
+        )
+    )
 ```
 
 For testing, use short durations for cliff and vesting periods. For example,
@@ -868,7 +1057,7 @@ and prevents intermittent test failures.
 :::
 
 With those LocalNet behaviors in mind, the following outline belongs in
-`tests/test_vesting.py` after you implement the helper functions shown
+`tests/test_token_vesting.py` after you implement the helper functions shown
 earlier (not part of the contract code):
 
 ```python
@@ -965,29 +1154,42 @@ def call_method(app_client, method, args, sender=None, static_fee=None):
 Use the `simulate` endpoint for debugging and security testing, not just read-only queries. Simulate executes the full transaction logic without committing state changes or charging fees --- ideal for diagnosing failures and verifying security checks.
 :::
 
-This is a client-side script illustrating the simulate pattern (not part of the contract code):
+This is a client-side script illustrating the simulate pattern (not part of the contract code). It is {{ex:negative-test-simulate}} pointed at this contract, and the shape is the one that chapter insisted on: a failing simulate *raises*, so the assertion is on the exception, not on a field of a returned object.
 
 ```python
 import algokit_utils
+from algokit_utils.errors import LogicError
 
-# Build a transaction you expect to fail (e.g., an unauthorized claim)
+# Build a transaction you expect to fail: a claim from an account that
+# has no schedule. The attacker needs enough Algo to pay its own fee --
+# simulate still charges it, and an unfunded sender fails with
+# `overspend` before the approval program runs, which is not the
+# failure we are testing for.
 attacker = algorand.account.random()
+algorand.send.payment(algokit_utils.PaymentParams(
+    sender=admin.address, receiver=attacker.address,
+    amount=algokit_utils.AlgoAmount.from_micro_algo(200_000),
+))
 
-# Simulate without submitting --- see what would happen
-result = algorand.new_group().add_app_call_method_call(
+group = algorand.new_group().add_app_call_method_call(
     app_client.params.call(
         algokit_utils.AppClientMethodCallParams(
             method="claim",
             sender=attacker.address,
         )
     )
-).simulate()
+)
 
-# If the call would fail, the simulate response includes the failure reason.
-# This confirms the contract correctly rejects unauthorized callers.
+try:
+    group.simulate()
+    raise AssertionError("the contract accepted a claim with no schedule")
+except LogicError as err:
+    # `message` wraps the assert string rather than equalling it,
+    # so match on containment.
+    assert "No vesting schedule" in err.message
 ```
 
-> Use this pattern to verify every security invariant: construct the attack, simulate it, and confirm rejection. Build a library of these "negative tests" alongside your positive test suite.
+> Use this pattern to verify every security invariant: construct the attack, simulate it, and confirm both that it raises *and* which assertion caught it. A negative test that only checks "something went wrong" passes when the contract fails for the wrong reason.
 
 
 ## Consolidated Imports
@@ -1003,23 +1205,25 @@ from algopy import (
 
 ## Summary
 
-In this chapter you learned to:
+This chapter introduced no mechanism you had not already met. What it asked of
+you was to hold eight of them at once and let them constrain each other, which
+is a different skill from learning any one of them and the one production work
+actually tests. Having built it, you should be able to:
 
-- Write an ARC4 contract with `__init__`, bare methods, and ABI methods
-- Use GlobalState and BoxMap for persistent on-chain storage
-- Perform an ASA opt-in via inner transaction with fee=0
-- Build an atomic group with a funding payment and an app call
-- Calculate MBR for boxes and explain why it exists
-- Implement safe integer math using wide arithmetic and explicit rounding
-- Understand why reentrancy is impossible on Algorand (no callbacks from inner transactions)
-- Explain why local state is unsafe for financial data (the ClearState trapdoor)
+- Fix a state schema before you know every method, and say what that option cost
+- Choose between global state and a box on the shape of the obligation rather than the size of the data
+- Recognize when a payout path needs an opt-in that happened in a different transaction, days earlier
+- Price a box, a payment, and an opt-in against one application account's balance without deploying to find out
+- Carry an overflow argument through three call sites and one subroutine, and say which line actually enforces it
+- Read a group of two as one thing that either happens or does not
+- Say why an ordering that would be a reentrancy bug elsewhere is only a readability choice here
 
-{{tbl:vesting-build-sequence}} summarizes the build sequence and the concepts each step introduced.
+{{tbl:vesting-build-sequence}} summarizes the build sequence and the mechanisms each step puts into play.
 
-Table: Build sequence and concepts introduced {#tbl:vesting-build-sequence}
+Table: Build sequence and the mechanisms each step puts into play {#tbl:vesting-build-sequence}
 
-| Step | Feature | Concepts Introduced |
-|------|---------|---------------------|
+| Step | Feature | Mechanisms in Play |
+|------|---------|--------------------|
 | 1 | Deploy and admin | Contract structure, ARC4Contract, __init__, GlobalState, ABI methods, ARC-56, contract addresses, schema immutability |
 | 2 | Immutability | OnCompletion actions, bare methods, trust model |
 | 3 | Token opt-in | ASAs, inner transactions, MBR, fee pooling, resource references |
@@ -1038,15 +1242,19 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 
 ## Exercises
 
-1. **(Apply)** Modify the vesting contract to support a second cliff: tokens vest 25% immediately at the first cliff (3 months), then the remaining 75% linearly from 3 to 12 months. What changes to `calculate_vested` are needed?
+1. **(Understand)** Without rereading the contract, list every account whose minimum balance this system raises, and what each raise bought. There are four answers and one of them is not the application account. Then say which of the four is refundable and by whose call.
 
-2. **(Apply)** Add a `pause` method that prevents all claims until unpaused, callable only by admin. What state field do you add, and which methods need to check it?
+2. **(Apply)** Modify the vesting contract to support a second cliff: tokens vest 25% immediately at the first cliff (3 months), then the remaining 75% linearly from 3 to 12 months. What changes to `calculate_vested` are needed?
 
-3. **(Analyze)** The `cleanup_schedule` method sends the freed MBR to the admin, not the beneficiary. Argue both sides: should the MBR refund go to the admin (who funded it) or the beneficiary (whose data it stored)? What are the security implications of each choice?
+3. **(Evaluate)** Replace the `op.divmodw` pair in `calculate_vested` with a single `op.divw(high, low, duration)`, deleting the `assert q_hi == 0` line the swap absorbs. Run `tests/test_vesting_unit.py` against both versions: all fourteen pass either way, and the chapter has already told you why --- the assert is unreachable on this contract's control flow. So the tests cannot decide this for you. Decide it on the argument instead. Write down the chain of facts that makes the assert unreachable, then say which link a future maintainer is most likely to break without noticing, and which of the two versions still refuses to pay out a wrong number afterwards. Then answer the question that generalizes: when the tests agree, what is left to choose on?
 
-4. **(Create)** Design an extension where the admin can increase a beneficiary's total allocation after the schedule is already created. What new method is needed? What happens to already-vested tokens? What security checks prevent abuse?
+4. **(Apply)** Add a `pause` method that prevents all claims until unpaused, callable only by admin. What state field do you add, and which methods need to check it? Note that {{ex:state-schema-fixed}} makes this exercise unimplementable on an already-deployed contract --- say what you would have had to do at creation time to keep the option open.
 
-5. **(Create)** The vesting contract uses a single admin address. Design a modification where admin operations (initialize, create_schedule, revoke) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
+5. **(Analyze)** The `cleanup_schedule` method sends the freed MBR to the admin, not the beneficiary. Argue both sides: should the MBR refund go to the admin (who funded it) or the beneficiary (whose data it stored)? What are the security implications of each choice?
+
+6. **(Create)** Design an extension where the admin can increase a beneficiary's total allocation after the schedule is already created. What new method is needed? What happens to already-vested tokens? What security checks prevent abuse?
+
+7. **(Create, cross-chapter)** The vesting contract uses a single admin address. Design a modification where admin operations (initialize, create_schedule, revoke) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
 
 ::: {.tryit}
 **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 1.2 (contract with `__init__`), 3.3 (wide arithmetic), 6.2 (BoxMap), 8.1 (Algo payment), and 11.1 (creator-only method).
@@ -1069,12 +1277,10 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 
 Before starting the next chapter, you should be able to:
 
-- [ ] Explain the difference between the approval program and clear state program
-- [ ] Write an ARC4 contract with `__init__`, bare methods, and ABI methods
-- [ ] Use GlobalState and BoxMap for persistent storage
-- [ ] Perform an ASA opt-in via inner transaction with fee=0
-- [ ] Build an atomic group with a funding payment and an app call
-- [ ] Calculate MBR for boxes and explain why it exists
-- [ ] Explain why local state is unsafe for financial data
+- [ ] Name every account this contract's MBR is charged to, and what each charge bought
+- [ ] Say which of this contract's eleven methods can be tested without an AVM, and where the line runs
+- [ ] Trace one claim from the app call through the box read, the arithmetic, and the inner transfer
+- [ ] Explain why a schedule lives in a box rather than in the beneficiary's local state
+- [ ] Point at the single line that keeps `calculate_vested` from returning a wrong number, and say what makes it currently unreachable
 
 If any of these are unclear, revisit the relevant section before proceeding.

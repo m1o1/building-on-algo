@@ -473,7 +473,11 @@ You are the authoritative source on all PuyaPy API facts, AVM behavior, smart co
 
 10. **Every example that creates a box must fund the MBR or explicitly scope it out.** A box write that the app account cannot pay for aborts mid-method. Either assert the balance before the write or say in prose that funding is the deployment script's job.
 
-11. **Self-review the output.** Before returning results, re-read every code block and prose change.
+11. **Grep every quoted error string out of its source before writing it down.** An AVM/ledger literal must be found in go-algorand (`grep -rn 'read budget exceeded' data/ ledger/`); a contract assert message must be found in the contract file being called. Paraphrases and remembered strings are the single most common defect class in this book's review history: `box read budget exceeded` (no such prefix), `asset %v missing from %v` quoted for a *receiver* failure (that is the sender-side literal), and `"No schedule"` matched against a method whose guard says `"No vesting schedule"`. **Record the file and line beside the quote in your report.** If the string cannot be located in source, it may not appear in the book.
+
+12. **Every simulate/negative-test example must be traced for the failure it actually produces, not the one it intends.** Confirm in order: the sender is funded (`AccountManager.random()` funds nothing, and `overspend` preempts the program); the exception type raised is the one being caught (the `LogicError` transform is gated on `app=<id>` appearing in the error string); and the asserted substring is a real substring of the real message. A negative test that fails inside its own `except` block is worse than no test, because it reads as the contract working.
+
+13. **Self-review the output.** Before returning results, re-read every code block and prose change.
 
 ### When to Compile-Test
 
@@ -771,6 +775,23 @@ if depth >= maxAppCallDepth { return fmt.Errorf("appl depth (%d) exceeded", dept
 **Router-emitted checks are FREE — do not write them again.** Verified from generated TEAL for an ARC4Contract: `OnCompletion == NoOp` (`txn OnCompletion / ! / assert`); create-vs-call split (`txn ApplicationID / bz ...`); selector dispatch with a trailing `err` for no match; ABI argument width (`len / == / assert // invalid number of bytes for arc4.uint64`); `arc4.Address` length 32; dynamic-array header consistency; and **group-transaction type and position** for a `gtxn.*Transaction` parameter, lowered position-relatively as `txn GroupIndex / intc / - / dup / gtxns TypeEnum / == / assert // transaction type is axfer`. What is NOT free and must be written at the boundary: receiver/sender identity, asset ID identity, amount bounds, authorization, initialization state, and any cross-field invariant.
 
 **Toolchain traps hit while verifying the above:** (a) `uv run --group compile ...` must be invoked **from the project root** — prefixing with `cd /tmp/... &&` yields `warning: --group compile has no effect when used outside of a project` and `No module named puyapy`. (b) ARC-56 `sourceInfo.approval` is a **dict** with keys `sourceInfo` and `pcOffsetMethod`, not a bare list — index `d['sourceInfo']['approval']['sourceInfo']`.
+
+### Error-string literals: never paraphrase, never prefix (verified against go-algorand `master` and algokit-utils 4.2.3, 2026-07-27)
+
+**The rule this section exists to enforce: an AVM or ledger error string quoted in prose must be `grep`ped out of go-algorand before it is written down.** Four separate defects in one chapter came from quoting a string that *sounded* right. A plausible paraphrase is indistinguishable from the real thing to every reader except the one who hits it.
+
+- **`read budget exceeded (%d > %d)` has NO `box` prefix** (`data/transactions/logic/eval.go:1324`). `box read budget exceeded` is a fabrication. It is also bare rather than an `EvalError`, since `v38.EnableBareBudgetError = true` (`config/consensus.go:1442`). Contrast the *write* side, which does name the box: `write budget exceeded (%d > %d) while %s box %#x` (`box.go:261-262`).
+- **`invalid Box reference %#x`** (`data/transactions/logic/box.go:193`) — `%#x` does render hex, so "followed by the box name in hex" is accurate.
+- **Asset-missing has TWO distinct literals and they point at different accounts** (`ledger/apply/asset.go`). Sender/`takeOut` side, `:209`: `asset %v missing from %v`. Receiver/`putIn` side, `:238`: `receiver error: must optin, asset %v missing from %v`. **The `receiver error: must optin,` prefix is the whole diagnostic value** — the tail is identical on both paths, so quoting the tail alone sends the reader to inspect the wrong account. A beneficiary who has not opted in is always the *receiver* case.
+- **Inner transactions wrap the failure**: `inner tx %d failed: %s` (`eval.go:6060`). Any error surfaced from an `itxn.*().submit()` reaches the reader through this wrapper, so a transcript showing the bare inner message is missing a layer.
+- **`unavailable Asset %d during assignment %v`** (`eval.go:5521-5532`, `assignAsset`, reached via `itxn_field XferAsset`) and **`unavailable Asset %d`** (`eval.go:5149`). Quoting only the shared prefix `unavailable Asset` is CORRECT and deliberate when either path can produce the failure — do not "improve" it into one full literal.
+- **`divw` abort conditions** (`opDivw`, `eval.go:2059-2063`): `divw 0` when the divisor is zero; `divw overflow: %d <= %d` when `y <= hi`. **`divmodw`** (`opDivModw`, `eval.go:1978-1992`) aborts only on a zero 128-bit divisor, message `/ 0`; it reads the deepest two stack words as the dividend and the top two as the divisor, pushing `hiQuo, loQuo, hiRem, loRem`.
+
+**`AccountManager.random()` does NOT fund the account** (`account_manager.py:518-528`) — it generates a keypair and registers a signer, and transfers nothing. Consequence for negative-test examples: an unfunded sender fails in simulate with `overspend (...)` **before the approval program runs**, so (a) the assertion under test never executes, and (b) the string does not contain `app=<id>`, so `AppClient`'s `_handle_call_errors_transform` (`app_client.py:1315`, gated on `f"app={self._app_id}" in str(e)`) never fires and the raised exception is **not** a `LogicError` — `except LogicError:` does not catch it. Every simulate-based attack example must fund its attacker explicitly.
+
+**`TransactionComposer.simulate` never returns an inspectable failure.** `_handle_simulate_error` (`transaction_composer.py:1996`, `2013`) raises at `1932-1943` whenever `failure-message` is present. `AlgorandClient.new_group()` propagates the client's transformers via `error_transformers=list(self._error_transformers)` (`algorand.py:193`). `err.message` is defined at `logic_error.py:70`.
+
+**Assert-message matching is by containment, and the strings must be read from the contract, not remembered.** A guard message that differs by one word (`"No vesting schedule"` in one method vs `"No schedule"` in four others in the *same* contract) turns `assert "No schedule" in err.message` into a guaranteed `AssertionError` inside the `except` block — a failure that looks exactly like the contract behaving correctly. **Before writing any `in err.message` assertion, grep the contract for the exact literal in the method being called.**
 
 ---
 

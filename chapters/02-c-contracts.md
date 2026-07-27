@@ -506,6 +506,6 @@ Table: Examples from this chapter that the vesting project depends on {#tbl:cont
 |-------------------|---------------------------------|----------------------------|
 | {{ex:create-modes}} | The vesting contract's `create` method, which captures the admin and the asset | Configuration happens exactly once. Which `create` value makes that the router's job rather than a flag you maintain? |
 | {{ex:arc4-boundary}} | Every method that takes an amount or a round number as an argument | How many conversions belong in a method that does arithmetic on two numeric arguments, and where do they go? |
-| {{ex:readonly-method}} | `claimable()`, which a wallet polls before showing a claim button | A wallet polls this many times a second. What must the method avoid doing for those calls to cost nothing? |
-| {{ex:tuple-return}} | `schedule_of()`, which returns start, cliff, duration, total and claimed | Five numbers, one call. What return type makes a generated client hand back five values rather than a blob? |
+| {{ex:readonly-method}} | `get_claimable()`, which a wallet polls before showing a claim button | A wallet polls this many times a second. What must the method avoid doing for those calls to cost nothing? |
+| {{ex:tuple-return}} | `get_vesting_info()`, which returns a beneficiary's whole schedule in one call | Six fields, one call. What return type makes a generated client hand back six named values rather than a blob? |
 | {{ex:allow-actions}} | The contract's deliberate refusal to be updated or deleted while it holds anyone's tokens | It holds assets it owes to people. Which two on-completion actions must it never accept, and how do you say so? |
