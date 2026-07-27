@@ -2,31 +2,68 @@
 %% numbers are computed at build time and this drawing would go stale the first
 %% time a chapter moved. A solid arrow means "you will be lost without it"; a
 %% dashed arrow means the chapter builds on that material but stands alone.
+
+%% ALL FIFTEEN CHAPTERS APPEAR HERE, and that is the point of the drawing
+%% rather than a detail of it. The map shipped for several rounds with ten
+%% nodes, drawn before the seven concept chapters existed, and it carried a
+%% solid edge straight from the mental model to the testing chapter across the
+%% five that had appeared in between. The preface tells the reader, of this
+%% figure, "follow the solid arrows backwards from it and read only those" ---
+%% so a missing node is not an omission from a picture, it is an instruction to
+%% skip a chapter. Every gate passed it: each chapter file existed, every
+%% cross-reference resolved, and nothing counts nodes in a drawing against the
+%% manifest. If you add a chapter to chapters/book.yaml, add it here.
+
+%% Labels are kept short on purpose, and the reason is arithmetic rather than
+%% taste. The drawing is placed at \linewidth (470.4pt) with keepaspectratio,
+%% so a figure wider than that is scaled DOWN and never up: on-page type size
+%% is 11.25pt x 470.4 / (natural width in points). The house floor is 8pt,
+%% which caps the natural width at 661pt -- 882px, since mermaid's coordinates
+%% are px and 1px = 0.75pt. Every 59pt of extra width costs the whole figure
+%% one point of legibility, so a longer label anywhere on the widest rank is
+%% paid for by every other label in the drawing.
+
+%% Measured, not estimated. The first fifteen-node draft came out at 894.9px
+%% = 671.2pt = 7.89pt on the page: it failed the floor by a tenth of a point,
+%% and nothing in the build says so, because the PDF is valid and the SVG is
+%% well formed. Shortening ONE label -- "Common Patterns and Idioms" to
+%% "Patterns and Idioms", on the three-node bottom rank that sets the width --
+%% brought it to 840.6px = 630.5pt = 8.39pt. Re-measure after any label edit:
+%%   python3 build.py figures
+%%   pdfinfo figures/out/book-map.pdf | grep 'Page size'   # must be <= 661pt
 flowchart TB
     MM["The Algorand Mental Model"]
-    TE["Testing Smart Contracts"]
+    CO["Contracts That Exist and Respond"]
+    ST["Global and Local State"]
+    BX["Box Storage"]
+    NT["Numbers and Time"]
+    MV["Moving Value"]
+    TE["Proving It Works"]
     TV["A Token Vesting Contract"]
     NF["NFTs"]
     AM["A Constant Product AMM"]
-    AF["AMM Factory and Pool Provenance"]
+    AF["AMM Factory"]
     YF["Yield Farming"]
-    PT["Common Patterns and Idioms"]
+    PT["Patterns and Idioms"]
     LO["A Delegated Limit Order Book"]
     ZK["Private Governance Voting"]
 
-    MM ==> TE ==> TV ==> NF
+    MM ==> CO ==> ST ==> BX
+    ST ==> NT ==> MV ==> TE
+    TE ==> TV ==> NF
     TV ==> AM ==> AF
     AM ==> YF
     AF -.-> YF
+    TV ==> PT
+    AM -.-> PT
     AM ==> LO
     PT -.-> LO
-    TV ==> PT
-    MM ==> ZK
+    TE ==> ZK
     AM -.-> ZK
 
     classDef found fill:#e0e0e0,stroke:#333333,stroke-width:2px,color:#111111
     classDef proj fill:#f2f2f2,stroke:#333333,color:#111111
     classDef ref fill:#ffffff,stroke:#666666,color:#111111
-    class MM,TE,TV found
-    class NF,AM,AF,YF,LO,ZK proj
+    class MM,CO,ST,BX,NT,MV,TE found
+    class TV,NF,AM,AF,YF,LO,ZK proj
     class PT ref

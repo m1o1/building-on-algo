@@ -1072,6 +1072,44 @@ def check_structure(strict: bool = False) -> None:
                         f"figures/index.yaml")
             )
 
+    # -- check 23: a mermaid comment line has something after the `%%` --------
+    # Mermaid strips comments before parsing, and the strip requires at least
+    # one character after the marker. A line that is exactly `%%` matches
+    # nothing, survives into the grammar, and -- because the strip also eats
+    # the newlines around the comments it *did* remove -- gets glued onto the
+    # first real line of the diagram. The parse error that comes back names
+    # line 1 and quotes text that appears nowhere in the file:
+    #
+    #     Error: Parse error on line 1:
+    #     %%%%flowchart TB
+    #     ^
+    #
+    # That is from a fifteen-node drawing whose `flowchart TB` is on line 22
+    # and which contains no `%%%%` anywhere. Established by bisection against
+    # mermaid-cli 11.x, not by reading its source:
+    #
+    #     printf '%%%% a\n%%%%\n%%%% b\nflowchart TB\n  A-->B\n' > t.mmd   # fails
+    #     printf '%%%% a\n\n%%%% b\nflowchart TB\n  A-->B\n'    > t.mmd   # renders
+    #     printf '%%%% a\n%%%% \n%%%% b\nflowchart TB\n  A-->B\n' > t.mmd  # renders
+    #
+    # so a trailing space is enough to cure it, which is exactly why this is a
+    # check rather than a note: the difference between the broken form and the
+    # working one is invisible in an editor. Blank lines are what the corpus
+    # uses to separate comment paragraphs, and they are what the message asks
+    # for. `build.py figures` does fail hard on this rather than shipping a
+    # stale render, so the cost of missing it is confusion, not a wrong book --
+    # but this gate runs in seconds and that one runs a browser.
+    for source in sorted(FIGURES_SRC.glob("*.mmd")) if FIGURES_SRC.is_dir() else []:
+        for i, line in enumerate(source.read_text(encoding="utf-8").split("\n")):
+            if line.rstrip() == "%%":
+                problems.append(
+                    Problem(23, "error", f"figures/src/{source.name}:{i + 1}",
+                            "a bare `%%` is not a comment mermaid can strip -- it "
+                            "needs at least one character after the marker, or the "
+                            "line reaches the parser and the error it raises names "
+                            "line 1; use a blank line to separate comment paragraphs")
+                )
+
     # -- check 21: a figure caption reaches the page as it was written --------
     # Checks 13 and 3 cover a figure's existence and its number; nothing
     # covered its *text*, and that gap shipped. `build.py`'s `_place_figure`
@@ -1176,6 +1214,34 @@ def check_structure(strict: bool = False) -> None:
                         f"the number and the word `Figure` are prefixed at build time "
                         f"from where the figure is placed, so writing them here "
                         f"doubles them on the page")
+            )
+        # Dash style, and it is two different wrong renderings from one source.
+        # The book's dash is `---`; pandoc's `smart` turns ` -- ` into an EN
+        # dash, so a caption written with two hyphens prints a visibly shorter
+        # rule than the caption on the facing page. mdbook runs no smart-quote
+        # pass at all, so the same source reaches the web edition as a literal
+        # `--`. One caption in 21 carried this and neither edition was right.
+        if " -- " in source_caption:
+            problems.append(
+                Problem(21, "error", "figures/index.yaml",
+                        f"{slug}: caption uses ` -- `, which pandoc sets as an EN "
+                        f"dash and mdbook does not convert at all; the book's dash "
+                        f"is ` --- ` or a literal em dash")
+            )
+        # Captions have a ceiling as well as a floor. Below two sentences they
+        # stop carrying the figure's reading; much past forty words they start
+        # doing the figure's job, and the usual way one gets there is by
+        # paraphrasing an annotation already printed inside the drawing. The
+        # band is a warning rather than an error because the right remedy is
+        # editorial judgement, not a word count.
+        words = len(source_caption.split())
+        if not 12 <= words <= 40:
+            problems.append(
+                Problem(21, "warning", "figures/index.yaml",
+                        f"{slug}: caption is {words} words, outside the 12-40 band "
+                        f"the other captions keep; under it a caption names the "
+                        f"figure instead of reading it, over it the caption is "
+                        f"restating what the drawing already prints")
             )
 
     # -- check 14: the generated gotcha appendix has not drifted -------------
@@ -1793,6 +1859,16 @@ def check_structure(strict: bool = False) -> None:
     # begin with the word, and the remedy is a rephrase rather than an anchor.
     # The check's job is to make sure nobody counts it as a caption, which a
     # warning does as well as an error does.
+    #
+    # The namespace is looked up and not derived. The first draft interpolated
+    # `kind[:3]`, which is right for `figure` and wrong for the other two: it
+    # told the author to write `{#exa:slug}` or `{#tab:slug}`, neither of which
+    # build.py's CAPTION_RE accepts. That is worse than saying nothing, because
+    # the bad advice silences the warning -- this check's own test is
+    # `"{#" not in line` -- while the line stays prose. A remedy that makes the
+    # complaint go away without fixing anything is the one failure mode a
+    # warning cannot survive.
+    caption_namespace = {"example": "ex", "figure": "fig", "table": "tbl"}
     caption_lead_re = re.compile(r"^[ \t]*(Example|Figure|Table):[ \t]")
     for entry in entries:
         path = CHAPTERS_DIR / entry["file"]
@@ -1814,7 +1890,7 @@ def check_structure(strict: bool = False) -> None:
                 problems.append(
                     Problem(22, "warning", f"{rel}:{i + 1}",
                             f"{line.strip()[:52]!r} opens like {article} {kind} caption but "
-                            f"carries no {{#{kind[:3]}:slug}} anchor, so build.py "
+                            f"carries no {{#{caption_namespace[kind]}:slug}} anchor, so build.py "
                             f"treats it as prose -- it takes no number, joins no "
                             f"list, and gets no page-makeup handling, yet it will "
                             f"be counted as a caption by anything that greps for "

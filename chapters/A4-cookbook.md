@@ -392,7 +392,7 @@ class SimpleBox(ARC4Contract):
         return self.total.value
 ```
 
-MBR: `2,500 + 400 × (5 + 8) = 7,700 μAlgo` for this box.
+MBR: `2,500 + 400 × (5 + 8) = 7,700 microAlgo` for this box.
 
 ### 6.2 --- Key-value map (BoxMap)
 
@@ -473,9 +473,9 @@ def box_mbr(name_length: UInt64, data_size: UInt64) -> UInt64:
     return UInt64(2500) + UInt64(400) * (name_length + data_size)
 
 # Examples:
-# box_mbr(5, 8)    →   7,700 μAlgo  (small counter)
-# box_mbr(34, 64)  →  41,700 μAlgo  (per-user record)
-# box_mbr(12, 32768)→ 13,114,500 μAlgo (max-size box ≈ 13.1 Algo)
+# box_mbr(5, 8)    →   7,700 microAlgo  (small counter)
+# box_mbr(34, 64)  →  41,700 microAlgo  (per-user record)
+# box_mbr(12, 32768)→ 13,114,500 microAlgo (max-size box ≈ 13.1 Algo)
 ```
 
 ### 6.5 --- Box references and I/O budget
@@ -541,7 +541,7 @@ class AssetOptIn(ARC4Contract):
         ).submit()
 ```
 
-Costs 100,000 μAlgo (0.1 Algo) in MBR per asset.
+Costs 100,000 microAlgo (0.1 Algo) in MBR per asset.
 
 ### 7.3 --- Sending an ASA from a contract
 
@@ -1326,7 +1326,7 @@ algorand.client.algod.send_transactions([signed_pay, signed_app])
 
 ### 17.1 --- ASA close-out (recover MBR)
 
-When you no longer need to hold an ASA, close out to recover the 100,000 μAlgo MBR. The `asset_close_to` field sends the entire remaining balance to a recipient and removes the ASA holding from the account. The ledger requires the holding to be zero *after* the close, so closing to yourself is valid only when the balance is already zero --- a nonzero balance closed to self is rejected. To exit while still holding tokens, close to the asset creator (always opted in) or to another opted-in account:
+When you no longer need to hold an ASA, close out to recover the 100,000 microAlgo MBR. The `asset_close_to` field sends the entire remaining balance to a recipient and removes the ASA holding from the account. The ledger requires the holding to be zero *after* the close, so closing to yourself is valid only when the balance is already zero --- a nonzero balance closed to self is rejected. To exit while still holding tokens, close to the asset creator (always opted in) or to another opted-in account:
 
 ```python
 # Client-side: close out of an ASA to recover MBR.
@@ -1342,7 +1342,7 @@ algorand.send.asset_transfer(
     )
 )
 # After this, the account no longer holds the ASA
-# and recovers 100,000 μAlgo of MBR.
+# and recovers 100,000 microAlgo of MBR.
 ```
 
 ::: {.warning}

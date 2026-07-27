@@ -373,7 +373,7 @@ Here is the accounting shape for a 1,000,000-token schedule after the admin depo
 Table: How available_tokens tracks the schedule obligation {#tbl:nft-available-tokens}
 
 | Moment | `available_tokens` | Schedule obligation | Contract-held vesting tokens |
-|--------|--------------------|---------------------|------------------------------|
+|---------------------------------------------|--------------|---------------|--------------------------|
 | After deposit | 2,000,000 | none | 2,000,000 |
 | After schedule creation | 1,000,000 | 1,000,000 reserved | 2,000,000 |
 | After 200,000-token claim | 1,000,000 | 800,000 remaining | 1,800,000 |

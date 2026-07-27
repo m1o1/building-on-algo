@@ -680,14 +680,14 @@ Table: Box layout and minimum balance for the voting contract {#tbl:voting-box-b
 
 | Box | Key format | Key size | Data | Data size | MBR per box |
 |-----|-----------|----------|------|-----------|-------------|
-| Commitment | `c_` + address | 34 bytes | MiMC hash | 32 bytes | 2,500 + 400 × 66 = 28,900 μAlgo |
-| Proof status | `p_` + address | 34 bytes | uint64 | 8 bytes | 2,500 + 400 × 42 = 19,300 μAlgo |
-| Tally | `t_` + uint64 | 10 bytes | uint64 | 8 bytes | 2,500 + 400 × 18 = 9,700 μAlgo |
-| Voter index | `voter_index` | 11 bytes | addresses | 32,768 bytes | 2,500 + 400 × 32,779 = 13,114,100 μAlgo |
+| Commitment | `c_` + address | 34 bytes | MiMC hash | 32 bytes | 2,500 + 400 × 66 = 28,900 microAlgo |
+| Proof status | `p_` + address | 34 bytes | uint64 | 8 bytes | 2,500 + 400 × 42 = 19,300 microAlgo |
+| Tally | `t_` + uint64 | 10 bytes | uint64 | 8 bytes | 2,500 + 400 × 18 = 9,700 microAlgo |
+| Voter index | `voter_index` | 11 bytes | addresses | 32,768 bytes | 2,500 + 400 × 32,779 = 13,114,100 microAlgo |
 
 The voter-index box is a one-time MBR cost only if you add the explicit-index extension. The app account or admin must fund it before the first indexed commit.
 
-Each voter costs ~48,200 μAlgo in MBR (commitment box: 28,900 + proof status box: 19,300), paid by the voter via the MBR payment pattern from the AMM chapter. The `commit_vote` method requires MBR for the commitment box (28,900 μAlgo), and `record_verified_proof` creates the proof status box requiring an additional 19,300 μAlgo. In test code, ensure the app account is funded for both boxes before calling these methods.
+Each voter costs ~48,200 microAlgo in MBR (commitment box: 28,900 + proof status box: 19,300), paid by the voter via the MBR payment pattern from the AMM chapter. The `commit_vote` method requires MBR for the commitment box (28,900 microAlgo), and `record_verified_proof` creates the proof status box requiring an additional 19,300 microAlgo. In test code, ensure the app account is funded for both boxes before calling these methods.
 
 
 ## Part 6: Algorand's Post-Quantum Security --- Falcon and State Proofs
@@ -983,7 +983,7 @@ Production verifier hardening before deployment:
 - ZK proofs cannot be forged (PLONK soundness)
 - ZK proofs reveal nothing about the vote during the prove phase (zero-knowledge property)
 - LogicSig verifier address is hardcoded/verified in the smart contract
-- Public inputs to the ZK proof are bound to on-chain state (commitment, num_choices)
+- Public inputs to the ZK proof are bound to on-chain state (`commitment`, `num_choices`)
 - Group size is validated in the proof-submission atomic group
 - Admin cannot mark proofs verified without the verifier group
 - The trusted setup ceremony is properly conducted (for PLONK, a universal setup from a ceremony)
@@ -1036,19 +1036,19 @@ Table: Opcode costs for cryptographic operations {#tbl:crypto-opcode-costs}
 
 | Operation | Curve | Cost (opcodes) |
 |-----------|-------|----------------|
-| ec_add | BN254 G1 | 125 |
-| ec_add | BLS12-381 G1 | 205 |
-| ec_scalar_mul | BN254 G1 | 1,810 |
-| ec_scalar_mul | BLS12-381 G1 | 2,950 |
-| ec_multi_scalar_mul | BN254 G1 | 3,600 + 90 per 32B of B |
-| ec_multi_scalar_mul | BLS12-381 G1 | 6,500 + 95 per 32B of B |
-| ec_pairing_check | BN254 | 8,000 + 7,400 per 64B of B |
-| ec_pairing_check | BLS12-381 | 13,000 + 10,000 per 96B of B |
-| ec_subgroup_check | BN254 G1 | 20 |
-| ec_subgroup_check | BLS12-381 G2 | 2,340 |
-| mimc | BN254 | 10 + 550 per 32B of input |
-| ed25519verify | --- | 1,900 |
-| falcon_verify | --- | 1,700 |
+| `ec_add` | BN254 G1 | 125 |
+| `ec_add` | BLS12-381 G1 | 205 |
+| `ec_scalar_mul` | BN254 G1 | 1,810 |
+| `ec_scalar_mul` | BLS12-381 G1 | 2,950 |
+| `ec_multi_scalar_mul` | BN254 G1 | 3,600 + 90 per 32B of B |
+| `ec_multi_scalar_mul` | BLS12-381 G1 | 6,500 + 95 per 32B of B |
+| `ec_pairing_check` | BN254 | 8,000 + 7,400 per 64B of B |
+| `ec_pairing_check` | BLS12-381 | 13,000 + 10,000 per 96B of B |
+| `ec_subgroup_check` | BN254 G1 | 20 |
+| `ec_subgroup_check` | BLS12-381 G2 | 2,340 |
+| `mimc` | BN254 | 10 + 550 per 32B of input |
+| `ed25519verify` | --- | 1,900 |
+| `falcon_verify` | --- | 1,700 |
 
 ## Key Differences Between Smart Contracts and LogicSigs
 
@@ -1078,7 +1078,7 @@ Table: Smart contracts and LogicSigs compared {#tbl:contract-vs-logicsig}
 Table: Further reading on zero-knowledge proofs {#tbl:zk-further-reading}
 
 | Resource | URL |
-|----------|-----|
+|--------------------|------------------------------|
 | AlgoPlonk (ZK on Algorand) | [github.com/giuliop/AlgoPlonk](https://github.com/giuliop/AlgoPlonk) |
 | gnark (ZK circuit framework) | [github.com/ConsenSys/gnark](https://github.com/ConsenSys/gnark) |
 | Cryptographic Tools | [dev.algorand.co/concepts/smart-contracts/cryptographic-tools/](https://dev.algorand.co/concepts/smart-contracts/cryptographic-tools/) |
@@ -1086,9 +1086,9 @@ Table: Further reading on zero-knowledge proofs {#tbl:zk-further-reading}
 | State Proofs | [dev.algorand.co/concepts/protocol/state-proofs/](https://dev.algorand.co/concepts/protocol/state-proofs/) |
 | Falcon CLI tool | [github.com/algorandfoundation/falcon-signatures](https://github.com/algorandfoundation/falcon-signatures) |
 | Algorand Post-Quantum | [algorand.co/technology/post-quantum](https://algorand.co/technology/post-quantum) |
-| Falcon Technical Brief | algorand.co/blog/technical-brief-quantum-resistant-transactions |
+| Falcon Technical Brief | [algorand.co/blog/technical-brief-quantum-resistant-transactions](https://algorand.co/blog/technical-brief-quantum-resistant-transactions) |
 | LogicSig Concepts and Security Considerations | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
-| Building Secure Contracts (Algorand) | secure-contracts.com/not-so-smart-contracts/algorand/ |
-| MiMC Hash Specification | eprint.iacr.org/2016/492 |
-| PLONK Paper | eprint.iacr.org/2019/953 |
-| Groth16 Paper | eprint.iacr.org/2016/260 |
+| Building Secure Contracts (Algorand) | [secure-contracts.com/not-so-smart-contracts/algorand/](https://secure-contracts.com/not-so-smart-contracts/algorand/) |
+| MiMC Hash Specification | [eprint.iacr.org/2016/492](https://eprint.iacr.org/2016/492) |
+| PLONK Paper | [eprint.iacr.org/2019/953](https://eprint.iacr.org/2019/953) |
+| Groth16 Paper | [eprint.iacr.org/2016/260](https://eprint.iacr.org/2016/260) |

@@ -18,33 +18,50 @@ This book is *not* for you if you are looking for Solidity or EVM development (A
 
 ## How This Book Is Organized {-}
 
-The book is structured around ten progressively complex chapters, each built incrementally so that every concept is introduced at the moment you need it:
+The book is fifteen chapters in four parts. The chapters come in two kinds and they alternate on purpose. A *concept chapter* takes one thing a decentralized application needs --- somewhere to remember a number, somewhere to put data that grows, a way to move value --- and works through several small, complete, runnable examples of it. A *project chapter* then spends the concepts on one program you build end to end. Nothing is introduced before the chapter that needs it.
 
-- **{{ch:mental-model}} --- The Algorand Mental Model.** The execution model, account system, and constraints every developer must internalize, plus setting up your development environment and deploying your first contract.
+**{{part:foundations}}** is the on-ramp and the first two projects.
 
-- **{{ch:testing}} --- Testing Smart Contracts.** You build a simplified vesting contract, write comprehensive tests against it, and discover through failing tests exactly what the full implementation in {{ch:token-vesting}} must solve. This chapter establishes the testing patterns used throughout the rest of the book.
+- **{{ch:mental-model}} --- The Algorand Mental Model.** The execution model, the account system, and the constraints every developer has to internalize, plus setting up a development environment and deploying a first contract.
 
-- **{{ch:token-vesting}} --- A Token Vesting Contract.** A complete token vesting contract that introduces every foundational concept: state management, ASA handling, inner transactions, box storage, integer math, and security patterns. By the end of {{ch:token-vesting}} you can build and deploy a production-quality smart contract from scratch.
+- **{{ch:contracts}} --- Contracts That Exist and Respond.** What it takes for a contract to exist at all: creation, the OnCompletes that describe its lifecycle, the router that decides which method a call reaches, and the upgrade and delete authority you are choosing whether to keep.
 
-- **{{ch:nfts}} --- NFTs --- Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, introducing the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination pattern.
+- **{{ch:state}} --- Remembering Things: Global and Local State.** The two fixed-size slabs a contract can write to, what each costs, who can destroy which, and why the schema you declare at creation is the one you are stuck with.
 
-- **{{ch:amm}} --- Project 2: A Constant Product AMM.** You apply the foundations to DeFi by building a Uniswap V2-style automated market maker with multi-token accounting, price curves, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
+- **{{ch:boxes}} --- Data That Grows: Box Storage.** Storage without a ceiling, priced per byte and paid for out of the contract's own balance. Box keys, the minimum balance arithmetic behind them, and what happens to a contract whose floor rises under it.
 
-- **{{ch:amm-factory}} --- AMM Factory and Pool Provenance.** You move AMM pool creation on-chain with a factory contract that deploys pool apps, registers canonical asset pairs, and teaches downstream contracts how to reject fake or unregistered pools.
+- **{{ch:numbers-and-time}} --- Arithmetic That Refuses: Numbers and Time.** Integer math that reverts rather than wrapping, the ordering of operations that keeps precision, and the four different values on Algorand that all look like "now" and are not.
 
-- **{{ch:yield-farming}} --- Yield Farming: Extending the AMM with Staking Rewards.** You extend the AMM with a staking contract where LPs lock LP tokens to earn reward tokens, introducing the Synthetix-style reward accumulator pattern, duration multipliers, and smart contract composition via cross-contract state reads.
+- **{{ch:moving-value}} --- Moving Value: Assets, Payments, and Groups.** The first point at which a contract sends rather than computes: inner transactions, grouped payments, asset opt-in and transfer, and who pays the fees.
 
-- **{{ch:patterns}} --- Common Patterns and Idioms.** A patterns chapter covers cross-cutting production concerns: fee subsidization, MBR lifecycle, canonical ordering, event emission, and opcode budget management.
+- **{{ch:testing}} --- Proving It Works: Tests, Simulation, and Failure.** Assert messages that survive compilation, `simulate` as the read-only execution path, and tests arranged so that some arrangement of the world actually turns them red. The testing patterns here are used for the rest of the book.
 
-- **{{ch:limit-order-book}} --- Project 3: A Delegated Limit Order Book with LogicSig Agents.** Algorand's second execution model --- Logic Signatures --- applied to a delegated limit order book. This introduces the hybrid stateful/stateless architecture, template variables, keeper bots, packed binary data, and composability with the AMM from {{ch:amm}}.
+- **{{ch:token-vesting}} --- A Token Vesting Contract.** The first full project, and the one that spends every concept above at once: state, ASA handling, inner transactions, box storage, integer math, and the security patterns that keep them honest.
 
-- **{{ch:zk-voting}} --- Project 4: Private Governance Voting with Zero-Knowledge Proofs.** Pushing the AVM to its limits with a private governance voting system using zero-knowledge proofs, elliptic curve operations (BN254), and the MiMC hash. Also covers Algorand's Falcon-based post-quantum security roadmap.
+- **{{ch:nfts}} --- NFTs: Extending the Vesting Contract with Transferability.** You extend the vesting contract by minting an NFT for each schedule, which introduces the ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, and the mint-then-deliver coordination problem.
 
+**{{part:dex}}** builds one decentralized exchange across three chapters and then consolidates what they taught.
+
+- **{{ch:amm}} --- A Constant Product AMM.** A Uniswap V2-style automated market maker: multi-token accounting, the price curve and the slippage it implies, LP (liquidity provider) token mechanics, a TWAP price oracle, and security hardening.
+
+- **{{ch:amm-factory}} --- AMM Factory and Pool Provenance.** Pool creation moves on-chain. A factory deploys pool apps, registers canonical asset pairs, and teaches downstream contracts how to reject a pool it did not create.
+
+- **{{ch:yield-farming}} --- Yield Farming: Extending the AMM with Staking Rewards.** LPs lock LP tokens to earn reward tokens, which introduces the Synthetix-style reward accumulator, duration multipliers, and contract composition through cross-contract state reads.
+
+- **{{ch:patterns}} --- Common Patterns and Idioms.** The cross-cutting production concerns the projects kept running into: fee subsidization, MBR lifecycle, canonical ordering, event emission, and opcode budget management.
+
+**{{part:logicsigs}}** is Algorand's second execution model.
+
+- **{{ch:limit-order-book}} --- Delegated Limit Order Book with LogicSig Agents.** Logic signatures applied to a delegated limit order book: the hybrid stateful/stateless architecture, template variables, keeper bots, packed binary data, and composability with the AMM from {{ch:amm}}.
+
+**{{part:cryptography}}** pushes the AVM to its limits.
+
+- **{{ch:zk-voting}} --- Private Governance Voting with Zero-Knowledge Proofs.** A private governance vote built on zero-knowledge proofs, elliptic curve operations over BN254, and the MiMC hash, closing with Algorand's Falcon-based post-quantum roadmap.
 {{fig:book-map}} shows how those chapters depend on one another. A solid arrow means you will be lost without the earlier chapter; a dashed one means the later chapter builds on it but stands on its own. If you are here for one specific thing, follow the solid arrows backwards from it and read only those.
 
 {{include-fig:book-map}}
 
-The chapters are also deliberately scaffolded. Chapters {{chn:testing}} through {{chn:yield-farming}} are full worked projects: every listing is complete, and you can type along from start to finish. {{ch:patterns}} shifts to a patterns reference that consolidates what the projects taught. Chapters {{chn:limit-order-book}} and {{chn:zk-voting}} are guided outlines --- the core contracts are complete and compilable, but helper functions and integration layers are deliberately left for you to implement, because by that point you have built everything they require. The training wheels come off gradually, on purpose.
+The chapters are also deliberately scaffolded. The seven concept chapters, {{chn:mental-model}} through {{chn:testing}}, are made of small complete programs: every one of them compiles, deploys and runs on its own, and none of them is a fragment of a larger project you have not seen yet. Chapters {{chn:token-vesting}} through {{chn:yield-farming}} are full worked projects with a directory of source beside them, and you can type along from start to finish. {{ch:patterns}} shifts to a reference that consolidates what the projects taught. Chapters {{chn:limit-order-book}} and {{chn:zk-voting}} are guided outlines --- the core contracts are complete and compilable, but helper functions and integration layers are left for you, because by that point you have built everything they require. The training wheels come off gradually, on purpose.
 
 Two appendices provide lasting reference value: the **Algorand Smart Contract Cookbook** contains 50+ standalone code examples organized by topic, and the **Consolidated Gotchas Cheat Sheet** catalogs the most common mistakes and how to avoid them.
 

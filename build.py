@@ -30,11 +30,14 @@ Install mdbook from the official guide:
 
 import argparse
 import hashlib
+import html
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -279,9 +282,11 @@ def escape_alt_brackets(caption: str) -> str:
     code is parsed BEFORE links, so brackets inside a code span are already
     literal, and a backslash put there is not an escape at all: it is a
     backslash, and it is typeset. The whole-string
-    `caption.replace("[", r"\\[")` this replaced put one there and shipped
-    Figure 1-5's caption to the page reading ``args\\[0\\]`` in monospace,
-    backslashes and all.
+    `caption.replace("[", r"\\[")` this replaced put one there, and the build
+    at `b93e5ba` set Figure 1-5's caption on the page as ``args\\[0\\]``, in
+    monospace, backslashes and all. One commit, caught by a rasterised read --
+    not a shipped book, which is what an earlier version of this docstring
+    claimed.
 
     Module-level rather than inlined into `_place_figure` so a test can drive
     it directly; see tests/test_build_alt_text.py.
@@ -828,6 +833,37 @@ def _digest(*paths: Path) -> str:
     return h.hexdigest()
 
 
+# Where a Chromium already on this machine is likely to be. mermaid-cli drives
+# one through Puppeteer, and Puppeteer's default is to look for a build it
+# downloaded itself into ~/.cache/puppeteer -- which is a per-machine cache, not
+# a repository artifact, so a fresh container has the CLI installed and no
+# browser under it. The failure is loud but misleading: `Could not find Chrome
+# (ver. 148.0.7778.97)`, from a tool nobody asked to download a browser, on a
+# machine that has three. Pointing PUPPETEER_EXECUTABLE_PATH at one of them is
+# the documented escape hatch (see figures/puppeteer.json); this just does it
+# automatically so `python3 build.py figures` works on a bare checkout.
+#
+# An explicit PUPPETEER_EXECUTABLE_PATH always wins -- this only fills a hole.
+_CHROMIUM_CANDIDATES = (
+    "/opt/pw-browsers/chromium",           # Playwright's, as installed here
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+)
+
+
+def _figure_render_env() -> dict:
+    """The environment mermaid-cli runs under, with a browser it can find."""
+    env = dict(os.environ)
+    if env.get("PUPPETEER_EXECUTABLE_PATH"):
+        return env
+    for candidate in _CHROMIUM_CANDIDATES:
+        if os.access(candidate, os.X_OK):
+            env["PUPPETEER_EXECUTABLE_PATH"] = candidate
+            return env
+    return env
+
+
 def _preserve_label_spaces(svg: Path) -> None:
     """Stop librsvg eating the spaces between words in a Mermaid label.
 
@@ -879,38 +915,73 @@ def render_figures(*, force: bool = False) -> None:
             skipped += 1
             continue
 
-        if source.suffix == ".mmd":
-            if not mmdc:
-                # Not an error. The outputs are committed precisely so that a
-                # missing drawing toolchain cannot stop anyone building the book.
-                print(f"  warning: mermaid-cli (mmdc) not found; keeping committed {slug}.svg")
-                continue
-            cmd = ["mmdc", "-i", str(source), "-o", str(svg_out), "-c", str(FIG_THEME)]
-            if FIG_PUPPETEER.exists():
-                cmd += ["-p", str(FIG_PUPPETEER)]
-            done = subprocess.run(cmd, capture_output=True, text=True)
-            if done.returncode != 0:
-                # mermaid reports a syntax error on stdout and a stack trace on
-                # stderr; a bare CalledProcessError would show neither, and the
-                # line number is the whole diagnosis.
-                raise SystemExit(
-                    f"figures/src/{source.name}: mermaid-cli failed\n"
-                    + (done.stdout or "").strip()
-                    + "\n"
-                    + (done.stderr or "").strip().split("\n")[0]
-                )
-            _preserve_label_spaces(svg_out)
-        else:
-            shutil.copy2(source, svg_out)
+        # BOTH OUTPUTS MOVE INTO PLACE TOGETHER, OR NEITHER DOES. The two files
+        # in out/ are read by different editions -- mdbook takes the SVG and
+        # xelatex takes the PDF -- so any window in which one is new and the
+        # other is old is a window in which the book has two disagreeing
+        # editions. Writing svg_out first and converting afterwards opens that
+        # window on every failed render: rsvg-convert rejects input that copies
+        # perfectly well (the recorded instance is a `--` inside an XML comment,
+        # which is invalid XML that no editor complains about), and by the time
+        # it does, out/<slug>.svg is already holding the broken source while
+        # out/<slug>.pdf still holds the last good drawing. Worse, the failure
+        # aborts before the hash file is written, so the stored stamp still
+        # matches the fixed source and the next `build.py figures` calls the
+        # figure fresh and skips it -- the split silently survives the fix.
+        # Staging in a temp directory means a failed render changes nothing.
+        with tempfile.TemporaryDirectory(dir=FIG_OUT_DIR) as staging:
+            svg_tmp = Path(staging) / f"{slug}.svg"
+            pdf_tmp = Path(staging) / f"{slug}.pdf"
 
-        if not rsvg:
-            print(f"  warning: rsvg-convert not found; keeping committed {slug}.pdf")
-            continue
-        subprocess.run(
-            ["rsvg-convert", "-f", "pdf", "-o", str(pdf_out), str(svg_out)],
-            check=True,
-            capture_output=True,
-        )
+            if source.suffix == ".mmd":
+                if not mmdc:
+                    # Not an error. The outputs are committed precisely so that a
+                    # missing drawing toolchain cannot stop anyone building the book.
+                    print(
+                        f"  warning: mermaid-cli (mmdc) not found; keeping committed {slug}.svg"
+                    )
+                    continue
+                cmd = ["mmdc", "-i", str(source), "-o", str(svg_tmp), "-c", str(FIG_THEME)]
+                if FIG_PUPPETEER.exists():
+                    cmd += ["-p", str(FIG_PUPPETEER)]
+                done = subprocess.run(
+                    cmd, capture_output=True, text=True, env=_figure_render_env()
+                )
+                if done.returncode != 0:
+                    # mermaid reports a syntax error on stdout and a stack trace on
+                    # stderr; a bare CalledProcessError would show neither, and the
+                    # line number is the whole diagnosis.
+                    raise SystemExit(
+                        f"figures/src/{source.name}: mermaid-cli failed\n"
+                        + (done.stdout or "").strip()
+                        + "\n"
+                        + (done.stderr or "").strip().split("\n")[0]
+                    )
+                _preserve_label_spaces(svg_tmp)
+            else:
+                shutil.copy2(source, svg_tmp)
+
+            if not rsvg:
+                print(f"  warning: rsvg-convert not found; keeping committed {slug}.pdf")
+                continue
+            done = subprocess.run(
+                ["rsvg-convert", "-f", "pdf", "-o", str(pdf_tmp), str(svg_tmp)],
+                capture_output=True,
+                text=True,
+            )
+            if done.returncode != 0:
+                # librsvg puts the whole diagnosis on stderr and a bare
+                # CalledProcessError shows none of it. `XML parse error: ...
+                # Double hyphen within comment` is the one worth recognising on
+                # sight: it means prose in a figure comment, not a drawing bug.
+                raise SystemExit(
+                    f"figures/src/{source.name}: rsvg-convert failed; "
+                    f"figures/out/{slug}.svg and .pdf left untouched\n"
+                    + (done.stderr or done.stdout or "").strip()
+                )
+            shutil.move(str(svg_tmp), svg_out)
+            shutil.move(str(pdf_tmp), pdf_out)
+
         hashes[source.name] = stamp
         rendered += 1
         print(f"  {slug}: svg + pdf")
@@ -1069,7 +1140,61 @@ CALLOUT_LABEL = {
 CALLOUT_OPEN_RE = re.compile(r"^::: \{\.([a-z]+)(?:\s[^}]*)?\}\s*$")
 
 
-FIGURE_IMG_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<src>figures/[a-z0-9-]+\.svg)\)$")
+# The alt group is `.*` and not `[^\]]*`, and that one character is the whole
+# difference between twenty-one figures and twenty. Alt text is a caption, and
+# a caption may contain a bracket -- `abi-call-wire`'s says ``args[0]`` -- so a
+# class that excludes `]` cannot match the line at all. The failure is silent
+# and one-sided: the PDF is built by pandoc, which promotes the image paragraph
+# to a captioned figure on its own, so only the mdbook edition loses the
+# <figure> wrapper, the <figcaption>, and with it the figure number the prose
+# cites. Greedy `.*` is safe here because the tail of the pattern is anchored
+# and specific -- `](figures/<slug>.svg)` at end of line -- so backtracking
+# lands on the last such occurrence, which is the only one.
+FIGURE_IMG_RE = re.compile(r"^!\[(?P<alt>.*)\]\((?P<src>figures/[a-z0-9-]+\.svg)\)$")
+
+# The guard's pattern is deliberately NOT the pattern it guards. Counting the
+# same regex on both sides of an equality proves only that the regex is
+# deterministic: the `]`-class defect above would have produced 20 == 20 and
+# passed. So this one asks the weaker question -- is this line an image
+# pointing anywhere into figures/? -- and is loose exactly where the other is
+# strict: any slug, any extension, trailing space allowed. A figure named
+# `abi_call_wire.svg` or converted to `.png` is then *seen* and not *wrapped*,
+# which is the shape of every failure this counter exists to report.
+FIGURE_IMG_ANY_RE = re.compile(r"^!\[.*\]\(figures/[^)]+\)[ \t]*$", re.MULTILINE)
+
+
+def caption_to_html(alt: str) -> tuple[str, str]:
+    """Split one Markdown caption into an `alt` attribute and a `<figcaption>`.
+
+    Both come from the same string and neither can use it as it stands, for
+    three separate reasons that all shipped at once in the mdbook edition:
+
+    * **Quotes.** `four-clocks`'s caption contains `"now"`, and it was
+      interpolated straight into `alt="..."`. The attribute ends at that quote:
+      the browser reads `alt="Figure 5-1. Four values that look like "` and
+      then tries to parse `now",` and the rest of the sentence as further
+      attributes. Nothing in the build says a word, because the surrounding
+      markdown is fine and pulldown-cmark passes raw HTML through unexamined.
+    * **Code spans.** A caption's backticks are Markdown, and the text they
+      wrap is inside a raw HTML block by the time it reaches pulldown-cmark,
+      which does not look inside one. `` `create=allow` `` therefore reached
+      the page with its backticks printed. In the `alt` attribute they should
+      not be marked up at all -- alt text is read aloud -- so they come out;
+      in the caption they become `<code>`.
+    * **Escaped brackets.** `escape_alt_brackets` puts `\\[` in the Markdown so
+      that pandoc does not read a link. HTML has no such escape, so the
+      backslash is simply typeset. It has to come back out here.
+
+    Returns `(alt_attribute, figcaption_html)`, both fully escaped.
+    """
+    text = alt.replace(r"\[", "[").replace(r"\]", "]").replace(" --- ", " — ")
+    # Escape before the code spans are marked up, so that a `<` inside one is
+    # escaped as content rather than opening a tag -- and after it, because the
+    # `<code>` tags this adds must not themselves be escaped.
+    escaped = html.escape(text, quote=True)
+    figcaption = CODE_SPAN_RE.sub(lambda m: f"<code>{m.group('body')}</code>", escaped)
+    spoken = CODE_SPAN_RE.sub(lambda m: m.group("body"), escaped)
+    return spoken, figcaption
 
 
 def clean_for_mdbook(text: str) -> str:
@@ -1115,10 +1240,10 @@ def clean_for_mdbook(text: str) -> str:
             # vanishes. So write the <figure> element out longhand.
             figure = FIGURE_IMG_RE.match(line)
             if figure:
-                alt, src = figure.group(1), figure.group(2)
-                caption = alt.replace(" --- ", " — ")
+                spoken, caption = caption_to_html(figure.group("alt"))
+                src = figure.group("src")
                 out.append("<figure class=\"book-figure\">")
-                out.append(f'<img src="{src}" alt="{alt}" />')
+                out.append(f'<img src="{src}" alt="{spoken}" />')
                 out.append(f"<figcaption>{caption}</figcaption>")
                 out.append("</figure>")
                 continue
@@ -1324,6 +1449,14 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
         summary_lines.append("[Cover](./cover.md)")
 
     seen_back = False
+    # Every image paragraph pointing into figures/ must come out of
+    # clean_for_mdbook() as a <figure> element. The two counts are equal or the
+    # build stops -- see the note on FIGURE_IMG_RE for why: when the alt-text
+    # pattern failed to match, the image still rendered, so the page looked
+    # complete and only the caption and the figure number were gone. A count
+    # that has to agree is the cheapest way to make that visible, and it costs
+    # two regex scans over text already in memory.
+    figures_seen = figures_wrapped = 0
     for entry in book.entries:
         path = entry.path
         text = path.read_text(encoding="utf-8")
@@ -1333,6 +1466,8 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
 
         title = clean_title(heading)
         cleaned = clean_for_mdbook(text)
+        figures_seen += len(FIGURE_IMG_ANY_RE.findall(text))
+        figures_wrapped += cleaned.count('<figure class="book-figure">')
 
         # Write cleaned chapter to mdbook/src/
         (SRC_DIR / path.name).write_text(cleaned, encoding="utf-8")
@@ -1354,6 +1489,19 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
             summary_lines.append(f"[{display_title}](./{path.name})")
         else:
             summary_lines.append(f"- [{display_title}](./{path.name})")
+
+    if figures_seen != figures_wrapped:
+        print(
+            f"Error: {figures_seen} figure image paragraphs in the resolved "
+            f"chapters, but clean_for_mdbook() produced {figures_wrapped} "
+            "<figure> elements. The unwrapped ones still render as bare "
+            "images, so the HTML edition would lose their captions and "
+            "figure numbers silently. Check FIGURE_IMG_RE against the "
+            "offending line:\n"
+            "  grep -n '^!\\[.*](figures/' build/resolved/*.md",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Changelog from changes/ directory
     changelog = _build_changelog()

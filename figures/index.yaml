@@ -21,14 +21,14 @@ version: 1
 figures:
   - slug: notional-machine
     caption: >-
-      What the AVM lets a contract see and what it lets a contract do. Everything
-      on the left is readable; everything on the right is staged, and only
-      committed if the program approves.
+      What the AVM lets a contract see and what it lets a contract do. The top
+      band is what a contract may read; the bottom is what it may stage, and
+      nothing staged lands unless the program approves.
     source: src/notional-machine.mmd
 
   - slug: atomic-group
     caption: >-
-      The same four transactions, twice. One rejection anywhere in a group
+      The same three transactions, twice. One rejection anywhere in a group
       discards every transaction in it — there is no partial application.
     source: src/atomic-group.mmd
 
@@ -53,9 +53,9 @@ figures:
 
   - slug: simulate-trace
     caption: >-
-      A failed simulate response, annotated. The HTTP call succeeded — the
-      failure is reported in the body, which is why a test that asserts on the
-      status code can never fail.
+      A failed simulate response, annotated. The five numbered stops are the
+      reading order for any failure: which transaction, what it said, where it
+      stopped, what it cost, and why simulate could run it unsigned.
     source: src/simulate-trace.svg
 
   - slug: router-decision
@@ -93,12 +93,9 @@ figures:
 
   - slug: abi-call-wire
     caption: >-
-      An ABI call on the wire, byte by byte. The method signature is hashed and
-      its first four bytes become the selector that occupies `args[0]`; each
-      argument follows in its own slot, big-endian and fixed-width unless the
-      type is dynamic, in which case it carries its own two-byte length. The
-      return value does not come back in a slot at all -- it is a log entry
-      behind its own four-byte prefix.
+      An ABI call on the wire, byte by byte. Client and contract must agree on
+      every boundary drawn here, from `args[0]` onward, which is why a decoding
+      failure is usually about a value's width rather than the value.
     source: src/abi-call-wire.svg
 
   - slug: logicsig-modes

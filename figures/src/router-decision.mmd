@@ -11,10 +11,44 @@
 %% rectangle holding the same text, and this figure has to fit on one page.
 %% Flowchart rather than stateDiagram-v2, and no subgraphs: a subgraph's own
 %% direction is ignored once edges cross its boundary.
+%% .
+%% THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the 470.4pt
+%% text width and never scales one up, so a diagram's on-page type is
+%% font_px x 470.4 / width_px, which reduces to font_px >= width_px / 58.8 for
+%% the house's 8pt floor. Mermaid sets everything here at 15px, so the canvas
+%% has to come in under 882px; at 966px it set at 7.30pt and failed.
+%% .
+%% THE LEFT-HAND LEAF SETS THE WHOLE WIDTH, ONE PIXEL FOR ONE PIXEL. Measured on
+%% the rendered SVG: node width is the longest line's text plus 48px, and 15px
+%% DejaVu Sans in these labels runs about 8.2px a character, so an n-character
+%% line buys a node of 8.2n + 48. B is a leaf on rank two; dagre puts C beside it
+%% at one nodeSpacing, and D, E, F, G, H and X all hang off C's centre. So every
+%% pixel B loses moves the entire right-hand chain left by the same pixel. B's
+%% longest line was 38 characters, which is a 357px node; re-wrapped to four
+%% lines of 26 it is 259px, and the canvas goes 966px to 846px, where the 15px
+%% text sets at 8.34pt. Nothing else in the figure had to be touched.
+%% .
+%% NARROWING A FIGURE MAKES IT TALLER ON THE PAGE. On-page height is
+%% height_px x 470.4 / width_px, so the same drawing at 846px instead of 966px
+%% occupies 1.14x the page for free. Measured both ways at this width: 1,068px of
+%% canvas is 594.0pt of page at theme.json's rankSpacing of 46, and 960px is
+%% 533.9pt at 28. The figure was 511.6pt before any of this, and it has to fit on
+%% one page with its caption, so the rank spacing comes down here to pay for the
+%% width. nodeSpacing 40 to 26 is the B-to-C and F-to-G gutters, worth a further
+%% 28px of canvas.
+%% .
+%% THE DIRECTIVE REPEATS theme.json's WHOLE flowchart BLOCK, not just the two
+%% keys it changes. htmlLabels: false is load-bearing -- librsvg does not
+%% implement foreignObject, so a true here ships a print edition of empty boxes
+%% -- and repeating the block makes the figure correct whether an init directive
+%% merges into the -c config or replaces that section of it. Check it the way it
+%% was checked here: `grep -c foreignObject figures/out/router-decision.svg`
+%% must be 0 and the file must carry real <text> elements.
+%%{init: {"flowchart": {"curve": "linear", "padding": 12, "nodeSpacing": 26, "rankSpacing": 28, "wrappingWidth": 420, "useMaxWidth": false, "htmlLabels": false}}}%%
 flowchart TB
     T["An application call arrives<br/>app ID · OnComplete · argument array"]
     A{"Any application<br/>arguments?"}
-    B["Bare route · no selector to match<br/>the OnComplete alone picks the method,<br/>at most one per action, and it runs"]
+    B["Bare route · no selector<br/>the OnComplete alone picks<br/>the method, at most one<br/>per action, and it runs"]
     C["The OnComplete must be one the method allows<br/>NoOp · OptIn · CloseOut · Update · Delete"]
     D["Methods declaring create=allow are matched<br/>on argument zero here, with no ID check"]
     E{"Is the application<br/>ID zero?"}

@@ -26,13 +26,13 @@ Table: AVM limits quick reference {#tbl:avm-limits}
 | Key + value size (global or local) | 128 bytes max |
 | Box size | 0–32,768 bytes |
 | Box name | 1–64 bytes |
-| Box MBR | 2,500 + 400 × (name_len + data_size) μAlgo |
+| Box MBR | 2,500 + 400 × (name_len + data_size) microAlgo |
 | Box reference read budget | 2,048 bytes per reference (v41; was 1,024) |
 | Access-list entries per app call | 16 (v41 unified `Access` list) |
 | Legacy foreign-account references | 8 per app call (v41; was 4) |
-| ASA opt-in MBR | 100,000 μAlgo |
-| Min account balance | 100,000 μAlgo |
-| Min transaction fee | 1,000 μAlgo |
+| ASA opt-in MBR | 100,000 microAlgo |
+| Min account balance | 100,000 microAlgo |
+| Min transaction fee | 1,000 microAlgo |
 
 ## Minimum Balance Requirements
 
@@ -40,7 +40,7 @@ The MBR is not a fee. It is a floor: the balance an account must keep above zero
 
 Table: Minimum balance increments by resource {#tbl:mbr-costs}
 
-| Resource | MBR increment (μAlgo) |
+| Resource | MBR increment (microAlgo) |
 |----------|----------------------|
 | Base account | 100,000 |
 | Each ASA opted into or created | 100,000 |
@@ -56,7 +56,7 @@ Two of these are the reliable source of `account <address> balance <n> below min
 
 The **schema MBR is charged to the creator at creation time**, for the schema declared, not for the slots actually used. Declaring `global_num_bytes=16` and using two of them costs the same as using sixteen.
 
-The **box name in the box MBR formula includes the `BoxMap` key prefix.** A `BoxMap` declared with `key_prefix=b"pos_"` and keyed by a 32-byte address has a name length of 36, not 32 --- so its MBR is 2,500 + 400 × (36 + data_size), and a funding calculation that forgot the prefix underfunds every box by 1,600 μAlgo.
+The **box name in the box MBR formula includes the `BoxMap` key prefix.** A `BoxMap` declared with `key_prefix=b"pos_"` and keyed by a 32-byte address has a name length of 36, not 32 --- so its MBR is 2,500 + 400 × (36 + data_size), and a funding calculation that forgot the prefix underfunds every box by 1,600 microAlgo.
 
 ## Opcode Budget
 

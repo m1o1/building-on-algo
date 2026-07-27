@@ -1,18 +1,51 @@
 %% A contract is an account, and it can spend. The sequence matters more than the
 %% cast: the inner payment is submitted by the AVM during the app call, from the
 %% application's own address, and it settles before the call returns.
+%% .
+%% THE STEP NUMBERS ARE IN THE LABELS BECAUSE `autonumber` SETS THEM SMALLER THAN
+%% EVERYTHING ELSE. Measured on the built PDF: every actor, message and note in
+%% this diagram renders at 12.00pt native, but autonumber's digits render at
+%% 9.00pt. The book scales a figure to the 470.4pt text width and never scales one
+%% up, so on this 637.50pt canvas the 12.00pt text sets at 8.85pt -- comfortably
+%% over the house's 8pt floor -- while the digits set at 6.64pt and fail it. The
+%% canvas was never the problem here, so there is nothing to re-lay-out: numbering
+%% the labels by hand puts the ordering cue at the same size as the text it orders.
+%% Note also that theme.json's `sequence.messageFontSize`, `actorFontSize` and
+%% `noteFontSize` are inert -- everything comes out 16px regardless of them -- so
+%% raising those numbers is not an alternative fix.
+%% .
+%% AN ACTOR BOX IS A FIXED 150px WIDE AND DOES NOT GROW TO ITS LABEL. Measured on
+%% the rendered SVG with the shapes stripped out: every actor rect is width="150",
+%% whatever is written in it. `Application account` sets 157px at 16px, so it
+%% overhung its own box by 3.5px at each end and the leading `A` and trailing `t`
+%% rendered sitting on the box rules -- the same defect as `$ha512_256` in
+%% abi-call-wire.svg, and found the same way, by looking at the raster. `App
+%% account` is 91px and clears the rules by 29px each side; the book uses that
+%% wording thirty times, so it costs no precision. Keep every actor line under
+%% about 130px, which is fifteen mixed-case characters at 8.3px each. Widening the
+%% box with a `sequence.width` init directive is NOT the alternative: it widens
+%% the inter-actor spacing too, which takes the canvas past 940px, and past 940px
+%% the 16px text itself drops under the 8pt floor.
+%% .
+%% A `Note over` ONE ACTOR IS FIXED-WIDTH FOR THE SAME REASON, at the actor's 150px
+%% plus the box margin, so 170px. `fee covers the inner txn` set 190px and overhung
+%% that note by 10px at each end exactly as the actor label did. Hold a one-actor
+%% note to about 150px a line, which is nineteen mixed-case characters at 7.9px
+%% each. A `Note over` TWO actors is sized from the span between them and has room:
+%% the `settles inside this app call,` note is 210px inside a 250px box, and the
+%% closing note spanning all four actors is 320px inside 670px. Only the
+%% single-actor note is tight.
 sequenceDiagram
-    autonumber
     participant U as User
     participant A as Application<br/>(app ID 1234)
-    participant AA as Application account<br/>(its own address)
+    participant AA as App account<br/>(its own address)
     participant R as Recipient
 
-    U->>A: App call: claim()
-    Note over A: fee covers the inner txn<br/>as well as this one
-    A->>A: check the caller, read state
-    A->>AA: itxn: Payment, fee 0
-    AA->>R: 5 ALGO
+    U->>A: 1 · App call: claim()
+    Note over A: this fee covers<br/>the inner txn too
+    A->>A: 2 · check the caller, read state
+    A->>AA: 3 · itxn: Payment, fee 0
+    AA->>R: 4 · 5 ALGO
     Note over AA,R: settles inside this app call,<br/>not in a later transaction
-    A-->>U: approve
+    A-->>U: 5 · approve
     Note over U,R: reject anywhere above and the<br/>payment is undone with everything else

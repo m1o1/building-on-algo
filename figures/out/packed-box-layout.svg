@@ -1,77 +1,107 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" width="880" height="640" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 668" width="780" height="668" font-family="DejaVu Sans, sans-serif">
   <!-- The same twenty-four bytes, stored two ways, priced both times. The 2,500 µA
        is charged once per box and the 400 µA is charged per byte of the NAME as
        well as the value, so splitting one struct across three boxes pays for the
        account address three times over. The arithmetic is worked in full because
        readers do not believe the ratio until they have seen it add up. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 880px
+       the 11.5px cell captions and the 11.5px monospace inside the split boxes
+       landed at 6.14pt.
+
+       Three things held the canvas at 880 and none of them was a drawing. The
+       three struct cells were 260px each on contents of eleven monospace
+       characters, which is 93px, so the value row spanned x=30 to x=826 to carry
+       280px of ink. The closing total ran 77 characters on one line, 651px on its
+       own. And the panel prose ran 101 characters a line inside an 840px panel.
+       The cells are sized to their contents now at 8.43px per character, the
+       total is a bold line plus an ordinary one beneath it, and the panel is
+       re&#8209;wrapped at 72 characters, so 780px sets everything at 14px or more and
+       the smallest type on the page is 8.44pt.
+
+       Height goes 640 to 668, which is 403pt on the page against the 342pt the
+       880px version occupied at its unreadable type. Past width x 619/470.4 =
+       1026px the height rather than the width binds and every size shrinks
+       again; this is well inside that. -->
   <style>
     text { fill: #111111; }
-    .hd    { font-size: 13.5px; font-weight: bold; }
+    .hd    { font-size: 14.5px; font-weight: bold; }
     .cell  { fill: #f2f2f2; stroke: #333333; stroke-width: 1.5; }
     .key   { fill: #e0e0e0; stroke: #333333; stroke-width: 1.5; }
     .alt   { fill: #ffffff; stroke: #333333; stroke-width: 1.5; stroke-dasharray: 5 3; }
-    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 12.5px; }
-    .monos { font-family: "DejaVu Sans Mono", monospace; font-size: 11.5px; }
-    .sub   { font-size: 11.5px; fill: #333333; }
+    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 14px; }
+    .sub   { font-size: 14px; fill: #333333; }
     .tot   { font-size: 15px; font-weight: bold; }
     .rule  { stroke: #999999; stroke-width: 1; }
-    .note  { font-size: 12.5px; }
+    .note  { font-size: 14px; }
     .panel { fill: #fafafa; stroke: #888888; stroke-width: 1; }
   </style>
 
-  <!-- packed -->
-  <text class="hd" x="30" y="38">One box per staker, holding one packed struct.</text>
+  <!-- packed. Every box is sized to the monospace string inside it rather than
+       to a round number: `the staker's 32-byte address` is 28 characters, so
+       236px, so a 270px box. That one rule is most of the 100px the canvas
+       lost. -->
+  <text class="hd" x="16" y="34">One box per staker, holding one packed struct.</text>
 
-  <rect class="key" x="30"  y="54" width="140" height="40"/>
-  <text class="mono" x="100" y="79" text-anchor="middle">b"pos"</text>
-  <rect class="key" x="178" y="54" width="380" height="40"/>
-  <text class="mono" x="368" y="79" text-anchor="middle">the staker&#8217;s 32-byte address</text>
-  <text class="sub" x="100" y="112" text-anchor="middle">3 B key prefix</text>
-  <text class="sub" x="368" y="112" text-anchor="middle">32 B</text>
-  <text class="sub" x="576" y="79">box name &#8212; 35 bytes</text>
+  <rect class="key" x="16" y="46" width="110" height="40"/>
+  <text class="mono" x="71" y="71" text-anchor="middle">b"pos"</text>
+  <rect class="key" x="138" y="46" width="270" height="40"/>
+  <text class="mono" x="273" y="71" text-anchor="middle">the staker&#8217;s 32-byte address</text>
+  <text class="sub" x="430" y="71">box name &#8212; 35 bytes</text>
+  <text class="sub" x="71"  y="106" text-anchor="middle">3 B key prefix</text>
+  <text class="sub" x="273" y="106" text-anchor="middle">32 B</text>
 
-  <rect class="cell" x="30"  y="140" width="260" height="40"/>
-  <text class="mono" x="160" y="165" text-anchor="middle">amount</text>
-  <rect class="cell" x="298" y="140" width="260" height="40"/>
-  <text class="mono" x="428" y="165" text-anchor="middle">reward_debt</text>
-  <rect class="cell" x="566" y="140" width="260" height="40"/>
-  <text class="mono" x="696" y="165" text-anchor="middle">start_round</text>
-  <text class="sub" x="160" y="198" text-anchor="middle">UInt64 &#183; 8 B</text>
-  <text class="sub" x="428" y="198" text-anchor="middle">UInt64 &#183; 8 B</text>
-  <text class="sub" x="696" y="198" text-anchor="middle">UInt64 &#183; 8 B</text>
-  <text class="sub" x="30"  y="222">box value &#8212; 24 bytes</text>
+  <rect class="cell" x="16"  y="132" width="150" height="40"/>
+  <text class="mono" x="91"  y="157" text-anchor="middle">amount</text>
+  <rect class="cell" x="182" y="132" width="150" height="40"/>
+  <text class="mono" x="257" y="157" text-anchor="middle">reward_debt</text>
+  <rect class="cell" x="348" y="132" width="150" height="40"/>
+  <text class="mono" x="423" y="157" text-anchor="middle">start_round</text>
+  <text class="sub" x="91"  y="192" text-anchor="middle">UInt64 &#183; 8 B</text>
+  <text class="sub" x="257" y="192" text-anchor="middle">UInt64 &#183; 8 B</text>
+  <text class="sub" x="423" y="192" text-anchor="middle">UInt64 &#183; 8 B</text>
+  <text class="sub" x="16"  y="216">box value &#8212; 24 bytes</text>
 
-  <text class="tot" x="30" y="256">2,500 &#43; 400 &#215; (35 &#43; 24)  =  26,100 µA</text>
+  <text class="tot" x="16" y="248">2,500 &#43; 400 &#215; (35 &#43; 24)  =  26,100 µA</text>
 
-  <line class="rule" x1="20" y1="280" x2="860" y2="280"/>
+  <line class="rule" x1="16" y1="272" x2="764" y2="272"/>
 
-  <!-- split -->
-  <text class="hd" x="30" y="312">The same three numbers in three boxes, one per field.</text>
+  <!-- split. The arithmetic sits to the right of each row and is left-anchored,
+       starting 28px clear of the dashed border rather than centred in the gap:
+       a label centred in a gap only as wide as itself reads as part of the rules
+       either side of it. -->
+  <text class="hd" x="16" y="306">The same three numbers in three boxes, one per field.</text>
 
-  <rect class="alt" x="30"  y="326" width="230" height="34"/>
-  <text class="monos" x="145" y="348" text-anchor="middle">b"amt" + address</text>
-  <rect class="alt" x="268" y="326" width="90" height="34"/>
-  <text class="monos" x="313" y="348" text-anchor="middle">8 B</text>
-  <text class="note" x="380" y="348">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
+  <rect class="alt" x="16"  y="318" width="180" height="34"/>
+  <text class="mono" x="106" y="340" text-anchor="middle">b"amt" + address</text>
+  <rect class="alt" x="208" y="318" width="80" height="34"/>
+  <text class="mono" x="248" y="340" text-anchor="middle">8 B</text>
+  <text class="note" x="316" y="340">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
 
-  <rect class="alt" x="30"  y="368" width="230" height="34"/>
-  <text class="monos" x="145" y="390" text-anchor="middle">b"dbt" + address</text>
-  <rect class="alt" x="268" y="368" width="90" height="34"/>
-  <text class="monos" x="313" y="390" text-anchor="middle">8 B</text>
-  <text class="note" x="380" y="390">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
+  <rect class="alt" x="16"  y="362" width="180" height="34"/>
+  <text class="mono" x="106" y="384" text-anchor="middle">b"dbt" + address</text>
+  <rect class="alt" x="208" y="362" width="80" height="34"/>
+  <text class="mono" x="248" y="384" text-anchor="middle">8 B</text>
+  <text class="note" x="316" y="384">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
 
-  <rect class="alt" x="30"  y="410" width="230" height="34"/>
-  <text class="monos" x="145" y="432" text-anchor="middle">b"srt" + address</text>
-  <rect class="alt" x="268" y="410" width="90" height="34"/>
-  <text class="monos" x="313" y="432" text-anchor="middle">8 B</text>
-  <text class="note" x="380" y="432">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
+  <rect class="alt" x="16"  y="406" width="180" height="34"/>
+  <text class="mono" x="106" y="428" text-anchor="middle">b"srt" + address</text>
+  <rect class="alt" x="208" y="406" width="80" height="34"/>
+  <text class="mono" x="248" y="428" text-anchor="middle">8 B</text>
+  <text class="note" x="316" y="428">2,500 &#43; 400 &#215; (35 &#43; 8)  =  19,700 µA</text>
 
-  <text class="tot" x="30" y="474">59,100 µA  &#8212;  2.26&#215; the packed layout, for exactly the same 24 bytes of data.</text>
+  <text class="tot"  x="16" y="472">59,100 µA  &#8212;  2.26&#215; the packed layout</text>
+  <text class="note" x="16" y="492">for exactly the same 24 bytes of data.</text>
 
-  <!-- why -->
-  <rect class="panel" x="20" y="500" width="840" height="120"/>
-  <text class="note" x="36" y="526">The address is stored three times, and the flat 2,500 µA is charged three times. Neither of those buys</text>
-  <text class="note" x="36" y="546">any storage &#8212; the payload is identical.</text>
-  <text class="note" x="36" y="576">So: pack the fields that are read together into one box, and keep the key prefix short. Every character</text>
-  <text class="note" x="36" y="596">of it is another 400 µA on every single box in the map, paid for as long as the box exists.</text>
+  <!-- why. Seventy-two characters a line is what the 708px between the panel's
+       text inset and its right border buys at 14px, taking the widest glyph mix
+       measured in this book at 7.79px per character. -->
+  <rect class="panel" x="16" y="516" width="748" height="136"/>
+  <text class="note" x="36" y="542">The address is stored three times, and the flat 2,500 µA is charged three</text>
+  <text class="note" x="36" y="561">times. Neither of those buys any storage &#8212; the payload is identical.</text>
+  <text class="note" x="36" y="591">So: pack the fields that are read together into one box, and keep the key</text>
+  <text class="note" x="36" y="610">prefix short. Every character of it is another 400 µA on every single box</text>
+  <text class="note" x="36" y="629">in the map, paid for as long as the box exists.</text>
 </svg>

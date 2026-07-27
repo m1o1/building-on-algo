@@ -1,17 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 570" width="880" height="570" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 636" width="780" height="636" font-family="DejaVu Sans, sans-serif">
   <!-- An ABI call, byte by byte. Everything here is the real encoding: the
        selector is the first four bytes of sha512_256("add(uint64,uint64)uint64"),
        and 151f7c75 is the return prefix every ABI method in every contract
        shares. A reader who has seen this once can decode a raw app call by eye. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 880px
+       the 11.5px cell captions landed at 6.14pt.
+
+       The boxes were never the problem. A cell is only as wide as the monospace
+       string inside it, and eight bytes of hex is 23 characters, so the whole
+       app&#8209;args row needs about 550px however it is drawn. What held the canvas at
+       880 was text that had nothing to do with the boxes: captions like
+       `args[1] &#183; 8 B &#183; uint64, big&#8209;endian &#8594; 7` set on one line under a cell half
+       their width, and two closing notes set beside the last row rather than
+       under it. Both are the same mistake, which is spending horizontal room on
+       a line that had somewhere vertical to go. The captions are two lines now
+       and the closing note is full&#8209;width beneath the row, and the canvas comes in
+       to 780px where 14px type sets at 8.44pt.
+
+       That trade costs height: 636px against the old 570, or 384pt on the page
+       against 305pt. It is worth it here because the alternative is type the
+       reader cannot resolve, but it is a real cost and not a free win. Past
+       width x 619/470.4 = 1026px the height rather than the width binds and
+       every size shrinks again; this is well inside that. -->
   <style>
     text { fill: #111111; }
-    .step  { font-size: 13.5px; font-weight: bold; }
+    .step  { font-size: 14.5px; font-weight: bold; }
     .cell  { fill: #f2f2f2; stroke: #333333; stroke-width: 1.5; }
     .hi    { fill: #d2d2d2; stroke: #333333; stroke-width: 2; }
     .dim   { fill: #ffffff; stroke: #333333; stroke-width: 1.5; stroke-dasharray: 5 3; }
-    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 13px; }
-    .sub   { font-size: 11.5px; fill: #333333; }
-    .note  { font-size: 12px; fill: #333333; font-style: italic; }
+    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 14px; }
+    .sub   { font-size: 14px; fill: #333333; }
+    .note  { font-size: 14px; fill: #333333; font-style: italic; }
     .arr   { stroke: #333333; stroke-width: 1.5; fill: none; }
   </style>
   <defs>
@@ -21,50 +43,71 @@
     </marker>
   </defs>
 
-  <!-- 1: the selector -->
-  <text class="step" x="30" y="40">1 &#183; The signature is hashed. The first four bytes are the selector.</text>
-  <rect class="cell" x="30" y="54" width="250" height="36"/>
-  <text class="mono" x="155" y="77" text-anchor="middle">add(uint64,uint64)uint64</text>
-  <path class="arr" d="M 284 72 L 394 72" marker-end="url(#a2)"/>
-  <text class="sub" x="339" y="66" text-anchor="middle">sha512_256</text>
-  <rect class="hi"  x="400" y="54" width="100" height="36"/>
-  <text class="mono" x="450" y="77" text-anchor="middle">fe6bdf69</text>
-  <rect class="dim" x="500" y="54" width="340" height="36"/>
-  <text class="mono" x="670" y="77" text-anchor="middle">c3ac917f &#8230; 24 more bytes</text>
-  <text class="sub" x="450" y="106" text-anchor="middle">kept</text>
-  <text class="sub" x="670" y="106" text-anchor="middle">thrown away</text>
+  <!-- 1: the selector. Cells are sized to their monospace contents at 8.43px
+       per character rather than to a round number, which is what lets the whole
+       row finish at x=666 on a 780px canvas.
 
-  <!-- 2: the wire -->
-  <text class="step" x="30" y="152">2 &#183; What actually travels: the app-args array.</text>
-  <rect class="hi"   x="30"  y="166" width="180" height="44"/>
-  <text class="mono" x="120" y="194" text-anchor="middle">fe6bdf69</text>
-  <rect class="cell" x="218" y="166" width="300" height="44"/>
-  <text class="mono" x="368" y="194" text-anchor="middle">00 00 00 00 00 00 00 07</text>
-  <rect class="cell" x="526" y="166" width="300" height="44"/>
-  <text class="mono" x="676" y="194" text-anchor="middle">00 00 00 00 00 00 00 0b</text>
-  <text class="sub" x="120" y="228" text-anchor="middle">args[0] &#183; 4 B &#183; the selector</text>
-  <text class="sub" x="368" y="228" text-anchor="middle">args[1] &#183; 8 B &#183; uint64, big-endian &#8594; 7</text>
-  <text class="sub" x="676" y="228" text-anchor="middle">args[2] &#183; 8 B &#183; uint64, big-endian &#8594; 11</text>
-  <text class="note" x="30" y="256">Sixteen slots, and the selector takes one. A method with more than fifteen arguments has its tail packed into a tuple in the last slot.</text>
+       The gap between the first cell and the selector is 120px and not the 80px
+       the arrow needs, because the gap has to hold the arrow's label, not the
+       arrow. At 14px `sha512_256` is 78px wide, so in an 80px gap it touched
+       both box borders and rendered as `$ha512_256` &#8212; the leading glyph reading
+       as part of the rule beside it. Nothing measured that: the floor harness
+       reported 8.44pt on the broken render and the extent harness reported the
+       label well inside the canvas. Only looking at the raster found it. -->
+  <text class="step" x="16" y="34">1 &#183; The signature is hashed. The first four bytes are the selector.</text>
+  <rect class="cell" x="16" y="46" width="220" height="40"/>
+  <text class="mono" x="126" y="71" text-anchor="middle">add(uint64,uint64)uint64</text>
+  <path class="arr" d="M 260 66 L 332 66" marker-end="url(#a2)"/>
+  <text class="sub" x="296" y="58" text-anchor="middle">sha512_256</text>
+  <rect class="hi"  x="356" y="46" width="90" height="40"/>
+  <text class="mono" x="401" y="71" text-anchor="middle">fe6bdf69</text>
+  <rect class="dim" x="446" y="46" width="220" height="40"/>
+  <text class="mono" x="556" y="71" text-anchor="middle">c3ac917f &#8230; 24 more bytes</text>
+  <text class="sub" x="401" y="106" text-anchor="middle">kept</text>
+  <text class="sub" x="556" y="106" text-anchor="middle">thrown away</text>
+
+  <!-- 2: the wire. Each caption is two lines: the slot and its width on the
+       first, what the bytes decode to on the second. On one line the middle
+       caption ran 285px under a 210px cell and overlapped its neighbour. -->
+  <text class="step" x="16" y="142">2 &#183; What actually travels: the app-args array.</text>
+  <rect class="hi"   x="16"  y="154" width="120" height="44"/>
+  <text class="mono" x="76"  y="182" text-anchor="middle">fe6bdf69</text>
+  <rect class="cell" x="146" y="154" width="210" height="44"/>
+  <text class="mono" x="251" y="182" text-anchor="middle">00 00 00 00 00 00 00 07</text>
+  <rect class="cell" x="366" y="154" width="210" height="44"/>
+  <text class="mono" x="471" y="182" text-anchor="middle">00 00 00 00 00 00 00 0b</text>
+  <text class="sub" x="76"  y="218" text-anchor="middle">args[0] &#183; 4 B</text>
+  <text class="sub" x="76"  y="237" text-anchor="middle">the selector</text>
+  <text class="sub" x="251" y="218" text-anchor="middle">args[1] &#183; 8 B</text>
+  <text class="sub" x="251" y="237" text-anchor="middle">uint64, big-endian &#8594; 7</text>
+  <text class="sub" x="471" y="218" text-anchor="middle">args[2] &#183; 8 B</text>
+  <text class="sub" x="471" y="237" text-anchor="middle">uint64, big-endian &#8594; 11</text>
+  <text class="note" x="16" y="263">Sixteen slots, and the selector takes one. A method with more than fifteen arguments has its</text>
+  <text class="note" x="16" y="282">tail packed into a tuple in the last slot.</text>
 
   <!-- 3: the return -->
-  <text class="step" x="30" y="302">3 &#183; The return value comes back as a log entry, behind its own four-byte prefix.</text>
-  <rect class="hi"   x="30"  y="316" width="180" height="44"/>
-  <text class="mono" x="120" y="344" text-anchor="middle">151f7c75</text>
-  <rect class="cell" x="218" y="316" width="300" height="44"/>
-  <text class="mono" x="368" y="344" text-anchor="middle">00 00 00 00 00 00 00 12</text>
-  <text class="sub" x="120" y="378" text-anchor="middle">4 B &#183; the return prefix</text>
-  <text class="sub" x="368" y="378" text-anchor="middle">8 B &#183; uint64 &#8594; 18</text>
-  <text class="note" x="30" y="406">The same prefix on every ABI method in every contract. It is how a client tells a return value from an ordinary log line.</text>
+  <text class="step" x="16" y="318">3 &#183; The return value comes back as a log entry, behind its own four-byte prefix.</text>
+  <rect class="hi"   x="16"  y="330" width="120" height="44"/>
+  <text class="mono" x="76"  y="358" text-anchor="middle">151f7c75</text>
+  <rect class="cell" x="146" y="330" width="210" height="44"/>
+  <text class="mono" x="251" y="358" text-anchor="middle">00 00 00 00 00 00 00 12</text>
+  <text class="sub" x="76"  y="394" text-anchor="middle">4 B</text>
+  <text class="sub" x="76"  y="413" text-anchor="middle">the return prefix</text>
+  <text class="sub" x="251" y="394" text-anchor="middle">8 B</text>
+  <text class="sub" x="251" y="413" text-anchor="middle">uint64 &#8594; 18</text>
+  <text class="note" x="16" y="439">The same prefix on every ABI method in every contract. It is how a client tells a return</text>
+  <text class="note" x="16" y="458">value from an ordinary log line.</text>
 
-  <!-- 4: dynamic types -->
-  <text class="step" x="30" y="452">A dynamic type carries its own length. arc4.String(&#8220;hi&#8221;) on the wire:</text>
-  <rect class="cell" x="30"  y="466" width="150" height="44"/>
-  <text class="mono" x="105" y="494" text-anchor="middle">00 02</text>
-  <rect class="cell" x="188" y="466" width="150" height="44"/>
-  <text class="mono" x="263" y="494" text-anchor="middle">68 69</text>
-  <text class="sub" x="105" y="528" text-anchor="middle">2 B &#183; length</text>
-  <text class="sub" x="263" y="528" text-anchor="middle">the bytes themselves</text>
-  <text class="note" x="360" y="494">A fixed-size type has no length prefix, because the ABI already knows how wide it is.</text>
-  <text class="note" x="360" y="514">That is the whole difference, and it is why a tuple of dynamic types needs offsets.</text>
+  <!-- 4: dynamic types. The closing note runs full width under the row rather
+       than beside it; beside it there were only 434px, which is 57 characters
+       and four lines, taller than the row it was meant to annotate. -->
+  <text class="step" x="16" y="494">A dynamic type carries its own length. arc4.String(&#8220;hi&#8221;) on the wire:</text>
+  <rect class="cell" x="16"  y="506" width="140" height="44"/>
+  <text class="mono" x="86"  y="534" text-anchor="middle">00 02</text>
+  <rect class="cell" x="166" y="506" width="140" height="44"/>
+  <text class="mono" x="236" y="534" text-anchor="middle">68 69</text>
+  <text class="sub" x="86"  y="570" text-anchor="middle">2 B &#183; length</text>
+  <text class="sub" x="236" y="570" text-anchor="middle">the bytes themselves</text>
+  <text class="note" x="16" y="596">A fixed-size type has no length prefix, because the ABI already knows how wide it is. That is</text>
+  <text class="note" x="16" y="615">the whole difference, and it is why a tuple of dynamic types needs offsets.</text>
 </svg>

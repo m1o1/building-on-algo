@@ -1,19 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" width="820" height="520" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 510" width="700" height="510" font-family="DejaVu Sans, sans-serif">
   <!-- Where does this data go? Three questions, asked in the order that costs
        the least to answer wrong. Drawn in greys and dash patterns only: the
        print edition is black and white, so nothing here may mean anything by
        hue alone. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 820px
+       the 11.5px answer captions landed at 6.59pt.
+
+       Two columns of boxes, and each was sized to the longest string in it with
+       room to spare rather than to the string. The question column carried
+       `past what one key-value pair holds?` at 15px, which is 314px, in a 400px
+       box; the answer column carried `28,500 microAlgo per uint, 50,000 per
+       bytes` at 11.5px in a 310px box. Dropping the questions to 14px and
+       sizing both columns to their contents brings 820px in to 700px and takes
+       the answer captions up to 12.5px, which sets at 8.40pt. The 60px gap the
+       arrows cross is 60px because it also has to hold `yes`, with room either
+       side that a reader can see: a label centred in a gap no wider than itself
+       reads as part of the box rules it sits between.
+
+       The closing note is two lines because at 108 characters it was the widest
+       single thing in the figure, wider than any box. Height falls 520 to 510
+       and the figure occupies 343pt on the page. -->
   <style>
     text { fill: #111111; }
     .q    { fill: #f2f2f2; stroke: #333333; stroke-width: 1.5; }
     .a    { fill: #e0e0e0; stroke: #333333; stroke-width: 2; }
     .last { fill: #ffffff; stroke: #333333; stroke-width: 1.5; stroke-dasharray: 5 3; }
-    .qt   { font-size: 15px; font-weight: bold; }
-    .at   { font-size: 15px; font-weight: bold; }
-    .sub  { font-size: 11.5px; fill: #333333; }
+    .qt   { font-size: 14px; font-weight: bold; }
+    .at   { font-size: 14.5px; font-weight: bold; }
+    .sub  { font-size: 12.5px; fill: #333333; }
     .edge { fill: none; stroke: #333333; stroke-width: 1.5; }
-    .lbl  { font-size: 12px; fill: #333333; font-style: italic; }
-    .note { font-size: 12px; fill: #333333; font-style: italic; }
+    .lbl  { font-size: 12.5px; fill: #333333; font-style: italic; }
+    .note { font-size: 12.5px; fill: #333333; font-style: italic; }
   </style>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5"
@@ -23,47 +43,48 @@
   </defs>
 
   <!-- question 1 -->
-  <rect class="q" x="20" y="24" width="400" height="62" rx="4"/>
-  <text class="qt" x="220" y="61" text-anchor="middle">One value, shared by every caller?</text>
-  <rect class="a" x="490" y="16" width="310" height="78" rx="4"/>
-  <text class="at"  x="645" y="42" text-anchor="middle">Global state</text>
-  <text class="sub" x="645" y="62" text-anchor="middle">64 key-value pairs, 128 B each</text>
-  <text class="sub" x="645" y="80" text-anchor="middle">28,500 µA per uint, 50,000 per bytes</text>
-  <path class="edge" d="M 420 55 L 484 55" marker-end="url(#arrow)"/>
-  <text class="lbl" x="452" y="47" text-anchor="middle">yes</text>
-  <path class="edge" d="M 220 86 L 220 138" marker-end="url(#arrow)"/>
-  <text class="lbl" x="230" y="118">no</text>
+  <rect class="q" x="16" y="24" width="320" height="58" rx="4"/>
+  <text class="qt" x="176" y="58" text-anchor="middle">One value, shared by every caller?</text>
+  <rect class="a" x="396" y="15" width="280" height="76" rx="4"/>
+  <text class="at"  x="536" y="41" text-anchor="middle">Global state</text>
+  <text class="sub" x="536" y="61" text-anchor="middle">64 key-value pairs, 128 B each</text>
+  <text class="sub" x="536" y="79" text-anchor="middle">28,500 µA per uint, 50,000 per bytes</text>
+  <path class="edge" d="M 336 53 L 390 53" marker-end="url(#arrow)"/>
+  <text class="lbl" x="363" y="45" text-anchor="middle">yes</text>
+  <path class="edge" d="M 176 82 L 176 134" marker-end="url(#arrow)"/>
+  <text class="lbl" x="186" y="114">no</text>
 
   <!-- question 2 -->
-  <rect class="q" x="20" y="144" width="400" height="62" rx="4"/>
-  <text class="qt" x="220" y="170" text-anchor="middle">One value per account &#8212; and will</text>
-  <text class="qt" x="220" y="190" text-anchor="middle">they opt in, and stay opted in?</text>
-  <rect class="a" x="490" y="136" width="310" height="78" rx="4"/>
-  <text class="at"  x="645" y="162" text-anchor="middle">Local state</text>
-  <text class="sub" x="645" y="182" text-anchor="middle">16 key-value pairs per account</text>
-  <text class="sub" x="645" y="200" text-anchor="middle">their balance is pinned, not yours</text>
-  <path class="edge" d="M 420 175 L 484 175" marker-end="url(#arrow)"/>
-  <text class="lbl" x="452" y="167" text-anchor="middle">yes</text>
-  <path class="edge" d="M 220 206 L 220 258" marker-end="url(#arrow)"/>
-  <text class="lbl" x="230" y="238">no</text>
+  <rect class="q" x="16" y="140" width="320" height="58" rx="4"/>
+  <text class="qt" x="176" y="164" text-anchor="middle">One value per account &#8212; and will</text>
+  <text class="qt" x="176" y="184" text-anchor="middle">they opt in, and stay opted in?</text>
+  <rect class="a" x="396" y="131" width="280" height="76" rx="4"/>
+  <text class="at"  x="536" y="157" text-anchor="middle">Local state</text>
+  <text class="sub" x="536" y="177" text-anchor="middle">16 key-value pairs per account</text>
+  <text class="sub" x="536" y="195" text-anchor="middle">their balance is pinned, not yours</text>
+  <path class="edge" d="M 336 169 L 390 169" marker-end="url(#arrow)"/>
+  <text class="lbl" x="363" y="161" text-anchor="middle">yes</text>
+  <path class="edge" d="M 176 198 L 176 250" marker-end="url(#arrow)"/>
+  <text class="lbl" x="186" y="230">no</text>
 
   <!-- question 3 -->
-  <rect class="q" x="20" y="264" width="400" height="62" rx="4"/>
-  <text class="qt" x="220" y="290" text-anchor="middle">Must it outlive the opt-in, or grow</text>
-  <text class="qt" x="220" y="310" text-anchor="middle">past what one key-value pair holds?</text>
-  <rect class="a" x="490" y="256" width="310" height="78" rx="4"/>
-  <text class="at"  x="645" y="282" text-anchor="middle">Box, or BoxMap</text>
-  <text class="sub" x="645" y="302" text-anchor="middle">32,768 B of value, 2,048 B of name</text>
-  <text class="sub" x="645" y="320" text-anchor="middle">2,500 + 400 × (name + size) µA</text>
-  <path class="edge" d="M 420 295 L 484 295" marker-end="url(#arrow)"/>
-  <text class="lbl" x="452" y="287" text-anchor="middle">yes</text>
-  <path class="edge" d="M 220 326 L 220 378" marker-end="url(#arrow)"/>
-  <text class="lbl" x="230" y="358">no</text>
+  <rect class="q" x="16" y="256" width="320" height="58" rx="4"/>
+  <text class="qt" x="176" y="280" text-anchor="middle">Must it outlive the opt-in, or grow</text>
+  <text class="qt" x="176" y="300" text-anchor="middle">past what one key-value pair holds?</text>
+  <rect class="a" x="396" y="247" width="280" height="76" rx="4"/>
+  <text class="at"  x="536" y="273" text-anchor="middle">Box, or BoxMap</text>
+  <text class="sub" x="536" y="293" text-anchor="middle">32,768 B of value, 2,048 B of name</text>
+  <text class="sub" x="536" y="311" text-anchor="middle">2,500 + 400 &#215; (name + size) µA</text>
+  <path class="edge" d="M 336 285 L 390 285" marker-end="url(#arrow)"/>
+  <text class="lbl" x="363" y="277" text-anchor="middle">yes</text>
+  <path class="edge" d="M 176 314 L 176 366" marker-end="url(#arrow)"/>
+  <text class="lbl" x="186" y="346">no</text>
 
   <!-- fall-through -->
-  <rect class="last" x="20" y="384" width="400" height="62" rx="4"/>
-  <text class="qt" x="220" y="410" text-anchor="middle">Keep it off-chain. Put a hash</text>
-  <text class="qt" x="220" y="430" text-anchor="middle">on-chain and prove it later.</text>
+  <rect class="last" x="16" y="372" width="320" height="58" rx="4"/>
+  <text class="qt" x="176" y="396" text-anchor="middle">Keep it off-chain. Put a hash</text>
+  <text class="qt" x="176" y="416" text-anchor="middle">on-chain and prove it later.</text>
 
-  <text class="note" x="20" y="482">Every tier above is bought with Algo that is locked, not spent. Opt out, or delete the box, and it comes back.</text>
+  <text class="note" x="16" y="466">Every tier above is bought with Algo that is locked, not spent.</text>
+  <text class="note" x="16" y="486">Opt out, or delete the box, and it comes back.</text>
 </svg>

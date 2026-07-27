@@ -1254,7 +1254,7 @@ In the next chapter, we extend the vesting contract with NFTs for transferabilit
 
 6. **(Create)** Design an extension where the admin can increase a beneficiary's total allocation after the schedule is already created. What new method is needed? What happens to already-vested tokens? What security checks prevent abuse?
 
-7. **(Create, cross-chapter)** The vesting contract uses a single admin address. Design a modification where admin operations (initialize, create_schedule, revoke) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
+7. **(Create, cross-chapter)** The vesting contract uses a single admin address. Design a modification where admin operations (`initialize`, `create_schedule`, `revoke`) require approval from 2-of-3 multisig signers. What changes to the admin check pattern are needed? How does Algorand's native multisig support simplify this compared to implementing multisig logic in the contract itself?
 
 ::: {.tryit}
 **Practice with the Cookbook.** Reinforce this chapter's concepts with Cookbook recipes: 1.2 (contract with `__init__`), 3.3 (wide arithmetic), 6.2 (BoxMap), 8.1 (Algo payment), and 11.1 (creator-only method).

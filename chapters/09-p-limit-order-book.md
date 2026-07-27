@@ -493,7 +493,7 @@ This separation is deliberate. LogicSigs are stateless and cannot read contract 
 
 ### Price Representation: the N/D Rational Number Pattern
 
-Prices on Algorand are represented as rational numbers (numerator/denominator) because the AVM has no floating point. The convention: "I want at least N units of buy_asset per D units of sell_asset."
+Prices on Algorand are represented as rational numbers (numerator/denominator) because the AVM has no floating point. The convention: "I want at least N units of `buy_asset` per D units of `sell_asset`."
 
 For example, Alice wants 0.25 ALGO per USDC → `PRICE_N = 250_000` (0.25 ALGO in microAlgos), `PRICE_D = 1_000_000` (1 USDC with 6 decimals).
 
@@ -929,7 +929,7 @@ The signed LogicSig (Alice's signed delegation) must be shared with keepers some
 
 **Off-chain relay (simplest):** The frontend posts the signed LogicSig to a centralized API or peer-to-peer network. Keepers poll this relay for new orders. This is how most existing Algorand DEXs with limit orders work. The relay is a convenience layer --- it doesn't affect security because the LogicSig itself enforces all trading rules.
 
-**On-chain storage:** Store the signed LogicSig in box storage. This makes the system fully on-chain but is expensive --- a LogicSig can be up to 1,000 bytes, plus the signature. The MBR for a 1,100-byte box is `2,500 + 400 × (10 + 1,100) = 446,500 μAlgo` ≈ 0.45 Algo per order.
+**On-chain storage:** Store the signed LogicSig in box storage. This makes the system fully on-chain but is expensive --- a LogicSig can be up to 1,000 bytes, plus the signature. The MBR for a 1,100-byte box is `2,500 + 400 × (10 + 1,100) = 446,500 microAlgo` ≈ 0.45 Algo per order.
 
 **Hybrid (recommended):** Store only the LogicSig program hash on-chain (32 bytes, stored in the order data). Distribute the actual signed LogicSig off-chain. Keepers verify the hash matches before using it. This gives you on-chain order discovery with off-chain LogicSig distribution.
 
@@ -1457,7 +1457,7 @@ Table: Choosing between a LogicSig and a smart contract {#tbl:logicsig-decision-
 Table: Further reading on logic signatures {#tbl:lob-further-reading}
 
 | Resource | URL |
-|----------|-----|
+|--------------------|------------------------------|
 | Logic Signatures | [dev.algorand.co/concepts/smart-contracts/logic-sigs/](https://dev.algorand.co/concepts/smart-contracts/logic-sigs/) |
 | Algorand Python Compilation | [algorandfoundation.github.io/puya/lg-compile.html](https://algorandfoundation.github.io/puya/lg-compile.html) |
 | Algorand Python Operations | [algorandfoundation.github.io/puya/lg-ops.html](https://algorandfoundation.github.io/puya/lg-ops.html) |

@@ -1,8 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 700" width="780" height="700" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 690 710" width="690" height="710" font-family="DejaVu Sans, sans-serif">
   <!-- Generated from the arithmetic, not drawn by eye. k = 1,000,000; the pool sits at
        (1,000, 1,000); the trader sends 250 in and takes 200 out, where a fixed
        price would have paid 250. The 50-unit gap is the whole lesson, so the
        window is cropped tight enough that the gap is legible. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on-page type
+       is font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px >= width_px / 58.8 for the house's 8pt floor. At the original
+       780px this figure's 11px tick labels landed at 6.63pt. Nothing about the
+       drawing needed that width: the plot ends at the axis terminus x=652 and
+       the 128px of canvas beyond it was empty, held open by two 106- and
+       115-character footnote lines. Re-wrapping the footnote to three lines is
+       what let the canvas come in to 690px, and the type went up with it.
+       Scaling the whole drawing uniformly would have changed nothing at all,
+       since the ratio is what the page sees. -->
   <style>
     text { fill: #111111; }
     .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
@@ -12,11 +23,11 @@
     .move  { stroke: #333333; stroke-width: 1.8; fill: none; }
     .dot   { fill: #333333; }
     .odot  { fill: #ffffff; stroke: #333333; stroke-width: 1.8; }
-    .lab   { font-size: 12.5px; }
-    .labb  { font-size: 13px; font-weight: bold; }
-    .tick  { font-size: 11px; fill: #333333; }
-    .axt   { font-size: 12.5px; font-style: italic; fill: #333333; }
-    .note  { font-size: 12.5px; }
+    .lab   { font-size: 13px; }
+    .labb  { font-size: 13.5px; font-weight: bold; }
+    .tick  { font-size: 12.5px; fill: #333333; }
+    .axt   { font-size: 13px; font-style: italic; fill: #333333; }
+    .note  { font-size: 13px; }
     .gap   { stroke: #333333; stroke-width: 1.5; fill: none; }
     .panel { fill: #fafafa; stroke: #888888; stroke-width: 1; }
     .k     { font-size: 15px; font-weight: bold; }
@@ -85,6 +96,7 @@
   <text class="lab"  x="256" y="536">1,250 A &#215; 800 B</text>
 
   <!-- footnote -->
-  <text class="note" x="20" y="652">The dashed line is the price the pool quotes at that instant. Trade against it and you leave it immediately:</text>
-  <text class="note" x="20" y="674">the bigger your order is relative to the reserves, the further down the curve you drag yourself before you are done.</text>
+  <text class="note" x="20" y="650">The dashed line is the price the pool quotes at that instant. Trade against it and you leave it</text>
+  <text class="note" x="20" y="672">immediately: the bigger your order is relative to the reserves, the further down the curve you</text>
+  <text class="note" x="20" y="694">drag yourself before you are done.</text>
 </svg>

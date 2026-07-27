@@ -223,10 +223,10 @@ contract_address = Global.current_application_address
 
 # Fund the escrow as part of deployment:
 # Client sends Algo to this address to cover MBR for:
-#   Account minimum balance:     100,000 μAlgo
-#   Each ASA opt-in:             100,000 μAlgo each
-#   Each box:                    2,500 + 400 × (name_len + data_size) μAlgo
-#   Buffer for safety:           ~50,000 μAlgo
+#   Account minimum balance:     100,000 microAlgo
+#   Each ASA opt-in:             100,000 microAlgo each
+#   Each box:                    2,500 + 400 × (name_len + data_size) microAlgo
+#   Buffer for safety:           ~50,000 microAlgo
 ```
 
 **The key insight:** The contract address has no private key. Nobody can sign transactions from it directly. The *only* way assets leave this address is through inner transactions approved by the contract logic. This is what makes it trustless --- the code is the sole custodian. If the contract is immutable (UpdateApplication rejected), then the rules governing this escrow can never change. (See [Lifecycle](https://dev.algorand.co/concepts/smart-contracts/lifecycle/).)

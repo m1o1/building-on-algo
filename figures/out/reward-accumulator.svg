@@ -1,9 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" width="880" height="640" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 660" width="700" height="660" font-family="DejaVu Sans, sans-serif">
   <!-- Why a farm stores one accumulator instead of a per-staker balance. The
        accumulator's slope is the whole idea: it rises fast while one account is
        alone in the pool and slowly once three more join, and the difference
        between a staker's snapshot and the current value is that staker's share,
        computed in one subtraction no matter how many people came and went. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 880px
+       the 11.5px event captions landed at 6.14pt.
+
+       The chart was never 880px of chart. It was 680px of plot area with 110px
+       of empty margin to its left, a right&#8209;hand column of readings, and a panel
+       whose prose ran 101 characters a line. The plot is 540px now and reads the
+       same, because nothing in it is measured against a scale: the reader
+       compares the two slopes to each other. The staker captions went to two
+       lines each, which is what lets Bob's bar be half the plot rather than
+       however wide his caption happened to be, and the panel is re&#8209;wrapped at 85
+       characters. At 700px every size on the page is 12.5px, which sets at
+       8.40pt.
+
+       Height goes 640 to 660, which is 443pt on the page. Past width x
+       619/470.4 = 921px the height rather than the width binds and every size
+       shrinks again; this is well inside that.
+
+       Annotations go ABOVE their segment, never level with its midpoint. The
+       accumulator runs diagonally through this band, so a label placed beside a
+       rising line is struck through by it at one end. Each label here clears the
+       line by at least 16px at the nearer end, which is the end that matters. -->
   <style>
     text { fill: #111111; }
     .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
@@ -14,65 +38,69 @@
     .alice { fill: #e0e0e0; stroke: #333333; stroke-width: 1.5; }
     .bob   { fill: #f5f5f5; stroke: #333333; stroke-width: 1.5; stroke-dasharray: 5 3; }
     .bart  { font-size: 12.5px; }
-    .lab   { font-size: 12px; fill: #333333; }
+    .lab   { font-size: 12.5px; fill: #333333; }
     .labb  { font-size: 12.5px; font-weight: bold; }
-    .ev t  { font-size: 11px; }
-    .evl   { font-size: 11.5px; fill: #333333; }
-    .evb   { font-size: 12px; font-weight: bold; }
+    .evl   { font-size: 12.5px; fill: #333333; }
+    .evb   { font-size: 12.5px; font-weight: bold; }
     .panel { fill: #fafafa; stroke: #888888; stroke-width: 1; }
     .p     { font-size: 12.5px; }
     .pb    { font-size: 12.5px; font-weight: bold; }
-    .mono  { font-family: "DejaVu Sans Mono", monospace; font-size: 12px; }
   </style>
 
-  <text class="labb" x="110" y="46">reward_per_token, accumulated</text>
+  <text class="labb" x="60" y="44">reward_per_token, accumulated</text>
 
   <!-- event lines -->
-  <line class="ev" x1="110" y1="56" x2="110" y2="452"/>
-  <line class="ev" x1="450" y1="56" x2="450" y2="452"/>
-  <line class="ev" x1="790" y1="56" x2="790" y2="452"/>
+  <line class="ev" x1="60"  y1="60" x2="60"  y2="446"/>
+  <line class="ev" x1="330" y1="60" x2="330" y2="446"/>
+  <line class="ev" x1="600" y1="60" x2="600" y2="446"/>
 
-  <!-- baseline -->
-  <line class="ax" x1="110" y1="300" x2="800" y2="300"/>
+  <!-- baseline, rpt = 0 -->
+  <line class="ax" x1="60" y1="290" x2="600" y2="290"/>
 
-  <!-- guides to the right-hand readings -->
-  <line class="gd" x1="450" y1="140" x2="790" y2="140"/>
+  <!-- guide to the rpt = 20 reading -->
+  <line class="gd" x1="330" y1="170" x2="600" y2="170"/>
 
-  <!-- the accumulator: steep while Alice is alone, shallow once Bob is in -->
-  <path class="rpt" d="M 110 300 L 450 140 L 790 100"/>
-  <circle class="dot" cx="110" cy="300" r="5"/>
-  <circle class="dot" cx="450" cy="140" r="5"/>
-  <circle class="dot" cx="790" cy="100" r="5"/>
+  <!-- The accumulator: steep while Alice is alone, shallow once Bob is in.
+       Six pixels per unit of rpt, so 0 is y=290, 20 is y=170 and 25 is y=140. -->
+  <path class="rpt" d="M 60 290 L 330 170 L 600 140"/>
+  <circle class="dot" cx="60"  cy="290" r="5"/>
+  <circle class="dot" cx="330" cy="170" r="5"/>
+  <circle class="dot" cx="600" cy="140" r="5"/>
 
-  <text class="lab" x="800" y="104">rpt = 25</text>
-  <text class="lab" x="800" y="144">rpt = 20</text>
-  <text class="lab" x="800" y="304">rpt = 0</text>
+  <text class="lab" x="614" y="144">rpt = 25</text>
+  <text class="lab" x="614" y="174">rpt = 20</text>
+  <text class="lab" x="614" y="294">rpt = 0</text>
 
-  <!-- Above the rising segment, not beside it: the line runs diagonally through
-       this band, so anything placed level with its midpoint gets struck through. -->
-  <text class="lab" x="212" y="196" text-anchor="middle">steep: 100 tokens</text>
-  <text class="lab" x="212" y="212" text-anchor="middle">share every round</text>
-  <text class="lab" x="620" y="176" text-anchor="middle">shallow: 400 tokens</text>
-  <text class="lab" x="620" y="192" text-anchor="middle">share the same round</text>
+  <text class="lab" x="185" y="172" text-anchor="middle">steep: 100 tokens</text>
+  <text class="lab" x="185" y="188" text-anchor="middle">share every round</text>
+  <text class="lab" x="465" y="111" text-anchor="middle">shallow: 400 tokens</text>
+  <text class="lab" x="465" y="127" text-anchor="middle">share the same round</text>
 
-  <!-- stakers -->
-  <rect class="alice" x="110" y="358" width="680" height="34"/>
-  <text class="bart" x="124" y="380">Alice stakes 100 &#8212; snapshot taken at rpt = 0</text>
-  <rect class="bob" x="450" y="404" width="340" height="34"/>
-  <text class="bart" x="464" y="426">Bob stakes 300 &#8212; snapshot taken at rpt = 20</text>
+  <!-- Stakers. Two lines of caption each, so Bob's bar can be exactly half the
+       plot &#8212; the thing it is meant to say &#8212; rather than as wide as his caption. -->
+  <rect class="alice" x="60" y="340" width="540" height="48"/>
+  <text class="bart" x="74" y="362">Alice stakes 100</text>
+  <text class="bart" x="74" y="380">snapshot taken at rpt = 0</text>
+  <rect class="bob" x="330" y="398" width="270" height="48"/>
+  <text class="bart" x="344" y="420">Bob stakes 300</text>
+  <text class="bart" x="344" y="438">snapshot taken at rpt = 20</text>
 
   <!-- the round axis -->
-  <text class="evb" x="110" y="474" text-anchor="middle">round 1,000</text>
-  <text class="evb" x="450" y="474" text-anchor="middle">round 3,000</text>
-  <text class="evb" x="790" y="474" text-anchor="middle">round 5,000</text>
-  <text class="evl" x="110" y="492" text-anchor="middle">Alice stakes</text>
-  <text class="evl" x="450" y="492" text-anchor="middle">Bob stakes</text>
-  <text class="evl" x="790" y="492" text-anchor="middle">both exit</text>
+  <text class="evb" x="60"  y="466" text-anchor="middle">round 1,000</text>
+  <text class="evb" x="330" y="466" text-anchor="middle">round 3,000</text>
+  <text class="evb" x="600" y="466" text-anchor="middle">round 5,000</text>
+  <text class="evl" x="60"  y="484" text-anchor="middle">Alice stakes</text>
+  <text class="evl" x="330" y="484" text-anchor="middle">Bob stakes</text>
+  <text class="evl" x="600" y="484" text-anchor="middle">both exit</text>
 
-  <!-- the arithmetic -->
-  <rect class="panel" x="20" y="508" width="840" height="112"/>
-  <text class="p"  x="36" y="532">The pool pays 1 token per round, split among whoever is staked at that moment.</text>
-  <text class="p"  x="36" y="556">rounds 1,000&#8211;3,000: only Alice is in, so rpt climbs 2,000 &#247; 100 = 20.  Then 400 are staked, so the</text>
-  <text class="p"  x="36" y="576">same 2,000 tokens move it only 2,000 &#247; 400 = 5 further.  rpt ends at 25.</text>
-  <text class="pb" x="36" y="604">Alice: 100 &#215; (25 &#8722; 0) = 2,500.   Bob: 300 &#215; (25 &#8722; 20) = 1,500.   Total 4,000 &#8212; every round paid once.</text>
+  <!-- The arithmetic. Lines are 85 characters or fewer, which is what the 636px
+       between the panel's text edge and its right border buys at 12.5px; the
+       bold pair is held to 62, since bold measures 7.47px per character against
+       the 6.95 of the widest regular glyph mix in this book. -->
+  <rect class="panel" x="16" y="500" width="668" height="142"/>
+  <text class="p"  x="32" y="526">The pool pays 1 token per round, split among whoever is staked at that moment.</text>
+  <text class="p"  x="32" y="550">rounds 1,000&#8211;3,000: only Alice is in, so rpt climbs 2,000 &#247; 100 = 20. Then 400 are</text>
+  <text class="p"  x="32" y="570">staked, so the same 2,000 tokens move it only 2,000 &#247; 400 = 5 further. rpt ends at 25.</text>
+  <text class="pb" x="32" y="598">Alice: 100 &#215; (25 &#8722; 0) = 2,500.   Bob: 300 &#215; (25 &#8722; 20) = 1,500.</text>
+  <text class="pb" x="32" y="618">Total 4,000 &#8212; every round paid once.</text>
 </svg>

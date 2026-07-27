@@ -89,9 +89,26 @@
 -- those captions is followed by a fence -- which is the invariant worth
 -- checking, rather than the coincidence of two equal numbers.
 --
--- COUNT IT WITH `grep -c '^\Needspace\*{5\\baselineskip}$'` AND NOT WITH
+-- COUNT IT WITH `grep -cxF '\Needspace*{5\baselineskip}'` AND NOT WITH
 -- `grep -c Needspace`, which returns 138 because the preamble carries a
--- comment mentioning the macro. Count the captions from the anchors --
+-- comment mentioning the macro. **The `-F` is not a convenience.** This
+-- comment carried `grep -c '^\Needspace\*{5\\baselineskip}$'` for several
+-- rounds, quoted as the command that returns 137, and it returns **0**: GNU
+-- grep's BRE has no `\N` escape, and an undefined escape is the bare
+-- character, so the pattern hunts for a line beginning `Needspace` with no
+-- backslash in front of it and finds none. Verified on a two-line fixture
+-- rather than argued about --
+--
+--   printf '\\Needspace*{5\\baselineskip}\n' > /tmp/nd.txt
+--   grep -c '^\Needspace\*{5\\baselineskip}$' /tmp/nd.txt   # 0
+--   grep -cxF '\Needspace*{5\baselineskip}'   /tmp/nd.txt   # 1
+--
+-- and the general rule is worth more than the fix: **a counting command
+-- recorded in a comment is a claim, and a claim that silently returns zero
+-- reads exactly like a mechanism that is not firing.** Anyone who ran the old
+-- form would have concluded this filter emits nothing at all. Escape-heavy
+-- LaTeX literals belong in `-F`, where there are no escapes to get wrong.
+-- Count the captions from the anchors --
 -- `grep -rc '{#ex:' chapters/` -- and not from `grep -r '^Example: '`, which
 -- also returned 138 for months because one prose sentence in chapter 9 began
 -- with the word and carried no anchor. Two different off-by-ones, in

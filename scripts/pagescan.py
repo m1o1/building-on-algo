@@ -17,23 +17,28 @@ THE FOUR STATISTICS, defined here because a table of them elsewhere is not
 self-describing and every previous attempt to re-derive these numbers from a
 prose description of them failed:
 
-  broken page-ends     the last body line of a page ends in a hyphen or a
-                       slash directly after an alphanumeric or a `)`. Most are
-                       correct typography -- English hyphenates across pages --
-                       so this is a population to look at, not a defect count.
+  broken page-ends     the last body line of a page ends in an underscore, a
+                       slash, or any of the three hyphens the fonts here
+                       produce (`-`, U+2010, U+2011), directly after an
+                       alphanumeric or a `)`. Most are correct typography --
+                       English hyphenates across pages -- so this is a
+                       population to look at, not a defect count.
 
   ident-splits         the last body line ends in `.`, `_` or `/` after an
-                       alphanumeric AND the next page's first body line starts
-                       lowercase or with `_`. This is the *candidate* set for a
-                       page turn landing inside an identifier. The bulk of it is
-                       sentence-final periods before a code fence, which are
-                       benign; the genuine ones have to be read off the listing
-                       below the count. Do not quote the raw number as a defect
-                       count -- name the sites.
+                       alphanumeric or a `)` AND the next page's first body
+                       line starts lowercase or with `_`. This is the
+                       *candidate* set for a page turn landing inside an
+                       identifier. The bulk of it is sentence-final periods
+                       before a code fence, which are benign; the genuine ones
+                       have to be read off the listing below the count. Do not
+                       quote the raw number as a defect count -- name the sites.
 
   stranded captions    a page's last body line is the start of an
-                       `Example|Figure|Table N-M.` caption, so the label sits at
-                       the foot of a page naming something on the next one. The
+                       `Example|Figure|Table L-M.` caption -- `L` being a
+                       chapter label, which is a digit run in the body and a
+                       letter in the front matter and appendices -- so the
+                       label sits at the foot of a page naming something on the
+                       next one. The
                        front matter's list of tables and list of figures match
                        this shape too; they are filtered by their dot leaders
                        (see `_is_contents_entry`) because otherwise they read as
@@ -90,7 +95,14 @@ FOLIO_RE = re.compile(r"\d+")
 BROKEN_END_RE = re.compile(r"[A-Za-z0-9)][_/‐‑-]$")
 IDENT_END_RE = re.compile(r"[A-Za-z0-9)][._/]$")
 IDENT_START_RE = re.compile(r"^[a-z_]")
-CAPTION_RE = re.compile(r"^(Example|Figure|Table) \d+-\d+\.")
+# `[A-Z0-9]+` and not `\d+`, because a caption's first component is a chapter
+# *label* rather than a chapter number: the front matter numbers its figure
+# `Figure P-1` and appendix B numbers its tables `Table B-1` through `B-3`.
+# The narrow form matched neither, so four caption sites -- one figure, three
+# tables -- were outside the stranded-caption statistic entirely, and the
+# statistic read as covering the whole book because nothing distinguishes
+# "no defect at these sites" from "these sites were never examined".
+CAPTION_RE = re.compile(r"^(Example|Figure|Table) [A-Z0-9]+-\d+\.")
 CALLOUT_RE = re.compile(r"(GOTCHA|SETUP|NOTE|WARNING|TIP|PITFALL)$")
 # Three or more dot-leader groups: a contents entry, never a caption in situ.
 CONTENTS_RE = re.compile(r"(\.\s+){3,}")

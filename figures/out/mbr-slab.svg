@@ -1,8 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 740" width="900" height="740" font-family="DejaVu Sans, sans-serif">
-  <!-- The minimum balance, drawn to scale. One vertical pixel is 1,667 µA and the
-       slab is exactly 1.000000 ALGO tall, so the reader can see at a glance how
-       little of a freshly funded pool account is actually spendable. Every
-       segment is a real current figure, not an illustration. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 660" width="700" height="660" font-family="DejaVu Sans, sans-serif">
+  <!-- The minimum balance, drawn to scale. One vertical pixel is 2,000 microAlgo
+       and the slab is exactly 1.000000 ALGO tall, so the reader can see at a
+       glance how little of a freshly funded pool account is actually spendable.
+       Every segment is a real current figure, not an illustration:
+       257.15 + 42.85 + 50 + 50 + 50 + 50 = 500px = 1,000,000 microAlgo. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 900px
+       the 11.5px aside landed at 6.01pt.
+
+       The 900px was not the slab. The slab is 150px of rectangle; the other 750
+       were three columns of text either side of it, and each column had to give
+       before the canvas could move at all. The left labels are the widest thing
+       here at 25 bold characters, so they set where the slab starts rather than
+       the other way round. The right column is re&#8209;wrapped at 30 characters, which
+       is 208px at the 6.95px per character the widest glyph mix measured in this
+       book. And the closing note ran 117 characters on one line, which no 700px
+       canvas can set at 12.5px, so it is three lines of 79 or fewer.
+
+       Height is the other constraint, and it bought something here rather than
+       costing something. The slab was 600px at 1,667 microAlgo per pixel; at
+       2,000 it is 500px, the scale is a rounder number to state, and the whole
+       figure comes out 443pt on the page against the 386pt the 900px version
+       occupied at its smaller type. Past width x 619/470.4 = 921px the height
+       rather than the width binds and every size shrinks again; 660 is well
+       inside that. -->
   <style>
     text { fill: #111111; }
     .seg   { stroke: #333333; stroke-width: 1.5; }
@@ -12,62 +35,70 @@
     .assetb{ fill: #e6e6e6; }
     .asseta{ fill: #dedede; }
     .base  { fill: #d2d2d2; }
-    .name  { font-size: 13.5px; font-weight: bold; }
+    .name  { font-size: 12.5px; font-weight: bold; }
     .amt   { font-size: 12.5px; fill: #333333; }
-    .aside { font-size: 11.5px; fill: #333333; font-style: italic; }
+    .aside { font-size: 12.5px; fill: #333333; font-style: italic; }
     .brk   { fill: none; stroke: #333333; stroke-width: 1.5; }
-    .bt    { font-size: 15px; font-weight: bold; }
+    .bt    { font-size: 14px; font-weight: bold; }
     .bs    { font-size: 12.5px; fill: #333333; }
     .top   { font-size: 14px; font-weight: bold; }
-    .note  { font-size: 12px; fill: #333333; font-style: italic; }
+    .note  { font-size: 12.5px; fill: #333333; font-style: italic; }
   </style>
 
-  <text class="top" x="410" y="42" text-anchor="middle">The pool contract&#8217;s account, funded with 1.000000 ALGO</text>
+  <text class="top" x="350" y="40" text-anchor="middle">The pool contract&#8217;s account, funded with 1.000000 ALGO</text>
 
-  <!-- the slab, spendable at the top, the account's own floor at the bottom -->
-  <rect class="seg free"   x="290" y="60"  width="240" height="309"/>
-  <rect class="seg box"    x="290" y="369" width="240" height="51"/>
-  <rect class="seg lp"     x="290" y="420" width="240" height="60"/>
-  <rect class="seg assetb" x="290" y="480" width="240" height="60"/>
-  <rect class="seg asseta" x="290" y="540" width="240" height="60"/>
-  <rect class="seg base"   x="290" y="600" width="240" height="60"/>
+  <!-- The slab, spendable at the top, the account's own floor at the bottom.
+       150px wide because the left labels, not the rectangle, decide where it
+       can start on a 700px canvas. -->
+  <rect class="seg free"   x="222" y="60"     width="150" height="257.15"/>
+  <rect class="seg box"    x="222" y="317.15" width="150" height="42.85"/>
+  <rect class="seg lp"     x="222" y="360"    width="150" height="50"/>
+  <rect class="seg assetb" x="222" y="410"    width="150" height="50"/>
+  <rect class="seg asseta" x="222" y="460"    width="150" height="50"/>
+  <rect class="seg base"   x="222" y="510"    width="150" height="50"/>
 
-  <!-- left-hand labels -->
-  <text class="name"  x="278" y="209" text-anchor="end">Spendable</text>
-  <text class="amt"   x="278" y="228" text-anchor="end">514,300 µA</text>
-  <text class="aside" x="278" y="248" text-anchor="end">all an inner Payment can send</text>
+  <!-- Left labels, each block centred on its own segment. The 19px leading
+       inside a block against the 27px or more between blocks is what tells the
+       reader which two lines belong together; the alignment with the segment
+       does the rest. -->
+  <text class="name"  x="210" y="174" text-anchor="end">Spendable</text>
+  <text class="amt"   x="210" y="193" text-anchor="end">514,300 &#181;A</text>
+  <text class="aside" x="210" y="212" text-anchor="end">all an inner Payment can send</text>
 
-  <text class="name" x="278" y="389" text-anchor="end">One box &#8212; 200 B, 8 B name</text>
-  <text class="amt"  x="278" y="407" text-anchor="end">85,700 µA</text>
+  <text class="name" x="210" y="334" text-anchor="end">One box &#8212; 200 B, 8 B name</text>
+  <text class="amt"  x="210" y="353" text-anchor="end">85,700 &#181;A</text>
 
-  <text class="name" x="278" y="446" text-anchor="end">Created the LP token</text>
-  <text class="amt"  x="278" y="464" text-anchor="end">100,000 µA</text>
+  <text class="name" x="210" y="380" text-anchor="end">Created the LP token</text>
+  <text class="amt"  x="210" y="399" text-anchor="end">100,000 &#181;A</text>
 
-  <text class="name" x="278" y="506" text-anchor="end">Opted into asset B</text>
-  <text class="amt"  x="278" y="524" text-anchor="end">100,000 µA</text>
+  <text class="name" x="210" y="430" text-anchor="end">Opted into asset B</text>
+  <text class="amt"  x="210" y="449" text-anchor="end">100,000 &#181;A</text>
 
-  <text class="name" x="278" y="566" text-anchor="end">Opted into asset A</text>
-  <text class="amt"  x="278" y="584" text-anchor="end">100,000 µA</text>
+  <text class="name" x="210" y="480" text-anchor="end">Opted into asset A</text>
+  <text class="amt"  x="210" y="499" text-anchor="end">100,000 &#181;A</text>
 
-  <text class="name" x="278" y="626" text-anchor="end">The account itself</text>
-  <text class="amt"  x="278" y="644" text-anchor="end">100,000 µA</text>
+  <text class="name" x="210" y="530" text-anchor="end">The account itself</text>
+  <text class="amt"  x="210" y="549" text-anchor="end">100,000 &#181;A</text>
 
-  <!-- right-hand brackets -->
-  <path class="brk" d="M 542 60 L 557 60 L 557 369 L 542 369"/>
-  <text class="bt" x="571" y="206">Free.</text>
-  <text class="bs" x="571" y="228">This is the only part the</text>
-  <text class="bs" x="571" y="246">contract can move.</text>
+  <!-- Right-hand brackets. Every line is 30 characters or fewer, which is 208px
+       at the widest glyph mix measured in this book, and the column has 271px
+       between its text edge and the canvas. -->
+  <path class="brk" d="M 384 60 L 399 60 L 399 317.15 L 384 317.15"/>
+  <text class="bt" x="413" y="178">Free.</text>
+  <text class="bs" x="413" y="200">This is the only part the</text>
+  <text class="bs" x="413" y="218">contract can move.</text>
 
-  <path class="brk" d="M 542 369 L 557 369 L 557 660 L 542 660"/>
-  <text class="bt" x="571" y="486">Locked.</text>
-  <text class="bs" x="571" y="508">485,700 µA. Still yours, still</text>
-  <text class="bs" x="571" y="526">in the balance the explorer</text>
-  <text class="bs" x="571" y="544">shows you, and not available</text>
-  <text class="bs" x="571" y="562">to spend.</text>
-  <text class="bs" x="571" y="586">Delete the box, or opt out of</text>
-  <text class="bs" x="571" y="604">an asset, and that much</text>
-  <text class="bs" x="571" y="622">unlocks again.</text>
+  <path class="brk" d="M 384 317.15 L 399 317.15 L 399 560 L 384 560"/>
+  <text class="bt" x="413" y="370">Locked.</text>
+  <text class="bs" x="413" y="392">485,700 &#181;A. Still yours, still</text>
+  <text class="bs" x="413" y="411">in the balance the explorer</text>
+  <text class="bs" x="413" y="430">shows you, and not available</text>
+  <text class="bs" x="413" y="449">to spend.</text>
+  <text class="bs" x="413" y="473">Delete the box, or opt out of</text>
+  <text class="bs" x="413" y="492">an asset, and that much</text>
+  <text class="bs" x="413" y="511">unlocks again.</text>
 
-  <text class="note" x="30" y="700">A fee is spent and gone. A minimum balance is not spent at all &#8212; it raises the floor the balance may never fall below.</text>
-  <text class="note" x="30" y="720">Fund a contract for its fees and forget its floor, and the first call that would dip under it fails.</text>
+  <text class="note" x="16" y="600">A fee is spent and gone. A minimum balance is not spent at all &#8212; it raises the</text>
+  <text class="note" x="16" y="620">floor the balance may never fall below. Fund a contract for its fees and forget</text>
+  <text class="note" x="16" y="640">its floor, and the first call that would dip under it fails.</text>
 </svg>

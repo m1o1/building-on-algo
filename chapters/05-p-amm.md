@@ -850,7 +850,7 @@ First, **explicit invariant verification after state-changing AMM operations**. 
 
 Second, **immutable contracts cannot be patched**. When Tinyman discovered the exploit, they could not update the contracts because they were immutable. They could only recommend that users withdraw their liquidity. This is actually the correct tradeoff --- immutability is what makes the contracts trustless. But it means your code must be correct before deployment. There is no hot-fix option.
 
-Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the swap method. It checks `deposit_a.xfer_asset == Asset(self.asset_a.value)` in add_liquidity. It checks `lp_deposit.xfer_asset == Asset(self.lp_token_id.value)` in remove_liquidity. Never assume the correct asset was sent --- always verify.
+Third, **asset verification in every transfer**. Our contract explicitly checks `input_txn.xfer_asset == Asset(self.asset_a.value)` in the `swap` method. It checks `deposit_a.xfer_asset == Asset(self.asset_a.value)` in `add_liquidity`. It checks `lp_deposit.xfer_asset == Asset(self.lp_token_id.value)` in `remove_liquidity`. Never assume the correct asset was sent --- always verify.
 
 Fourth, **sender binding for transaction arguments**. Typed transaction arguments prove that the argument has the expected transaction type, but they do not prove that the transfer came from the app-call sender. When a grouped payment or asset transfer funds an operation whose benefit goes to `Txn.sender`, assert the transaction argument's `sender == Txn.sender`.
 
@@ -1202,7 +1202,7 @@ algorand = AlgorandClient.from_clients(
 
 The deployment and interaction scripts are identical to LocalNet --- only the client connection changes. Deploy, bootstrap, and run through the full workflow. Verify every operation by checking the contract's global state and your account balances on a TestNet block explorer like [Pera Explorer](https://testnet.explorer.perawallet.app/). (See [App Deployment](https://dev.algorand.co/algokit/utils/python/app-deploy/) for idempotent deployment strategies.)
 
-Before deploying to MainNet, your TestNet testing checklist should include: bootstrap with real ASAs (not just test tokens), add liquidity from multiple accounts, execute swaps in both directions with varying sizes, remove liquidity and verify proportional withdrawal, test edge cases (very small swaps, swaps that would exceed reserves, swaps with zero min_output), and verify immutability by attempting update and delete.
+Before deploying to MainNet, your TestNet testing checklist should include: bootstrap with real ASAs (not just test tokens), add liquidity from multiple accounts, execute swaps in both directions with varying sizes, remove liquidity and verify proportional withdrawal, test edge cases (very small swaps, swaps that would exceed reserves, swaps with zero `min_output`), and verify immutability by attempting update and delete.
 
 
 ## Summary

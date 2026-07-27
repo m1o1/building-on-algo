@@ -1,11 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 900" width="700" height="900" font-family="DejaVu Sans, sans-serif">
   <!-- The guestbook's balance against its own minimum balance, drawn to scale. The
        balance is flat because nobody sends the contract money; the floor is a
        staircase because every signature adds 40 bytes of box at 400 microAlgos a byte.
        Both lines are real arithmetic: floor(n) = 100,000 + 2,500 + 400 x (7 + 40n) for
        n signatures in a box named b"entries". The two steps the story turns on are
-       16,000 microAlgos apart, which at this scale is 6 pixels, hence the inset
-       which magnifies the last step that fits and the first that does not. -->
+       16,000 microAlgos apart, which at this scale is 5.44 pixels, hence the inset
+       which magnifies the last step that fits and the first that does not.
+       Every coordinate below comes out of that formula rather than off a ruler;
+       regenerate them with /tmp/figgen/mbr.py if the window ever changes. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure down to the
+       470.4pt text width and never scales one up, so a drawing's on-page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px >= width_px / 58.8 for the house's 8pt floor. At the original 960px
+       this figure's 11px inset labels landed at 5.39pt, the worst in the book, and
+       960px was forced by nothing but the inset sitting BESIDE the main plot. Moving
+       the inset below it is what let the canvas come in to 700px, where the floor
+       needs 11.9px and the smallest type here is 12.5px. Height is the other
+       constraint: past width x 619/470.4 = 921px the height binds instead and every
+       size shrinks again, so 900 is deliberately just inside that. Scaling the whole
+       drawing uniformly would change nothing at all, since the ratio is what the
+       page sees. -->
   <style>
     text { fill: #111111; }
     .ax    { stroke: #333333; stroke-width: 1.5; fill: none; }
@@ -13,82 +27,110 @@
     .floor { fill: none; stroke: #333333; stroke-width: 2; }
     .bal   { fill: none; stroke: #333333; stroke-width: 2; stroke-dasharray: 7 4; }
     .dead  { fill: #f2f2f2; stroke: none; }
-    .lead  { fill: none; stroke: #666666; stroke-width: 1; }
+    .lead  { fill: none; stroke: #666666; stroke-width: 1; stroke-dasharray: 3 3; }
     .ipanel{ fill: #fafafa; stroke: #888888; stroke-width: 1; }
-    .tick  { font-size: 11.5px; fill: #333333; }
-    .alab  { font-size: 12.5px; fill: #333333; }
-    .top   { font-size: 14px; font-weight: bold; }
-    .name  { font-size: 13px; font-weight: bold; }
-    .amt   { font-size: 12px; fill: #333333; }
-    .note  { font-size: 12px; fill: #333333; font-style: italic; }
-    .ihead { font-size: 12.5px; font-weight: bold; }
-    .ival  { font-size: 11.5px; font-weight: bold; }
-    .ilab  { font-size: 11px; fill: #333333; }
+    .tick  { font-size: 12.5px; fill: #333333; }
+    .alab  { font-size: 13px; fill: #333333; }
+    .top   { font-size: 15px; font-weight: bold; }
+    .name  { font-size: 13.5px; font-weight: bold; }
+    .amt   { font-size: 12.5px; fill: #333333; }
+    .note  { font-size: 12.5px; fill: #333333; font-style: italic; }
+    .ihead { font-size: 13px; font-weight: bold; }
+    .ival  { font-size: 13px; font-weight: bold; }
+    .ilab  { font-size: 12.5px; fill: #333333; }
     .dot   { fill: #111111; }
   </style>
 
-  <text class="top" x="380" y="44" text-anchor="middle">One Algo, and a floor that rises 16,000 &#181;A per signature</text>
+  <text class="top" x="350" y="38" text-anchor="middle">One Algo, and a floor that rises 16,000 &#181;A per signature</text>
 
-  <rect class="dead" x="622.7" y="80.0" width="37.3" height="410.0"/>
-  <line class="grid" x1="100.0" y1="490.0" x2="660.0" y2="490.0"/>
-  <text class="tick" x="92.0" y="494.0" text-anchor="end">0</text>
-  <line class="grid" x1="100.0" y1="415.5" x2="660.0" y2="415.5"/>
-  <text class="tick" x="92.0" y="419.5" text-anchor="end">200,000</text>
-  <line class="grid" x1="100.0" y1="340.9" x2="660.0" y2="340.9"/>
-  <text class="tick" x="92.0" y="344.9" text-anchor="end">400,000</text>
-  <line class="grid" x1="100.0" y1="266.4" x2="660.0" y2="266.4"/>
-  <text class="tick" x="92.0" y="270.4" text-anchor="end">600,000</text>
-  <line class="grid" x1="100.0" y1="191.8" x2="660.0" y2="191.8"/>
-  <text class="tick" x="92.0" y="195.8" text-anchor="end">800,000</text>
-  <line class="grid" x1="100.0" y1="117.3" x2="660.0" y2="117.3"/>
-  <text class="tick" x="92.0" y="121.3" text-anchor="end">1,000,000</text>
-  <path class="ax" d="M 100.0 80.0 L 100.0 490.0 L 660.0 490.0"/>
-  <line class="ax" x1="100.0" y1="490.0" x2="100.0" y2="495.0"/>
-  <text class="tick" x="100.0" y="510.0" text-anchor="middle">0</text>
-  <line class="ax" x1="193.3" y1="490.0" x2="193.3" y2="495.0"/>
-  <text class="tick" x="193.3" y="510.0" text-anchor="middle">10</text>
-  <line class="ax" x1="286.7" y1="490.0" x2="286.7" y2="495.0"/>
-  <text class="tick" x="286.7" y="510.0" text-anchor="middle">20</text>
-  <line class="ax" x1="380.0" y1="490.0" x2="380.0" y2="495.0"/>
-  <text class="tick" x="380.0" y="510.0" text-anchor="middle">30</text>
-  <line class="ax" x1="473.3" y1="490.0" x2="473.3" y2="495.0"/>
-  <text class="tick" x="473.3" y="510.0" text-anchor="middle">40</text>
-  <line class="ax" x1="566.7" y1="490.0" x2="566.7" y2="495.0"/>
-  <text class="tick" x="566.7" y="510.0" text-anchor="middle">50</text>
-  <line class="ax" x1="660.0" y1="490.0" x2="660.0" y2="495.0"/>
-  <text class="tick" x="660.0" y="510.0" text-anchor="middle">60</text>
-  <text class="alab" x="380.0" y="532.0" text-anchor="middle">signatures written (<tspan font-style="italic">n</tspan>)</text>
-  <text class="alab" x="92.0" y="66.0" text-anchor="end">&#181;A</text>
-  <line class="bal" x1="100.0" y1="117.3" x2="660.0" y2="117.3"/>
-  <text class="name" x="110.0" y="107.3">Balance &#8212; 1,000,000 &#181;A, flat</text>
-  <text class="amt" x="110.0" y="133.3">Nobody sends the contract money. Nothing here ever moves.</text>
-  <path class="floor" d="M 100.0 452.7 L 109.3 452.7 L 109.3 444.8 L 118.7 444.8 L 118.7 438.8 L 128.0 438.8 L 128.0 432.9 L 137.3 432.9 L 137.3 426.9 L 146.7 426.9 L 146.7 420.9 L 156.0 420.9 L 156.0 415.0 L 165.3 415.0 L 165.3 409.0 L 174.7 409.0 L 174.7 403.0 L 184.0 403.0 L 184.0 397.1 L 193.3 397.1 L 193.3 391.1 L 202.7 391.1 L 202.7 385.2 L 212.0 385.2 L 212.0 379.2 L 221.3 379.2 L 221.3 373.2 L 230.7 373.2 L 230.7 367.3 L 240.0 367.3 L 240.0 361.3 L 249.3 361.3 L 249.3 355.3 L 258.7 355.3 L 258.7 349.4 L 268.0 349.4 L 268.0 343.4 L 277.3 343.4 L 277.3 337.4 L 286.7 337.4 L 286.7 331.5 L 296.0 331.5 L 296.0 325.5 L 305.3 325.5 L 305.3 319.6 L 314.7 319.6 L 314.7 313.6 L 324.0 313.6 L 324.0 307.6 L 333.3 307.6 L 333.3 301.7 L 342.7 301.7 L 342.7 295.7 L 352.0 295.7 L 352.0 289.7 L 361.3 289.7 L 361.3 283.8 L 370.7 283.8 L 370.7 277.8 L 380.0 277.8 L 380.0 271.8 L 389.3 271.8 L 389.3 265.9 L 398.7 265.9 L 398.7 259.9 L 408.0 259.9 L 408.0 254.0 L 417.3 254.0 L 417.3 248.0 L 426.7 248.0 L 426.7 242.0 L 436.0 242.0 L 436.0 236.1 L 445.3 236.1 L 445.3 230.1 L 454.7 230.1 L 454.7 224.1 L 464.0 224.1 L 464.0 218.2 L 473.3 218.2 L 473.3 212.2 L 482.7 212.2 L 482.7 206.2 L 492.0 206.2 L 492.0 200.3 L 501.3 200.3 L 501.3 194.3 L 510.7 194.3 L 510.7 188.4 L 520.0 188.4 L 520.0 182.4 L 529.3 182.4 L 529.3 176.4 L 538.7 176.4 L 538.7 170.5 L 548.0 170.5 L 548.0 164.5 L 557.3 164.5 L 557.3 158.5 L 566.7 158.5 L 566.7 152.6 L 576.0 152.6 L 576.0 146.6 L 585.3 146.6 L 585.3 140.6 L 594.7 140.6 L 594.7 134.7 L 604.0 134.7 L 604.0 128.7 L 613.3 128.7 L 613.3 122.8 L 622.7 122.8 L 622.7 116.8 L 632.0 116.8 L 632.0 110.8 L 641.3 110.8 L 641.3 104.9 L 650.7 104.9 L 650.7 98.9 L 660.0 98.9 L 660.0 92.9"/>
-  <text class="name" x="286.7" y="357.5">Minimum balance &#8212; a staircase</text>
-  <text class="amt" x="286.7" y="374.5">+21,300 &#181;A for the first signature (the box&#8217;s 2,500 flat</text>
-  <text class="amt" x="286.7" y="389.5">and its 7-byte name), then +16,000 &#181;A for every one after.</text>
-  <line class="lead" x1="622.7" y1="117.3" x2="622.7" y2="490.0" stroke-dasharray="3 3"/>
-  <circle class="dot" cx="622.7" cy="116.8" r="3.5"/>
-  <text class="name" x="616.7" y="430.0" text-anchor="end">The lines cross here.</text>
-  <text class="amt" x="616.7" y="446.0" text-anchor="end">Everything to the right of this line is</text>
-  <text class="amt" x="616.7" y="461.0" text-anchor="end">unreachable, and nothing in the contract</text>
-  <text class="amt" x="616.7" y="476.0" text-anchor="end">changed to make it so.</text>
-  <path class="lead" d="M 627.7 116.8 L 678.0 205 L 690.0 205"/>
+  <!-- Everything right of the crossing is unreachable, so it is greyed rather than
+       annotated: the reader should see the region before reading about it. -->
+  <rect class="dead" x="622.7" y="74.0" width="37.3" height="376.0"/>
 
-  <rect class="ipanel" x="690.0" y="115.0" width="255.0" height="215.0"/>
-  <text class="ihead" x="690.0" y="91.0">Magnified: the last step that fits,</text>
-  <text class="ihead" x="690.0" y="106.0">and the first that does not</text>
-  <line class="bal" x1="690.0" y1="164.6" x2="945.0" y2="164.6"/>
-  <path class="floor" d="M 690.0 286.2 L 817.5 286.2 L 817.5 153.9 L 945.0 153.9"/>
-  <text class="ilab" x="696.0" y="156.6">balance, 1,000,000</text>
-  <circle class="dot" cx="753.8" cy="286.2" r="3"/>
-  <text class="ival" x="696.0" y="278.2">985,300</text>
-  <text class="ilab" x="696.0" y="304.2">55 signatures. Fits, by 14,700.</text>
-  <circle class="dot" cx="881.2" cy="153.9" r="3"/>
-  <text class="ival" x="825.5" y="145.9">1,001,300</text>
-  <text class="ilab" x="825.5" y="180.6">56 signatures.</text>
-  <text class="ilab" x="825.5" y="195.6">Short by 1,300.</text>
+  <line class="grid" x1="100.0" y1="450.0" x2="660.0" y2="450.0"/>
+  <text class="tick" x="92.0" y="454.0" text-anchor="end">0</text>
+  <line class="grid" x1="100.0" y1="382.0" x2="660.0" y2="382.0"/>
+  <text class="tick" x="92.0" y="386.0" text-anchor="end">200,000</text>
+  <line class="grid" x1="100.0" y1="314.0" x2="660.0" y2="314.0"/>
+  <text class="tick" x="92.0" y="318.0" text-anchor="end">400,000</text>
+  <line class="grid" x1="100.0" y1="246.0" x2="660.0" y2="246.0"/>
+  <text class="tick" x="92.0" y="250.0" text-anchor="end">600,000</text>
+  <line class="grid" x1="100.0" y1="178.0" x2="660.0" y2="178.0"/>
+  <text class="tick" x="92.0" y="182.0" text-anchor="end">800,000</text>
+  <line class="grid" x1="100.0" y1="110.0" x2="660.0" y2="110.0"/>
+  <text class="tick" x="92.0" y="114.0" text-anchor="end">1,000,000</text>
 
-  <text class="note" x="30" y="560">Nothing here is a bug in the contract&#8217;s logic. The contract does on the fifty-sixth signature exactly what it did on the first; what changed</text>
-  <text class="note" x="30" y="578">is a number kept outside it, in the ledger, by a rule the code never mentions. That is why the fix is a check the code makes before it writes.</text>
-  <text class="note" x="30" y="604">Both plots are to scale. In the main plot the two steps the whole story turns on are six pixels apart, which is why the inset has to exist.</text>
+  <path class="ax" d="M 100.0 74.0 L 100.0 450.0 L 660.0 450.0"/>
+  <line class="ax" x1="100.0" y1="450.0" x2="100.0" y2="455.0"/>
+  <text class="tick" x="100.0" y="472.0" text-anchor="middle">0</text>
+  <line class="ax" x1="193.3" y1="450.0" x2="193.3" y2="455.0"/>
+  <text class="tick" x="193.3" y="472.0" text-anchor="middle">10</text>
+  <line class="ax" x1="286.7" y1="450.0" x2="286.7" y2="455.0"/>
+  <text class="tick" x="286.7" y="472.0" text-anchor="middle">20</text>
+  <line class="ax" x1="380.0" y1="450.0" x2="380.0" y2="455.0"/>
+  <text class="tick" x="380.0" y="472.0" text-anchor="middle">30</text>
+  <line class="ax" x1="473.3" y1="450.0" x2="473.3" y2="455.0"/>
+  <text class="tick" x="473.3" y="472.0" text-anchor="middle">40</text>
+  <line class="ax" x1="566.7" y1="450.0" x2="566.7" y2="455.0"/>
+  <text class="tick" x="566.7" y="472.0" text-anchor="middle">50</text>
+  <line class="ax" x1="660.0" y1="450.0" x2="660.0" y2="455.0"/>
+  <text class="tick" x="660.0" y="472.0" text-anchor="middle">60</text>
+  <text class="alab" x="380.0" y="498.0" text-anchor="middle">signatures written (<tspan font-style="italic">n</tspan>)</text>
+  <text class="alab" x="92.0" y="60.0" text-anchor="end">&#181;A</text>
+
+  <line class="bal" x1="100.0" y1="110.0" x2="660.0" y2="110.0"/>
+  <text class="name" x="110.0" y="100.0">Balance &#8212; 1,000,000 &#181;A, flat</text>
+  <text class="amt" x="110.0" y="132.0">Nobody sends the contract money. Nothing here ever moves.</text>
+
+  <path class="floor" d="M 100.0 416.0 L 109.3 416.0 L 109.3 408.8 L 118.7 408.8 L 118.7 403.3 L 128.0 403.3 L 128.0 397.9 L 137.3 397.9 L 137.3 392.4 L 146.7 392.4 L 146.7 387.0 L 156.0 387.0 L 156.0 381.6 L 165.3 381.6 L 165.3 376.1 L 174.7 376.1 L 174.7 370.7 L 184.0 370.7 L 184.0 365.2 L 193.3 365.2 L 193.3 359.8 L 202.7 359.8 L 202.7 354.4 L 212.0 354.4 L 212.0 348.9 L 221.3 348.9 L 221.3 343.5 L 230.7 343.5 L 230.7 338.0 L 240.0 338.0 L 240.0 332.6 L 249.3 332.6 L 249.3 327.2 L 258.7 327.2 L 258.7 321.7 L 268.0 321.7 L 268.0 316.3 L 277.3 316.3 L 277.3 310.8 L 286.7 310.8 L 286.7 305.4 L 296.0 305.4 L 296.0 300.0 L 305.3 300.0 L 305.3 294.5 L 314.7 294.5 L 314.7 289.1 L 324.0 289.1 L 324.0 283.6 L 333.3 283.6 L 333.3 278.2 L 342.7 278.2 L 342.7 272.8 L 352.0 272.8 L 352.0 267.3 L 361.3 267.3 L 361.3 261.9 L 370.7 261.9 L 370.7 256.4 L 380.0 256.4 L 380.0 251.0 L 389.3 251.0 L 389.3 245.6 L 398.7 245.6 L 398.7 240.1 L 408.0 240.1 L 408.0 234.7 L 417.3 234.7 L 417.3 229.2 L 426.7 229.2 L 426.7 223.8 L 436.0 223.8 L 436.0 218.4 L 445.3 218.4 L 445.3 212.9 L 454.7 212.9 L 454.7 207.5 L 464.0 207.5 L 464.0 202.0 L 473.3 202.0 L 473.3 196.6 L 482.7 196.6 L 482.7 191.2 L 492.0 191.2 L 492.0 185.7 L 501.3 185.7 L 501.3 180.3 L 510.7 180.3 L 510.7 174.8 L 520.0 174.8 L 520.0 169.4 L 529.3 169.4 L 529.3 164.0 L 538.7 164.0 L 538.7 158.5 L 548.0 158.5 L 548.0 153.1 L 557.3 153.1 L 557.3 147.6 L 566.7 147.6 L 566.7 142.2 L 576.0 142.2 L 576.0 136.8 L 585.3 136.8 L 585.3 131.3 L 594.7 131.3 L 594.7 125.9 L 604.0 125.9 L 604.0 120.4 L 613.3 120.4 L 613.3 115.0 L 622.7 115.0 L 622.7 109.6 L 632.0 109.6 L 632.0 104.1 L 641.3 104.1 L 641.3 98.7 L 650.7 98.7 L 650.7 93.2 L 660.0 93.2 L 660.0 87.8"/>
+
+  <!-- Both annotation blocks live in the wedge under the staircase, which is the only
+       empty part of the plot. The wedge is narrow on the left, so the first block
+       starts at x=310, where the curve has climbed to y=294.5. Neither block may cross
+       x=622.7, where the crossing rule falls: the amount lines are split at 45
+       characters for that reason and not for a typographic one.
+
+       EACH BLOCK SITS INSIDE ONE GRIDLINE BAND, and the baselines are chosen for that
+       rather than spaced by eye. The bands here are 68px apart and four lines of 12.5px
+       leaded at 16 measure 60px from cap top to descender, so there is 4px of clearance
+       at each end and no more. A first draft set the headings at 316 and 390, which put
+       the 400,000 rule straight through "Minimum balance" as a strikethrough; on the
+       page it read as a deleted line rather than as a gridline. -->
+  <text class="name" x="310.0" y="327.0">Minimum balance &#8212; a staircase</text>
+  <text class="amt" x="310.0" y="343.0">+21,300 &#181;A for the first signature (the box&#8217;s</text>
+  <text class="amt" x="310.0" y="359.0">2,500 flat and its 7-byte name), then +16,000</text>
+  <text class="amt" x="310.0" y="375.0">&#181;A for every one after.</text>
+
+  <circle class="dot" cx="622.7" cy="109.6" r="3.5"/>
+  <text class="name" x="616.7" y="395.0" text-anchor="end">The lines cross here.</text>
+  <text class="amt" x="616.7" y="411.0" text-anchor="end">Everything to the right of this line is</text>
+  <text class="amt" x="616.7" y="427.0" text-anchor="end">unreachable, and nothing in the contract</text>
+  <text class="amt" x="616.7" y="443.0" text-anchor="end">changed to make it so.</text>
+
+  <!-- One dashed run from the crossing down to the panel below, so the leader that
+       marks the crossing and the leader that points at the magnification are the same
+       stroke. An earlier version routed it out past x=660 and back, which drew a
+       three-sided box around the plot and read as a frame rather than as a pointer. -->
+  <path class="lead" d="M 622.7 109.6 L 622.7 525.0 L 610.0 546.0"/>
+
+  <text class="ihead" x="150.0" y="532.0">Magnified: the last step that fits, and the first that does not</text>
+  <rect class="ipanel" x="150.0" y="546.0" width="460.0" height="224.0"/>
+  <!-- Vertical scale 7.5 px per 1,000 microAlgos, about twenty-four times the main
+       plot's 0.34, which is the whole reason the panel exists. -->
+  <line class="bal" x1="166.0" y1="609.8" x2="594.0" y2="609.8"/>
+  <path class="floor" d="M 166.0 720.0 L 380.0 720.0 L 380.0 600.0 L 594.0 600.0"/>
+  <text class="ival" x="394.0" y="592.0">1,001,300</text>
+  <circle class="dot" cx="495.0" cy="600.0" r="3"/>
+  <text class="ilab" x="172.0" y="603.0">balance, 1,000,000</text>
+  <text class="ilab" x="394.0" y="632.0">56 signatures.</text>
+  <text class="ilab" x="394.0" y="648.0">Short by 1,300.</text>
+  <text class="ival" x="172.0" y="712.0">985,300</text>
+  <circle class="dot" cx="265.0" cy="720.0" r="3"/>
+  <text class="ilab" x="172.0" y="740.0">55 signatures. Fits, by 14,700.</text>
+
+  <text class="note" x="30" y="802">Nothing here is a bug in the contract&#8217;s logic. The contract does on the fifty-sixth signature</text>
+  <text class="note" x="30" y="820">exactly what it did on the first; what changed is a number kept outside it, in the ledger, by a</text>
+  <text class="note" x="30" y="838">rule the code never mentions. That is why the fix is a check the code makes before it writes.</text>
+  <text class="note" x="30" y="862">Both plots are to scale. In the main plot the two steps the whole story turns on are five and a</text>
+  <text class="note" x="30" y="880">half pixels apart, which is why the inset has to exist.</text>
 </svg>

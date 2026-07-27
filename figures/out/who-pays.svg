@@ -1,8 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 590" width="880" height="590" font-family="DejaVu Sans, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 650" width="700" height="650" font-family="DejaVu Sans, sans-serif">
   <!-- Who pays. Four versions of the same contract call, drawn on one fee axis.
-       The bars are to scale: one minimum fee is 100px, so the third row really
+       The bars are to scale: one minimum fee is 80px, so the third row really
        is four times the first. The two payers are told apart by fill AND by
        border style, because the print edition has no colour to spare. -->
+  <!-- THE CANVAS WIDTH IS A TYPE SIZE. The book scales every figure to the
+       470.4pt text width and never scales one up, so a drawing's on&#8209;page type is
+       font_px x 0.75 x 470.4 / (0.75 x width_px), which reduces to
+       font_px &gt;= width_px / 58.8 for the house's 8pt floor. At the original 880px
+       the 11px axis ticks landed at 5.88pt.
+
+       Three separate things were holding the canvas open and all three had to
+       give, because fixing one alone leaves the width where it was. The fee
+       scale ran 100px per 1,000 microAlgo, so the four&#8209;fee row was 400px of bar
+       on its own; it is 80px now, which loses nothing since the bars are read
+       against each other rather than measured. The row labels ran to 29
+       characters, so `contract pays` is `app pays`, which the legend already
+       spells out in full one row above. And the panel prose ran to 105
+       characters a line, which no longer fits a 668px panel at 12.5px, so it is
+       re&#8209;wrapped at 92. The bars, the labels and the prose were each sized for a
+       width that the other two were also demanding.
+
+       Height is the other constraint: past width x 619/470.4 = 921px the height
+       rather than the width binds and every size shrinks again. At 650px this
+       one has room to spare, which is why the panel could take the two extra
+       lines the narrower measure costs it. -->
   <style>
     text { fill: #111111; }
     .caller { fill: #b8b8b8; stroke: #333333; stroke-width: 1.5; }
@@ -10,9 +31,9 @@
     .grid   { stroke: #cccccc; stroke-width: 1; stroke-dasharray: 3 3; }
     .axis   { stroke: #333333; stroke-width: 1.5; }
     .row    { font-size: 13px; }
-    .val    { font-size: 12px; fill: #333333; }
-    .tick   { font-size: 11px; fill: #333333; }
-    .axt    { font-size: 12px; fill: #333333; font-style: italic; }
+    .val    { font-size: 12.5px; fill: #333333; }
+    .tick   { font-size: 12.5px; fill: #333333; }
+    .axt    { font-size: 12.5px; fill: #333333; font-style: italic; }
     .leg    { font-size: 12.5px; }
     .panel  { fill: #fafafa; stroke: #888888; stroke-width: 1; }
     .p      { font-size: 12.5px; }
@@ -20,59 +41,63 @@
   </style>
 
   <!-- legend -->
-  <rect class="caller" x="300" y="22" width="18" height="14"/>
-  <text class="leg" x="326" y="34">Paid by the caller</text>
-  <rect class="appacc" x="480" y="22" width="18" height="14"/>
-  <text class="leg" x="506" y="34">Paid out of the app account</text>
+  <rect class="caller" x="200" y="22" width="18" height="14"/>
+  <text class="leg" x="226" y="34">Paid by the caller</text>
+  <rect class="appacc" x="380" y="22" width="18" height="14"/>
+  <text class="leg" x="406" y="34">Paid out of the app account</text>
 
-  <!-- gridlines -->
-  <line class="grid" x1="400" y1="60" x2="400" y2="318"/>
-  <line class="grid" x1="500" y1="60" x2="500" y2="318"/>
-  <line class="grid" x1="600" y1="60" x2="600" y2="318"/>
-  <line class="grid" x1="700" y1="60" x2="700" y2="318"/>
+  <!-- gridlines; the fee axis is 80px per 1,000 microAlgo from x=200 -->
+  <line class="grid" x1="280" y1="60" x2="280" y2="318"/>
+  <line class="grid" x1="360" y1="60" x2="360" y2="318"/>
+  <line class="grid" x1="440" y1="60" x2="440" y2="318"/>
+  <line class="grid" x1="520" y1="60" x2="520" y2="318"/>
 
   <!-- row 1 -->
-  <text class="row" x="288" y="95" text-anchor="end">Bare app call</text>
-  <rect class="caller" x="300" y="70" width="100" height="40"/>
-  <text class="val" x="410" y="95">1,000 µA</text>
+  <text class="row" x="188" y="95" text-anchor="end">Bare app call</text>
+  <rect class="caller" x="200" y="70" width="80" height="40"/>
+  <text class="val" x="290" y="95">1,000 &#181;A</text>
 
   <!-- row 2 -->
-  <text class="row" x="288" y="160" text-anchor="end">&#43; 1 inner txn, fee 0</text>
-  <rect class="caller" x="300" y="135" width="200" height="40"/>
-  <text class="val" x="510" y="160">2,000 µA</text>
+  <text class="row" x="188" y="160" text-anchor="end">&#43; 1 inner txn, fee 0</text>
+  <rect class="caller" x="200" y="135" width="160" height="40"/>
+  <text class="val" x="370" y="160">2,000 &#181;A</text>
 
   <!-- row 3 -->
-  <text class="row" x="288" y="225" text-anchor="end">&#43; 3 inner txns, fee 0</text>
-  <rect class="caller" x="300" y="200" width="400" height="40"/>
-  <text class="val" x="710" y="225">4,000 µA</text>
+  <text class="row" x="188" y="225" text-anchor="end">&#43; 3 inner txns, fee 0</text>
+  <rect class="caller" x="200" y="200" width="320" height="40"/>
+  <text class="val" x="530" y="225">4,000 &#181;A</text>
 
   <!-- row 4 -->
-  <text class="row" x="288" y="290" text-anchor="end">&#43; 3 inner txns, contract pays</text>
-  <rect class="caller" x="300" y="265" width="100" height="40"/>
-  <rect class="appacc" x="400" y="265" width="300" height="40"/>
-  <text class="val" x="710" y="290">1,000 &#43; 3,000 µA</text>
+  <text class="row" x="188" y="290" text-anchor="end">&#43; 3 inner txns, app pays</text>
+  <rect class="caller" x="200" y="265" width="80" height="40"/>
+  <rect class="appacc" x="280" y="265" width="240" height="40"/>
+  <text class="val" x="530" y="290">1,000 &#43; 3,000 &#181;A</text>
 
   <!-- axis -->
-  <line class="axis" x1="300" y1="318" x2="710" y2="318"/>
-  <line class="axis" x1="300" y1="318" x2="300" y2="324"/>
-  <line class="axis" x1="400" y1="318" x2="400" y2="324"/>
-  <line class="axis" x1="500" y1="318" x2="500" y2="324"/>
-  <line class="axis" x1="600" y1="318" x2="600" y2="324"/>
-  <line class="axis" x1="700" y1="318" x2="700" y2="324"/>
-  <text class="tick" x="300" y="338" text-anchor="middle">0</text>
-  <text class="tick" x="400" y="338" text-anchor="middle">1,000</text>
-  <text class="tick" x="500" y="338" text-anchor="middle">2,000</text>
-  <text class="tick" x="600" y="338" text-anchor="middle">3,000</text>
-  <text class="tick" x="700" y="338" text-anchor="middle">4,000</text>
-  <text class="axt"  x="505" y="358" text-anchor="middle">µA of fee the group must cover</text>
+  <line class="axis" x1="200" y1="318" x2="520" y2="318"/>
+  <line class="axis" x1="200" y1="318" x2="200" y2="324"/>
+  <line class="axis" x1="280" y1="318" x2="280" y2="324"/>
+  <line class="axis" x1="360" y1="318" x2="360" y2="324"/>
+  <line class="axis" x1="440" y1="318" x2="440" y2="324"/>
+  <line class="axis" x1="520" y1="318" x2="520" y2="324"/>
+  <text class="tick" x="200" y="338" text-anchor="middle">0</text>
+  <text class="tick" x="280" y="338" text-anchor="middle">1,000</text>
+  <text class="tick" x="360" y="338" text-anchor="middle">2,000</text>
+  <text class="tick" x="440" y="338" text-anchor="middle">3,000</text>
+  <text class="tick" x="520" y="338" text-anchor="middle">4,000</text>
+  <text class="axt"  x="360" y="358" text-anchor="middle">&#181;A of fee the group must cover</text>
 
-  <!-- panel -->
-  <rect class="panel" x="20" y="382" width="840" height="186"/>
-  <text class="pb" x="36" y="408">Rows 2 and 3 are the same contract.</text>
-  <text class="p"  x="36" y="430">Setting an inner transaction&#8217;s fee to zero does not make it free. It moves the cost onto the caller,</text>
-  <text class="p"  x="36" y="450">because fees pool across the whole group &#8212; any surplus on one transaction covers a shortfall on another.</text>
-  <text class="pb" x="36" y="484">Row 4 is what happens when you forget.</text>
-  <text class="p"  x="36" y="506">The contract covers its own inners out of its own account, so every call drains it a little, and the day</text>
-  <text class="p"  x="36" y="526">the balance touches its minimum every call starts failing &#8212; for a reason nothing in the code points at.</text>
-  <text class="pb" x="36" y="556">Fees pool across the whole group. The 700-opcode budget pools only across the app calls in it.</text>
+  <!-- panel. Lines are 92 characters or fewer, which is what the 636px between
+       the panel's text edge and its right border buys at 12.5px. -->
+  <rect class="panel" x="16" y="382" width="668" height="250"/>
+  <text class="pb" x="32" y="408">Rows 2 and 3 are the same contract.</text>
+  <text class="p"  x="32" y="430">Setting an inner transaction&#8217;s fee to zero does not make it free. It moves the cost onto the</text>
+  <text class="p"  x="32" y="450">caller, because fees pool across the whole group &#8212; any surplus on one transaction covers a</text>
+  <text class="p"  x="32" y="470">shortfall on another.</text>
+  <text class="pb" x="32" y="500">Row 4 is what happens when you forget.</text>
+  <text class="p"  x="32" y="522">The contract covers its own inners out of its own account, so every call drains it a little,</text>
+  <text class="p"  x="32" y="542">and the day the balance touches its minimum every call starts failing &#8212; for a reason nothing</text>
+  <text class="p"  x="32" y="562">in the code points at.</text>
+  <text class="pb" x="32" y="592">Fees pool across the whole group. The 700-opcode budget pools only</text>
+  <text class="pb" x="32" y="612">across the app calls in it.</text>
 </svg>
