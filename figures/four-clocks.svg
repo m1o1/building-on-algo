@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 396" role="img"
+     aria-label="Four values that look like now on one round timeline: Global.round is the current block, Global.latest_timestamp is one block behind, Txn.first_valid_time can be a thousand rounds behind that, and Txn.last_valid floats off the timeline as a caller-chosen number"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- the timeline -->
+  <line x1="40" y1="210" x2="826" y2="210" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="820" y="198" font-size="13" fill="#5a6172" text-anchor="end">rounds</text>
+
+  <!-- old blocks: f−1 and f -->
+  <rect x="80" y="190" width="54" height="40" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="107" y="215" font-size="13" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">f−1</text>
+  <rect x="138" y="190" width="54" height="40" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="165" y="215" font-size="13" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">f</text>
+
+  <!-- break in the axis -->
+  <line x1="378" y1="218" x2="392" y2="202" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="388" y1="218" x2="402" y2="202" stroke="#5a6172" stroke-width="1.5"/>
+
+  <!-- recent blocks: r−2, r−1, r -->
+  <rect x="600" y="190" width="54" height="40" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="627" y="215" font-size="13" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">r−2</text>
+  <rect x="658" y="190" width="54" height="40" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="685" y="215" font-size="13" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">r−1</text>
+  <rect x="716" y="190" width="54" height="40" rx="6" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="743" y="215" font-size="13" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">r</text>
+
+  <!-- Global.round -->
+  <rect x="614" y="54" width="226" height="68" rx="8" fill="#f4f5f7" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="630" y="78" font-size="14" font-weight="600" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Global.round</text>
+  <text x="630" y="99" font-size="13" fill="#2a2f3a">the block this call is in:</text>
+  <text x="630" y="117" font-size="13" fill="#2a2f3a">the only "now"</text>
+  <line x1="729" y1="122" x2="742" y2="186" stroke="#3d7dd8" stroke-width="1.5"/>
+
+  <!-- Txn.first_valid_time -->
+  <rect x="40" y="54" width="280" height="84" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="78" font-size="14" font-weight="600" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Txn.first_valid_time</text>
+  <text x="56" y="100" font-size="13" fill="#2a2f3a">the timestamp of block f−1,</text>
+  <text x="56" y="118" font-size="13" fill="#2a2f3a">where f is the round the caller</text>
+  <text x="56" y="136" font-size="13" fill="#2a2f3a">chose as its first valid round</text>
+  <line x1="107" y1="138" x2="107" y2="186" stroke="#5a6172" stroke-width="1.5"/>
+
+  <!-- Global.latest_timestamp -->
+  <rect x="560" y="268" width="260" height="86" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="576" y="292" font-size="14" font-weight="600" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Global.latest_timestamp</text>
+  <text x="576" y="314" font-size="13" fill="#2a2f3a">the timestamp of block r−1 —</text>
+  <text x="576" y="332" font-size="13" fill="#2a2f3a">one block behind, always,</text>
+  <text x="576" y="350" font-size="13" fill="#2a2f3a">by construction</text>
+  <line x1="685" y1="268" x2="685" y2="232" stroke="#5a6172" stroke-width="1.5"/>
+
+  <!-- the caller-chosen distance -->
+  <path d="M107 240 L107 252 L662 252 L662 240" fill="none" stroke="#c94f4e" stroke-width="1.5"/>
+  <text x="300" y="272" font-size="13" fill="#c94f4e" text-anchor="middle">this distance is the caller's: up to 1,000 rounds ≈ 46 minutes</text>
+
+  <!-- Txn.last_valid: off the timeline -->
+  <rect x="40" y="282" width="300" height="90" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="56" y="308" font-size="14" font-weight="600" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Txn.last_valid</text>
+  <text x="56" y="330" font-size="13" fill="#2a2f3a">not on the timeline at all —</text>
+  <text x="56" y="348" font-size="13" fill="#2a2f3a">a number the caller wrote down</text>
+  <text x="56" y="366" font-size="13" fill="#2a2f3a">before sending the transaction</text>
+</svg>

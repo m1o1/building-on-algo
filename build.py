@@ -39,25 +39,28 @@ CHAPTERS_DIR = ROOT / "chapters"
 CHANGES_DIR = ROOT / "changes"
 MDBOOK_DIR = ROOT / "mdbook"
 SRC_DIR = MDBOOK_DIR / "src"
+FIGURES_DIR = ROOT / "figures"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+import spine  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Book structure metadata
+# Book structure metadata (derived from scripts/spine.py — the one spine table)
 # ---------------------------------------------------------------------------
 
 # Part breaks: chapter filename → mdBook SUMMARY.md part header.
 # Inserted before the named chapter in the table of contents.
 PART_BREAKS: dict[str, str] = {
-    "01-the-algorand-mental-model.md": "# Part I: Foundations",
-    "05-a-constant-product-amm.md": "# Part II: Automated Market Making",
-    "09-delegated-limit-order-book.md": "# Part III: Advanced Topics",
-    "A1-cookbook.md": "# Appendices",
+    spine.first_of_part(p.number).filename: f"# Part {p.roman}: {p.title}"
+    for p in spine.PARTS
 }
+PART_BREAKS[spine.APPENDICES[0]] = "# Appendices"
 
 # Front-matter chapters appear as prefix entries (no bullet) in SUMMARY.md.
-FRONT_MATTER = {"F1-legal-notice.md", "F2-preface.md"}
+FRONT_MATTER = set(spine.FRONT_MATTER)
 
 # Back-matter chapters appear as suffix entries (no bullet) after a separator.
-BACK_MATTER = {"Z1-whats-next.md", "Z2-glossary.md", "Z3-bibliography.md"}
+BACK_MATTER = set(spine.BACK_MATTER)
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +185,99 @@ def _convert_math_delimiters(text: str) -> str:
     return "\n".join(out)
 
 
+# Fenced-div callout classes used in chapter sources (pandoc syntax:
+# `::: {.gotcha #id topic="..." title="..."}`). Rendered as styled HTML
+# blocks for mdBook; the PDF pipeline maps them to LaTeX environments.
+CALLOUT_LABELS = {
+    "gotcha": "Gotcha",
+    "note": "Note",
+    "warning": "Warning",
+    "tip": "Tip",
+    "tryit": "Try it",
+    "check": "Check yourself",
+    "setup": "Setup",
+    "spec": "The spec",
+}
+
+
+def _title_to_html(s: str) -> str:
+    """Escape a div title attribute and render backtick spans as <code>."""
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    return s.replace(" --- ", " — ")
+
+
+def _transform_divs_and_latex(text: str) -> str:
+    """Strip raw ```{=latex} blocks and convert ::: fenced divs to HTML callouts."""
+    lines = text.split("\n")
+    out: list[str] = []
+    in_code = False
+    in_latex = False
+    open_divs = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        if in_latex:
+            if stripped.startswith("```"):
+                in_latex = False
+            continue
+
+        if stripped.startswith("```"):
+            if not in_code and re.match(r"^`{3,}\s*\{=latex\}", stripped):
+                in_latex = True
+                continue
+            in_code = not in_code
+            out.append(line)
+            continue
+
+        if in_code:
+            out.append(line)
+            continue
+
+        # Standalone inline raw-latex spans, e.g. `\chaptermark{...}`{=latex}
+        if re.match(r"^`[^`]*`\{=latex\}\s*$", stripped):
+            continue
+
+        m = re.match(r"^:{3,}\s*\{\.([A-Za-z][\w-]*)([^}]*)\}\s*$", stripped)
+        if m:
+            cls, attrs = m.group(1), m.group(2)
+            tm = re.search(r'title="([^"]*)"', attrs)
+            label = CALLOUT_LABELS.get(cls, cls.capitalize())
+            heading = f"{label} — {_title_to_html(tm.group(1))}" if tm else label
+            if out and out[-1].strip():
+                out.append("")
+            out.append(f'<div class="callout callout-{cls}">')
+            out.append(f'<p class="callout-title">{heading}</p>')
+            out.append("")
+            open_divs += 1
+            continue
+
+        if re.match(r"^:{3,}\s*$", stripped) and open_divs:
+            open_divs -= 1
+            if out and out[-1].strip():
+                out.append("")
+            out.append("</div>")
+            continue
+
+        # Pandoc table captions (`: Table N-M. ...`) read as definition lists
+        # in mdBook and swallow the preceding paragraph. Emit a caption <p>.
+        cm = re.match(r"^: (Table \d+-\d+\..*)$", stripped)
+        if cm:
+            if out and out[-1].strip():
+                out.append("")
+            out.append(f'<p class="table-caption">{_title_to_html(cm.group(1))}</p>')
+            continue
+
+        out.append(line)
+
+    return "\n".join(out)
+
+
 def clean_for_mdbook(text: str) -> str:
     """Transform pandoc-flavored markdown for mdBook consumption.
 
+    - Strips raw ```{=latex} blocks; converts ::: fenced divs to HTML callouts
     - Strips \\newpage and \\part{...} directives
     - Strips pandoc attributes from sub-headings
     - Converts --- to em-dash
@@ -192,6 +285,7 @@ def clean_for_mdbook(text: str) -> str:
     - Drops content before the first # heading (part intros)
     - Strips {-} from the chapter heading
     """
+    text = _transform_divs_and_latex(text)
     lines = text.split("\n")
     out: list[str] = []
     in_code = False
@@ -259,6 +353,34 @@ blockquote {
     background: rgba(74, 143, 237, 0.04);
     border-radius: 0 4px 4px 0;
 }
+
+/* --- Fenced-div callouts (gotcha, note, warning, ...) --- */
+.callout {
+    border-left: 4px solid #888;
+    border-radius: 0 4px 4px 0;
+    padding: 0.75em 1em;
+    margin: 1.5em 0;
+    background: rgba(128, 128, 128, 0.06);
+}
+.callout .callout-title {
+    font-weight: 700;
+    margin: 0 0 0.5em 0;
+}
+.callout p:last-child { margin-bottom: 0; }
+.table-caption {
+    font-size: 0.9em;
+    font-style: italic;
+    margin: 0.5em 0 1em 0;
+    opacity: 0.85;
+}
+.callout-gotcha  { border-left-color: #d9534f; background: rgba(217, 83, 79, 0.06); }
+.callout-warning { border-left-color: #f0ad4e; background: rgba(240, 173, 78, 0.07); }
+.callout-note    { border-left-color: #4a8fed; background: rgba(74, 143, 237, 0.06); }
+.callout-tip     { border-left-color: #5cb85c; background: rgba(92, 184, 92, 0.07); }
+.callout-tryit   { border-left-color: #9b59b6; background: rgba(155, 89, 182, 0.06); }
+.callout-check   { border-left-color: #16a085; background: rgba(22, 160, 133, 0.06); }
+.callout-setup   { border-left-color: #7f8c8d; background: rgba(127, 140, 141, 0.07); }
+.callout-spec    { border-left-color: #2c3e50; background: rgba(44, 62, 80, 0.07); }
 
 /* --- Tables --- */
 table {
@@ -331,6 +453,10 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
         (SRC_DIR / "cover.md").write_text(cover_md, encoding="utf-8")
         summary_lines.append("[Cover](./cover.md)")
 
+    # Figures referenced by chapters as figures/<name>.svg
+    if FIGURES_DIR.exists():
+        shutil.copytree(FIGURES_DIR, SRC_DIR / "figures", dirs_exist_ok=True)
+
     for path in chapter_files:
         text = path.read_text(encoding="utf-8")
         heading = extract_heading(text)
@@ -343,9 +469,20 @@ def build_mdbook(*, serve: bool = False, open_browser: bool = False) -> None:
         # Write cleaned chapter to mdbook/src/
         (SRC_DIR / path.name).write_text(cleaned, encoding="utf-8")
 
-        # Part break before this chapter?
+        # Part break before this chapter? Emit the part header plus an intro
+        # page carrying the part blurb (which the pre-heading strip removes
+        # from the chapter page itself).
         if path.name in PART_BREAKS:
             summary_lines.append(f"\n{PART_BREAKS[path.name]}\n")
+            bm = re.search(r"\\part\{[^}]*\}\s*\n\n(.+?)\n\n", text, re.DOTALL)
+            if bm and not path.name.startswith("A"):
+                part_title = PART_BREAKS[path.name].lstrip("# ").strip()
+                page_name = f"part-intro-{path.name}"
+                blurb = bm.group(1).strip()
+                (SRC_DIR / page_name).write_text(
+                    f"# {part_title}\n\n{blurb}\n", encoding="utf-8"
+                )
+                summary_lines.append(f"- [{part_title}](./{page_name})")
 
         # Separator before back matter
         if path.name == "Z1-whats-next.md":
@@ -412,6 +549,112 @@ After installing, make sure the mdbook executable is on your PATH.
 # PDF build
 # ---------------------------------------------------------------------------
 
+FIGURE_PDF_FILTER = """\
+-- Rewrite figures/<name>.svg image paths to the pre-converted PDFs.
+function Image(img)
+  local new = img.src:gsub("^figures/(.*)%.svg$", "build/figures-pdf/%1.pdf")
+  img.src = new
+  return img
+end
+"""
+
+# Map fenced-div callouts to the BOAcallout tcolorbox environment defined in
+# chapters/metadata.yaml. Labels must match CALLOUT_LABELS (HTML path).
+CALLOUT_PDF_FILTER = """\
+local labels = {
+  gotcha = "Gotcha", note = "Note", warning = "Warning", tip = "Tip",
+  tryit = "Try it", check = "Check yourself", setup = "Setup",
+  spec = "The spec",
+}
+
+local function tex_escape(s)
+  s = s:gsub("\\\\", "\\\\textbackslash{}")
+  s = s:gsub("([%%{}$&#_])", "\\\\%1")
+  s = s:gsub("%^", "\\\\^{}")
+  s = s:gsub("~", "\\\\~{}")
+  -- backtick spans become \\texttt
+  s = s:gsub("`([^`]+)`", "\\\\texttt{%1}")
+  return s
+end
+
+function Div(el)
+  local label = labels[el.classes[1]]
+  if not label then return nil end
+  local title = el.attributes["title"]
+  local head = label
+  if title and title ~= "" then
+    head = label .. " --- " .. title
+  end
+  local blocks = pandoc.List()
+  blocks:insert(pandoc.RawBlock("latex",
+    "\\\\begin{BOAcallout}{" .. tex_escape(head) .. "}"))
+  blocks:extend(el.content)
+  blocks:insert(pandoc.RawBlock("latex", "\\\\end{BOAcallout}"))
+  return blocks
+end
+"""
+
+# Inline code never hyphenates (mono fonts carry no hyphen points), so a long
+# identifier would overflow the measure. This filter supplies break
+# opportunities at the points where an identifier can legally split --
+# after ., _, /, :, -, =, ",", and "(" -- as \allowbreak (no hyphen is ever
+# inserted). Promised by the colophon (Z4). Short spans are left alone.
+INLINE_CODE_PDF_FILTER = """\
+local MIN_LEN = 15
+
+function Code(el)
+  local text = el.text
+  local out = {}
+  for i = 1, #text do
+    local c = text:sub(i, i)
+    local esc = c
+    if c == "\\\\" then esc = "\\\\textbackslash{}"
+    elseif c:match("[%%{}$&#_]") then esc = "\\\\" .. c
+    elseif c == "^" then esc = "\\\\^{}"
+    elseif c == "~" then esc = "\\\\~{}"
+    end
+    table.insert(out, esc)
+    if #text >= MIN_LEN and i < #text and c:match("[%._/:%-=,(]") then
+      table.insert(out, "\\\\allowbreak{}")
+    end
+  end
+  return pandoc.RawInline("latex", "\\\\texttt{" .. table.concat(out) .. "}")
+end
+"""
+
+
+def _convert_figures_for_pdf() -> Path | None:
+    """Pre-convert figures/*.svg to PDF (xelatex cannot include SVG directly).
+
+    Uses cairosvg (uv dependency group "pdf"). Returns the Lua filter path,
+    or None if there are no figures.
+    """
+    if not FIGURES_DIR.exists():
+        return None
+    out_dir = ROOT / "build" / "figures-pdf"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        import cairosvg  # type: ignore[import-untyped]
+    except ImportError:
+        print(
+            "Error: cairosvg not available. Run via: uv run --group pdf python3 build.py pdf",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    converted = 0
+    for svg in sorted(FIGURES_DIR.glob("*.svg")):
+        pdf = out_dir / (svg.stem + ".pdf")
+        if pdf.exists() and pdf.stat().st_mtime >= svg.stat().st_mtime:
+            continue
+        cairosvg.svg2pdf(url=str(svg), write_to=str(pdf))
+        converted += 1
+    if converted:
+        print(f"Converted {converted} figures to PDF")
+    filter_path = ROOT / "build" / "figures-pdf-filter.lua"
+    filter_path.write_text(FIGURE_PDF_FILTER, encoding="utf-8")
+    return filter_path
+
+
 def build_pdf() -> None:
     """Build PDF via pandoc + xelatex from chapter sources."""
     if not shutil.which("pandoc"):
@@ -428,6 +671,13 @@ def build_pdf() -> None:
         print("Error: no chapter files found in chapters/", file=sys.stderr)
         sys.exit(1)
 
+    lua_filter = _convert_figures_for_pdf()
+    callout_filter = ROOT / "build" / "callouts-pdf-filter.lua"
+    callout_filter.parent.mkdir(exist_ok=True)
+    callout_filter.write_text(CALLOUT_PDF_FILTER, encoding="utf-8")
+    inline_code_filter = ROOT / "build" / "inline-code-pdf-filter.lua"
+    inline_code_filter.write_text(INLINE_CODE_PDF_FILTER, encoding="utf-8")
+
     output = ROOT / "Building-on-Algorand.pdf"
     cmd = [
         "pandoc",
@@ -436,12 +686,16 @@ def build_pdf() -> None:
         "-o",
         str(output),
         "--pdf-engine=xelatex",
-        "--syntax-highlighting=tango",
+        "--highlight-style=tango",
         "--top-level-division=chapter",
         "--toc",
         "--toc-depth=2",
         "-N",
     ]
+    cmd.insert(-8, f"--lua-filter={callout_filter}")
+    cmd.insert(-8, f"--lua-filter={inline_code_filter}")
+    if lua_filter is not None:
+        cmd.insert(-8, f"--lua-filter={lua_filter}")
 
     print(f"Building PDF from {len(chapter_files)} chapters...")
     subprocess.run(cmd, check=True)

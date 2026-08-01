@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 560" role="img"
+     aria-label="What the AVM lets a contract see, what it lets a contract stage, and the single approve-or-reject branch that decides whether any of it is applied"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#3d8a5f"/>
+    </marker>
+    <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+
+  <!-- Upper band: what the program sees -->
+  <rect x="20" y="16" width="820" height="174" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="40" y="44" font-size="16" font-weight="600" fill="#2a2f3a">What the program sees</text>
+  <text x="820" y="44" font-size="13" fill="#5a6172" text-anchor="end">read-only</text>
+
+  <rect x="40" y="60" width="380" height="52" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="81" font-size="15" fill="#2a2f3a">The transaction and its group</text>
+  <text x="56" y="101" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Txn.sender · args ≤ 2,048 B · gtxn 0…15</text>
+
+  <rect x="440" y="60" width="380" height="52" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="456" y="81" font-size="15" fill="#2a2f3a">Chain globals</text>
+  <text x="456" y="101" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">Global.round · latest_timestamp · min_txn_fee</text>
+
+  <rect x="40" y="124" width="380" height="52" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="145" font-size="15" fill="#2a2f3a">Its own storage</text>
+  <text x="56" y="165" font-size="13" fill="#2a2f3a">global slab · local slabs · boxes</text>
+
+  <rect x="440" y="124" width="380" height="52" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="456" y="145" font-size="15" fill="#2a2f3a">Declared ledger state</text>
+  <text x="456" y="165" font-size="13" fill="#2a2f3a">account balances · other apps' global state</text>
+
+  <!-- reads arrow -->
+  <line x1="430" y1="190" x2="430" y2="216" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="208" font-size="13" fill="#5a6172">reads</text>
+
+  <!-- the program -->
+  <rect x="250" y="220" width="360" height="60" rx="8" fill="#f4f5f7" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="430" y="245" font-size="16" font-weight="600" fill="#2a2f3a" text-anchor="middle">The program — asked once</text>
+  <text x="430" y="266" font-size="13" fill="#2a2f3a" text-anchor="middle">budget: 700 opcodes per call, pooled across the group</text>
+
+  <!-- stages arrow -->
+  <line x1="430" y1="280" x2="430" y2="306" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="298" font-size="13" fill="#5a6172">stages</text>
+
+  <!-- Lower band: what the program stages -->
+  <rect x="20" y="310" width="820" height="128" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="40" y="338" font-size="16" font-weight="600" fill="#2a2f3a">What the program stages</text>
+  <text x="820" y="338" font-size="13" fill="#5a6172" text-anchor="end">nothing here is applied yet</text>
+
+  <rect x="40" y="354" width="250" height="64" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="376" font-size="15" fill="#2a2f3a">State writes</text>
+  <text x="56" y="396" font-size="13" fill="#2a2f3a">global · local · boxes</text>
+
+  <rect x="306" y="354" width="250" height="64" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="322" y="376" font-size="15" fill="#2a2f3a">Inner transactions</text>
+  <text x="322" y="396" font-size="13" fill="#2a2f3a">pay · axfer · app call — ≤ 256 pooled</text>
+
+  <rect x="572" y="354" width="250" height="64" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="588" y="376" font-size="15" fill="#2a2f3a">The log</text>
+  <text x="588" y="396" font-size="13" fill="#2a2f3a">≤ 1,024 B — the ABI return value</text>
+
+  <!-- the branch at the foot -->
+  <line x1="430" y1="438" x2="430" y2="462" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="368" y="464" width="124" height="40" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="489" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">approve?</text>
+
+  <path d="M368 484 L230 484 L230 504" fill="none" stroke="#3d8a5f" stroke-width="1.5" marker-end="url(#aG)"/>
+  <text x="244" y="500" font-size="13" fill="#3d8a5f">yes</text>
+  <rect x="60" y="506" width="340" height="46" rx="8" fill="#f4f5f7" stroke="#3d8a5f" stroke-width="2"/>
+  <text x="230" y="525" font-size="13" fill="#2a2f3a" text-anchor="middle">everything staged is applied,</text>
+  <text x="230" y="543" font-size="13" fill="#2a2f3a" text-anchor="middle">at the moment the block is written</text>
+
+  <path d="M492 484 L630 484 L630 504" fill="none" stroke="#c94f4e" stroke-width="1.5" marker-end="url(#aD)"/>
+  <text x="600" y="500" font-size="13" fill="#c94f4e">no</text>
+  <rect x="460" y="506" width="340" height="46" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="630" y="525" font-size="13" fill="#2a2f3a" text-anchor="middle">everything staged is discarded —</text>
+  <text x="630" y="543" font-size="13" fill="#2a2f3a" text-anchor="middle">the ledger never changes</text>
+</svg>

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 590" role="img"
+     aria-label="The generated router's decision order: application args, selector match, on-completion filter, and only then the application-ID question — with create=allow methods matched before that question is asked"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+    <marker id="aB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#3d7dd8"/>
+    </marker>
+    <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+
+  <!-- start -->
+  <rect x="290" y="18" width="280" height="36" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="41" font-size="15" fill="#2a2f3a" text-anchor="middle">an ApplicationCall arrives</text>
+  <line x1="430" y1="54" x2="430" y2="76" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Q1 args -->
+  <rect x="280" y="78" width="300" height="48" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="99" font-size="15" fill="#2a2f3a" text-anchor="middle">1 · Does it carry application</text>
+  <text x="430" y="117" font-size="15" fill="#2a2f3a" text-anchor="middle">arguments?</text>
+  <line x1="580" y1="102" x2="636" y2="102" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="590" y="94" font-size="13" fill="#5a6172">no</text>
+  <rect x="640" y="66" width="200" height="72" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="656" y="88" font-size="15" fill="#2a2f3a">the bare paths</text>
+  <text x="656" y="108" font-size="13" fill="#2a2f3a">no-arg call — e.g. the bare</text>
+  <text x="656" y="126" font-size="13" fill="#2a2f3a">create: ID = 0 and NoOp</text>
+  <line x1="430" y1="126" x2="430" y2="148" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="143" font-size="13" fill="#5a6172">yes</text>
+
+  <!-- Q2 selector -->
+  <rect x="280" y="150" width="300" height="48" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="171" font-size="15" fill="#2a2f3a" text-anchor="middle">2 · Which method selector</text>
+  <text x="430" y="189" font-size="15" fill="#2a2f3a" text-anchor="middle">does args[0] match?</text>
+  <line x1="580" y1="174" x2="636" y2="174" stroke="#c94f4e" stroke-width="1.5" marker-end="url(#aD)"/>
+  <text x="586" y="166" font-size="13" fill="#c94f4e">none</text>
+  <rect x="640" y="150" width="200" height="48" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="656" y="171" font-size="15" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">err</tspan> — rejected,</text>
+  <text x="656" y="190" font-size="13" fill="#2a2f3a">with no message</text>
+  <line x1="430" y1="198" x2="430" y2="220" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="215" font-size="13" fill="#5a6172">matched</text>
+
+  <!-- Q3 on-completion -->
+  <rect x="280" y="222" width="300" height="48" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="243" font-size="15" fill="#2a2f3a" text-anchor="middle">3 · Is the OnCompletion action</text>
+  <text x="430" y="261" font-size="15" fill="#2a2f3a" text-anchor="middle">one the method allows?</text>
+  <line x1="580" y1="246" x2="636" y2="246" stroke="#c94f4e" stroke-width="1.5" marker-end="url(#aD)"/>
+  <text x="592" y="238" font-size="13" fill="#c94f4e">no</text>
+  <rect x="640" y="222" width="200" height="48" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="656" y="251" font-size="15" fill="#2a2f3a">rejected</text>
+  <line x1="430" y1="270" x2="430" y2="312" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="288" font-size="13" fill="#5a6172">yes</text>
+
+  <!-- the create=allow fork, above the ID question -->
+  <circle cx="430" cy="296" r="5" fill="#3d7dd8"/>
+  <path d="M430 296 C 280 300 150 340 150 410 L150 430" fill="none" stroke="#3d7dd8" stroke-width="2" marker-end="url(#aB)"/>
+  <path d="M430 296 C 580 300 710 340 710 410 L710 430" fill="none" stroke="#3d7dd8" stroke-width="2" marker-end="url(#aB)"/>
+  <text x="40" y="300" font-size="13" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">reset (create=allow)</tspan> is</text>
+  <text x="40" y="318" font-size="13" fill="#2a2f3a">matched up here — the question</text>
+  <text x="40" y="336" font-size="13" fill="#2a2f3a">below is never asked for it</text>
+
+  <!-- Q4 application ID -->
+  <rect x="310" y="316" width="240" height="64" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="341" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">4 · txn ApplicationID</text>
+  <text x="430" y="362" font-size="13" fill="#2a2f3a" text-anchor="middle">does the application exist yet?</text>
+
+  <path d="M370 380 L370 400 L225 400 L225 430" fill="none" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="298" y="394" font-size="13" fill="#5a6172" text-anchor="middle">ID = 0 — creating</text>
+  <path d="M490 380 L490 400 L635 400 L635 430" fill="none" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="562" y="394" font-size="13" fill="#5a6172" text-anchor="middle">ID ≠ 0 — it exists</text>
+
+  <!-- leaves -->
+  <rect x="60" y="434" width="330" height="86" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="76" y="460" font-size="15" font-weight="600" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">create=require</tspan> methods</text>
+  <text x="76" y="483" font-size="13" fill="#2a2f3a">the call creates the application,</text>
+  <text x="76" y="501" font-size="13" fill="#2a2f3a">then the body runs</text>
+
+  <rect x="470" y="434" width="330" height="86" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="486" y="460" font-size="15" font-weight="600" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">create=disallow</tspan> (the default)</text>
+  <text x="486" y="483" font-size="13" fill="#2a2f3a">the body runs against</text>
+  <text x="486" y="501" font-size="13" fill="#2a2f3a">the existing application</text>
+
+  <!-- bottom note -->
+  <text x="40" y="552" font-size="13" fill="#2a2f3a">A <tspan font-family="DejaVu Sans Mono, monospace">create=allow</tspan> method lands on both sides at once: at ID = 0 it creates a brand-new application</text>
+  <text x="40" y="570" font-size="13" fill="#2a2f3a">from the same program and runs against its empty state — where every "creator only" check passes.</text>
+</svg>

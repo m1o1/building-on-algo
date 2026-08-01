@@ -1,0 +1,11 @@
+{
+  "choice": 1,
+  "commitment": "1e358f0e1c73aa371c59af6faab977d75a9cf825f1846fed16da096308f532be",
+  "curve": "BN254",
+  "inputs_file": "vote.public_inputs",
+  "num_choices": 3,
+  "proof_file": "vote.proof",
+  "proof_system": "PLONK",
+  "randomness": "0000000000000000000000000000000000000000000000000000000000000007",
+  "setup": "PerpetualPowersOfTauBN254"
+}

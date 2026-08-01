@@ -334,6 +334,29 @@ When reviewing or writing Algorand contracts, evaluate security through Algorand
 
 ---
 
+## Book Teaching Rules (ALG) — Domain Rules for Manuscript Review
+
+**GOVERNING RULES: `RULEBOOK.md` (repo root) is the authoritative rule set for this book. Your rule set is Part 3 (ALG-1 through ALG-16).** When reviewing book content, cite rule IDs (e.g., "violates ALG-6"). These are teaching-shape rules — what an Algorand book must teach, when, and how — distinct from the correctness checks elsewhere in this file:
+
+- **ALG-1 (the concept spine)**: mental model → ABI/routing/types → state ownership → boxes → arithmetic & time → value movement → testing/simulate → authorization → costs → pricing math → cross-contract → randomness → LogicSigs → cryptography → lifecycle/operations. No example uses a concept ahead of its slot except as a labeled IOU.
+- **ALG-2 (costs at first payment)**: MBR taught when the first box is created; inner-txn fees when the first inner transaction fires; opcode budget when the first loop grows; access/reference lists when a transaction first must declare what it touches.
+- **ALG-3 (four-accounts discipline)**: every authorization example names which of sender / creator / application address / referenced account it trusts and why; the unsatisfiable `Txn.sender == app address` guard is the canonical fatal example, taught before any guard is written.
+- **ALG-4 (every division names its winner)**: rounding direction stated and defended (floor favors the contract); subtractions guarded where the value is established; multiply-before-divide default; wide math taught once and thereafter cited.
+- **ALG-5 (storage is an ownership question)**: global vs local vs box decided by "who can destroy this data"; the ClearState trapdoor taught before local state ever holds a liability.
+- **ALG-6 (receiving is evidence; sending is authorization + fees)**: every deposit method answers the four questions (right receiver, right asset, right amount, right payer) or explicitly names the one it deliberately does not ask and argues why; every inner transaction states who pays its fee.
+- **ALG-7 (opt-in before transfer)**: no asset moves before the receiving account's opt-in is shown or cited; contract-held assets use mint → coordinate → deliver.
+- **ALG-8 (balances are not ledgers)**: value-holding contracts keep reserve state; spendable-vs-balance and the MBR floor taught with the first held Algo.
+- **ALG-9 (the four clocks)**: time-dependent examples name which "now"-shaped value they read and why the others are wrong; caller-chosen fields are never time.
+- **ALG-10 (randomness rubric)**: unpredictable / unbiasable / verifiable; block seed fails it; commit-to-a-future-round passes it; every design waiting on an external party ships an exit path for that party's silence.
+- **ALG-11 (LogicSigs are unsafe by omission)**: every LogicSig example carries the full guard checklist or names the omitted guard and the attack it invites; arguments are unsigned; delegation shows revocation or states there is none.
+- **ALG-12 (cryptography is priced)**: every crypto opcode example carries its opcode/fee bill and is tested for the gates-nothing failure — does the expensive check actually constrain who can do what?
+- **ALG-13 (asserts speak to strangers)**: every assert carries a message an integrator can act on; the pc → TEAL → source error path taught once, early, cited thereafter.
+- **ALG-14 (negative tests assert the reason)**: simulate before print-debugging; tests derive from requirements, not from the code.
+- **ALG-15 (explicit lifecycle stance)**: every contract states and guards immutable/updatable/deletable; events, pause, and error codes are introduced mid-book and deepened at shipping time — never first met in the final chapter.
+- **ALG-16 (one validated baseline)**: versions pinned, dated, stated once; no mixed toolchain idioms; the un-built-on protocol surface is delimited so omissions read as scoping.
+
+---
+
 ## Security: Algorand-Specific Vulnerability Classes
 
 These vulnerability classes are Algorand-specific expert knowledge NOT fully covered in documentation. This is one area where you CAN rely on this file rather than looking things up.
@@ -394,7 +417,7 @@ This is expert security knowledge. Every LogicSig MUST enforce ALL of these:
 6. **`Global.genesis_hash` check** -- Prevents cross-network replay (MainNet LogicSig used on TestNet)
 7. **Group validation** (`Global.group_size`, `Txn.group_index`, `Gtxn[n].application_id`) -- Prevents use in unintended contexts
 
-**Modern Recommendation:** Logic signatures are largely unnecessary for most applications. Modern stateful smart contracts cover nearly all use cases. The only remaining niche is compute-heavy operations needing the separate 20K budget pool. When reviewing book content, challenge whether a stateful smart contract would work instead.
+**Framing for book content (per BOOK-PLAN.md):** Technically, modern stateful smart contracts cover most use cases; the remaining LogicSig niches are compute-heavy verification needing the separate budget pool and delegated authorization that must work without a stateful call. In book prose, present this as "when this architecture is right" — one clear scoping paragraph, once per chapter — rather than repeatedly discouraging the technique being taught. Do NOT recommend adding "you almost certainly don't want this" style warnings to a chapter whose job is to teach LogicSigs; that framing guts the chapter's motivation while adding no safety. The security checklist above is non-negotiable either way (ALG-11).
 
 ---
 
@@ -512,6 +535,32 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
 - `/v2/teal/dryrun` is deprecated and already deleted from go-algorand master (gone in 4.8+); simulate (`/v2/transactions/simulate`, with `extra-opcode-budget` up to 320,000, `allow-more-logging`, `allow-unnamed-resources`, exec traces) is the only path to teach.
 - algokit-utils-py current major is 4.x (`AlgorandClient`, `AppFactory`/`AppClient`, typed clients, automatic resource population since 4.0). The pre-3.0 stateless API (`get_algod_client`, `ApplicationClient`, `transfer_algos`) is dead. A 5.0 beta (algosdk-decoupled, built on algokit-core) exists — do not teach against it yet.
 - Algorand TypeScript (puya-ts) is GA at 1.2.x and shares the Puya backend with PuyaPy; TEALScript is legacy/superseded.
+
+### LocalNet and testing operational facts (empirically verified on LocalNet, algokit 2.10.2 / algokit-utils 4.2.3, 2026-07-31)
+
+- **`set_timestamp_offset(N)` applies PER BLOCK, not once**: every subsequent dev-mode block's timestamp is `previous + N`, so a 365-day offset advances the ledger clock a year per block until changed — poisoning every later time-sensitive suite on the shared node. Correct hygiene: any test that sets a large offset must set the offset back to **1** (one second per block — sane, monotonic) when done, and suite fixtures should normalize the offset to 1 at start. Never 0 (see next).
+- **`set_timestamp_offset(0)` FREEZES dev-mode LocalNet's clock; it does not reset it.** go-algorand dev mode computes the next block timestamp as `prev.TimeStamp + offset` whenever the offset is non-nil, so an offset of 0 pins every future block to the same timestamp. The REST API cannot un-set the offset, and restarting algod does not heal it (dev-mode assembly clamps timestamps upward to the previous block). The only recovery is `algokit localnet reset`. Teach time travel with positive offsets only; never write or recommend a "reset to 0" helper. Related: with no offset set, an idle LocalNet's clock falls behind wall time and recovers only ~25s per block (`MaxTimestampIncrement`) — short vesting-style schedules can complete inside a single block's clamp.
+- **Time-jumped LocalNet never comes back**: block timestamps are monotonic, so after any suite that jumps the ledger clock far forward (lp-farming's 366-day lock leaves it 1-2 years ahead even with the offset normalized to 1 afterward), every `time.sleep`-based wall-clock suite measures ~1 s per block and fails. Run wall-clock suites BEFORE offset-jumping suites, or `algokit localnet reset` between them.
+- **algokit-utils 4.x caches suggested params for 3,000 seconds**, so two otherwise-identical zero-amount payments built inside that window share a TxID and the second is rejected with `TransactionPool.Remember: transaction already in ledger`. Any repeated no-op/padding transaction needs a distinguishing `note` (e.g. `os.urandom(8)`).
+- **`create="require"` ABI methods have no bare-create router path**: `factory.send.create.bare()` against such a contract does not error client-side — it reaches the router, falls through to the lifecycle/bare handler, and dies at an opaque `assert` pc. The create call must go through the typed factory's ABI create method. When reviewing, check that client `create` calls match the contract's declared create mode.
+- **algokit-utils 4.x populates app-call resources automatically by default**, so negative tests that expect a missing-reference failure must disable population (`populate_app_call_resources=False`) or they pass vacuously / fail with `DID NOT RAISE`.
+- **Confirmation logs arrive base64-encoded** (`confirmation["logs"]` via the default JSON response format); decode before matching ARC-28 prefixes.
+- **A shared LocalNet makes every `advance_time(N)` helper a lie unless it re-reads the clock.** With an offset set, `time.sleep` moves nothing (only blocks move the clock, by `offset` each); with no offset, sleeping is the only thing that moves it. And other work on the same node produces blocks, so a test's "15 seconds" can silently become 40. Write the helper as *sleep only when the offset is 0, then produce blocks until `block_info(last-round)["block"]["ts"]` has actually reached the target*, bounded so a frozen clock raises instead of hanging. Then make windows generous: a schedule that must still be mid-flight at the assertion needs a duration measured in hundreds of seconds, not tens. Verified in `projects/token-vesting/scripts/localnet_helpers.py`, 2026-07-31.
+- **Two identical single-transaction app calls collide as one TxID** (same 3,000-second cached params, same sender, same args) — e.g. two consecutive `claim`s or two `factory.send.bare.create()` calls from the same factory. Grouped transactions are immune because the group id differs, which is why a grouped MBR payment repeated across schedules is fine while a lone repeat is not. Fix with `note=os.urandom(8)` on the call params (`AppFactoryCreateParams(note=...)` for the bare create).
+- **`LogicError` text in algokit-utils 4.2.3** is `Txn <TXID> had error 'Runtime error when executing <Contract> (appId: N) in transaction K: <your assert message>' at PC <pc> and Source Line <n>:` followed by the TEAL trace. Book transcripts quoting only `had error '<message>'` are quoting a truncation, not the current format.
+- Handy read APIs for transcripts and assertions: `app_client.get_global_state()["key"].value` and `algorand.asset.get_account_information(address, asset_id).balance` (returns `AccountAssetInformation(asset_id, balance, frozen, round)`).
+
+### AVM cryptography opcode facts (verified on-chain against go-algorand 4.7.4, 2026-07-31)
+
+- **The AVM's BN254 G2 point encoding is `x0 ‖ x1 ‖ y0 ‖ y1` (real component first in each coordinate pair), NOT Ethereum EIP-197's imaginary-first order.** Feeding an EIP-197-ordered G2 point to `ec_*` opcodes fails with `point not on curve`. Verified by an on-chain `ec_subgroup_check` probe across all four orderings. This is documented nowhere obvious (not in the algopy stubs, not on dev.algorand.co) and will bite anyone porting Ethereum pairing/verifier fixtures — check the ordering FIRST when a known-good Ethereum G2 vector is rejected.
+- `ec_multi_scalar_mul` costs 3,600 + 90 per 32 bytes of scalars on BN254g1 and **7,200 + 270 on BN254g2** (per `TEAL_opcodes_v12.md` — a plausible-sounding 10,600 figure circulated in review and is wrong). `ec_subgroup_check` is 20 on BN254g1 vs 3,100 on BN254g2 because BN254 G1 has cofactor 1 (membership = on-curve check).
+- LogicSig **size** pooling: consensus v40 (AVM v11) raises `MaxAbsoluteLogicSigProgramSize` to 16,000 while `LogicSigMaxSize` stays 1,000 — the pool is `len(group) × 1,000` over program + args, capped at 16,000 absolute. LogicSig **cost** pooling is v39 (AVM v10). A >1,000-byte LogicSig needs group companions for size even when its opcode cost is trivial; error is `txgroup had N bytes of LogicSigs, more than the available pool of M bytes`.
+
+### algorand-python-testing 1.1.0 behavior (verified empirically, 2026-07-31)
+
+- **Any `@arc4.baremethod` called from a unit test raises `AttributeError: 'str' object has no attribute 'name'`** before the method body runs. `baremethod()` does not pass its `allow_actions` through `_parse_allow_actions` (`abimethod()` does), so the default `("NoOp",)` stays a string, becomes the synthesized txn's `on_completion`, and `check_routing_conditions` then calls `.name` on it. Workaround in tests: wrap the call in `ctx.txn.create_group(active_txn_overrides={"on_completion": OnCompleteAction.NoOp})` (or the action under test), which supplies the enum via `setdefault`. Affects `create` methods and lifecycle bare methods alike.
+- **Calling an abimethod with a transaction-typed argument synthesizes the group for you**: `contract.create_schedule(acct, ..., ctx.any.txn.payment(...))` runs inside an implicit group of `[payment, app call]`, so `Global.group_size == UInt64(2)` is satisfied without building a group by hand. Mutating the contract's expected group size to 3 makes those tests fail, which is how to prove the check is live rather than vacuous.
+- Inner transactions are recorded, not executed: after a call, assert on `ctx.txn.last_group.last_itxn.asset_transfer` / `.payment` (fields include `asset_receiver`, `asset_amount`, `receiver`, `amount`, `fee`), and on `len(ctx.txn.last_group.itxn_groups) == 0` for the path that must send nothing. No opt-in, balance, or MBR is enforced, which is exactly the line between the fast half of a suite and the LocalNet half.
 
 ### algokit-utils-py 4.x behavior (verified empirically against 4.2.3, 2026-07-24)
 

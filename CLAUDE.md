@@ -5,10 +5,17 @@
 **`chapters/`** is the canonical source for the book. Each chapter is a separate `.md` file. The mdbook HTML site and PDF are derived outputs.
 
 - `chapters/metadata.yaml` -- Pandoc YAML frontmatter (title, fonts, LaTeX config)
-- `chapters/F*.md` -- Front matter (Legal Notice, Preface)
-- `chapters/01-*.md` through `chapters/09-*.md` -- Numbered chapters
-- `chapters/A*.md` -- Appendices (Cookbook, Gotchas)
-- `chapters/Z*.md` -- Back matter (What's Next, Glossary, Bibliography)
+- `chapters/F*.md` -- Front matter (Legal Notice, Foreword, Preface, How to Use)
+- `chapters/01-*.md` through `chapters/24-*.md` -- Numbered chapters, 7 parts (spine in `scripts/spine.py`)
+- `chapters/NNz-checkpoint-*.md` -- Mastery Checkpoints, printed at part ends
+- `chapters/A*.md` -- Appendices. A3 (gotchas) and A4 (example finder) are GENERATED — edit the inline `::: {.gotcha}` callouts / `<!-- finder: -->` comments in chapters and run `python3 scripts/generate_appendices.py`
+- `chapters/Z*.md` -- Back matter (What's Next, Glossary, Bibliography, Colophon)
+
+**`scripts/spine.py`** is the single machine-readable spine: chapter numbers, filenames, kinds, part boundaries. build.py derives part breaks from it; `scripts/check_book.py` (run by `tests/test_book_integrity.py`) drift-checks the manuscript against it — cross-references, example numbering, code paths, Handoff/receiving reciprocity, backward-only retrieval.
+
+**Code paths are stable names** — `examples/<topic>/`, `projects/<name>/` — never chapter-numbered. Example listings carry machine annotations (`<!-- example: <path> mode=compile|compile-fail|unit|script|localnet -->`); `scripts/compile_examples.py` runs every annotated example in its declared mode. `validation/manifest.json` `book_promises` maps every front-matter promise to its enforcing check.
+
+**`REWRITE-PROGRESS.md`** (temporary) tracks the in-flight book rewrite; read it before substantive content work while it exists.
 
 ## Build Commands
 
@@ -38,17 +45,29 @@ python3 build.py concat
 - `build.py` -- Unified build script (mdbook, pdf, concat)
 - `.claude/agents/` -- Specialized review agents (see below)
 
+## Governing Documents
+
+Two files at the repo root govern all book content work. Read them before substantive writing or restructuring:
+
+- **`RULEBOOK.md`** — the authoritative authoring rules, in three parts matching the three agents: Part 1 PUB (publishing/production), Part 2 PED (pedagogy), Part 3 ALG (Algorand teaching rules). Every rule cites the observed failure it prevents and carries an enforcement tag ([GEN]/[CI]/[REVIEW]). Reviews cite rule IDs (e.g., "violates PED-1"). Where an agent file and RULEBOOK.md disagree, RULEBOOK.md wins. Deliberate rule breaks are allowed only if the text acknowledges them and the review records them — silent violations are the only forbidden kind.
+- **`BOOK-PLAN.md`** — the comparative analysis behind the rules and the target book structure (§7, the Replacement Outline) with per-chapter revision items and the execution order (§9). Structural decisions (chapter order, what lives in an appendix, where a concept is taught) defer to this plan, not to the current state of `chapters/`.
+
+The two most load-bearing rules, stated here because they are violated most easily:
+
+1. **PED-1 (goal before problem)**: every concept chapter opens bridge → commission (what *the reader* builds + a 3-5 item spec) → objectives → first attempt. No failure narrative before the commission; third-party war stories come after the code, as consequences.
+2. **PED-6 (concept chapters teach; projects assemble)**: a project chapter recaps by citing example numbers and never re-teaches a topic a concept chapter covered.
+
 ## Agent-Based Quality Assurance
 
-Three specialized agents live in `.claude/agents/`. **Every substantive change to the book must be reviewed by all three agents before it is considered complete.** Trivial fixes (typos, formatting-only) can skip this process at the user's discretion.
+Three specialized agents live in `.claude/agents/`, each owning one part of `RULEBOOK.md`. **Every substantive change to the book must be reviewed by all three agents before it is considered complete.** Trivial fixes (typos, formatting-only) can skip this process at the user's discretion.
 
 ### The Agents
 
-| Agent | Role | When It Catches Problems |
-|-------|------|--------------------------|
-| **algorand-expert** | Algorand distinguished engineer. Verifies technical correctness of all code, AVM details, ecosystem references, and security claims. | Wrong opcode budgets, incorrect MBR math, outdated API usage, insecure contract patterns, inaccurate ecosystem claims |
-| **teaching-pro** | Learning scientist. Evaluates whether content actually teaches effectively using evidence-based pedagogy (Making Learning Whole, Cognitive Load Theory, Bloom's Taxonomy). | Elementitis, aboutitis, missing junior versions, cognitive overload, poorly graduated exercises, missing transfer opportunities |
-| **publishing-pro** | Technical book editor. Ensures professional publishing standards -- structure, typography, code formatting, admonitions, cross-references, and editorial voice. | Inconsistent heading levels, stacked admonitions, missing cross-references, code lines >85 chars, broken chapter structure |
+| Agent | Role | Rule Set | When It Catches Problems |
+|-------|------|----------|--------------------------|
+| **algorand-expert** | Algorand distinguished engineer. Verifies technical correctness of all code, AVM details, ecosystem references, and security claims — plus domain teaching-shape rules. | RULEBOOK Part 3 (ALG-1..16) | Wrong opcode budgets, incorrect MBR math, outdated API usage, insecure contract patterns, inaccurate ecosystem claims, concepts used ahead of the spine, costs taught without a bill, unguarded divisions |
+| **teaching-pro** | Learning scientist. Evaluates whether content actually teaches effectively using evidence-based pedagogy (Making Learning Whole, Cognitive Load Theory, Bloom's Taxonomy). | RULEBOOK Part 2 (PED-1..17) | Spectator openings (problem before goal), cliffhanger reveals, project re-teaching, forward retrieval, elementitis, aboutitis, cognitive overload, poorly graduated exercises, missing transfer opportunities |
+| **publishing-pro** | Technical book editor. Ensures professional publishing standards -- structure, typography, code formatting, admonitions, cross-references, and editorial voice. | RULEBOOK Part 1 (PUB-1..15) | Non-runnable chapter endings, diff-without-listing, bloated Run It First sections, stale spine references, mega-gotcha slabs, aphorism pile-ups, inconsistent heading levels, stacked admonitions, code lines >85 chars |
 
 ### Review Workflow for Book Changes
 

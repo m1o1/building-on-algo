@@ -1,0 +1,21 @@
+[algokit]
+min_version = "v2.10.0"
+
+[project]
+type = "contract"
+name = "governance-voting"
+artifacts = "smart_contracts/artifacts"
+
+[project.run]
+build = { commands = [
+  "poetry run python -m smart_contracts build",
+  "poetry run python -m scripts.build_verifier",
+], description = "Build both contracts and the AlgoPlonk verifier LogicSig" }
+
+test = { commands = [
+  "poetry run pytest -q",
+], description = "Run tests; LocalNet and ZK tests skip when unavailable" }
+
+test-static = { commands = [
+  "poetry run pytest tests/test_contract_shape.py -q",
+], description = "Run static contract-shape checks without LocalNet" }

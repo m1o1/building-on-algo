@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 440" role="img"
+     aria-label="The guestbook's balance as a flat line against its minimum-balance floor rising 16,000 microAlgos per signature; the 56th signature would push the floor above the balance and is refused"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+
+  <line x1="90" y1="296.8" x2="800" y2="296.8" stroke="#e8eaef" stroke-width="1"/>
+  <text x="82" y="300.8" font-size="12" fill="#5a6172" text-anchor="end">250,000</text>
+  <line x1="90" y1="223.6" x2="800" y2="223.6" stroke="#e8eaef" stroke-width="1"/>
+  <text x="82" y="227.6" font-size="12" fill="#5a6172" text-anchor="end">500,000</text>
+  <line x1="90" y1="150.5" x2="800" y2="150.5" stroke="#e8eaef" stroke-width="1"/>
+  <text x="82" y="154.5" font-size="12" fill="#5a6172" text-anchor="end">750,000</text>
+  <line x1="90" y1="77.3" x2="800" y2="77.3" stroke="#e8eaef" stroke-width="1"/>
+  <text x="82" y="81.3" font-size="12" fill="#5a6172" text-anchor="end">1,000,000</text>
+
+  <!-- axes -->
+  <line x1="90" y1="48" x2="90" y2="370" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="90" y1="370" x2="800" y2="370" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="90" y1="370" x2="90" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="90" y="392" font-size="12" fill="#5a6172" text-anchor="middle">0</text>
+  <line x1="208.3" y1="370" x2="208.3" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="208.3" y="392" font-size="12" fill="#5a6172" text-anchor="middle">10</text>
+  <line x1="326.7" y1="370" x2="326.7" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="326.7" y="392" font-size="12" fill="#5a6172" text-anchor="middle">20</text>
+  <line x1="445" y1="370" x2="445" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="445" y="392" font-size="12" fill="#5a6172" text-anchor="middle">30</text>
+  <line x1="563.3" y1="370" x2="563.3" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="563.3" y="392" font-size="12" fill="#5a6172" text-anchor="middle">40</text>
+  <line x1="681.7" y1="370" x2="681.7" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="681.7" y="392" font-size="12" fill="#5a6172" text-anchor="middle">50</text>
+  <line x1="800" y1="370" x2="800" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="800" y="392" font-size="12" fill="#5a6172" text-anchor="middle">60</text>
+  <text x="445" y="414" font-size="13" fill="#2a2f3a" text-anchor="middle">signatures in the box</text>
+  <text x="88" y="34" font-size="13" fill="#2a2f3a">µAlgo</text>
+
+  <!-- the balance: flat, funded once -->
+  <line x1="90" y1="77.3" x2="800" y2="77.3" stroke="#3d7dd8" stroke-width="2.5"/>
+  <text x="96" y="68.3" font-size="13" fill="#2a2f3a">balance: 1,000,000 — funded once, on deploy day</text>
+
+  <!-- the floor: a staircase, one 16,000 step per signature -->
+  <path d="M90 340.7 H101.8 V334.5 H113.7 V329.8 H125.5 V325.1 H137.3 V320.4 H149.2 V315.8 H161 V311.1 H172.8 V306.4 H184.7 V301.7 H196.5 V297 H208.3 V292.3 H220.2 V287.7 H232 V283 H243.8 V278.3 H255.7 V273.6 H267.5 V268.9 H279.3 V264.2 H291.2 V259.6 H303 V254.9 H314.8 V250.2 H326.7 V245.5 H338.5 V240.8 H350.3 V236.1 H362.2 V231.5 H374 V226.8 H385.8 V222.1 H397.7 V217.4 H409.5 V212.7 H421.3 V208 H433.2 V203.4 H445 V198.7 H456.8 V194 H468.7 V189.3 H480.5 V184.6 H492.3 V179.9 H504.2 V175.2 H516 V170.6 H527.8 V165.9 H539.7 V161.2 H551.5 V156.5 H563.3 V151.8 H575.2 V147.1 H587 V142.5 H598.8 V137.8 H610.7 V133.1 H622.5 V128.4 H634.3 V123.7 H646.2 V119 H658 V114.4 H669.8 V109.7 H681.7 V105 H693.5 V100.3 H705.3 V95.6 H717.2 V90.9 H729 V86.3 H740.8 V81.6 H800" fill="none" stroke="#5a6172" stroke-width="2.5"/>
+  <text x="250" y="312" font-size="13" fill="#2a2f3a">the floor after n signatures:</text>
+  <text x="250" y="332" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">100,000 + 2,500 + 400 × (7 + 40n)</text>
+  <text x="250" y="352" font-size="13" fill="#2a2f3a">every signature raises it by 16,000</text>
+
+  <!-- the refused 56th step -->
+  <path d="M752.7 81.6 V76.9 H800" fill="none" stroke="#c94f4e"
+        stroke-width="2" stroke-dasharray="5 4"/>
+  <circle cx="752.7" cy="77.3" r="5.5" fill="none" stroke="#c94f4e" stroke-width="2"/>
+
+  <rect x="140" y="88" width="376" height="80" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="1.5"/>
+  <text x="156" y="114" font-size="13" fill="#2a2f3a">the 56th write would raise the floor to 1,001,300;</text>
+  <text x="156" y="134" font-size="13" fill="#2a2f3a">the balance is 1,000,000 — the write is refused,</text>
+  <text x="156" y="154" font-size="13" fill="#2a2f3a">and the contract stops working on this record</text>
+  <line x1="516" y1="120" x2="744" y2="80" stroke="#c94f4e" stroke-width="1" stroke-dasharray="4 4"/>
+</svg>

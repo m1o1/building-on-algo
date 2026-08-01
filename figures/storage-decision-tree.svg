@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 540" role="img"
+     aria-label="Decision tree for where contract data goes: who may destroy it, whether the keys are known at creation, and what it costs — leading to local state, global state, or box storage"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- start -->
+  <rect x="280" y="18" width="300" height="40" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="43" font-size="15" fill="#2a2f3a" text-anchor="middle">a value the contract must keep</text>
+  <line x1="430" y1="58" x2="430" y2="86" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Q1 -->
+  <rect x="240" y="90" width="380" height="64" rx="8" fill="#f4f5f7" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="430" y="116" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">1 · Who may destroy it?</text>
+  <text x="430" y="138" font-size="13" fill="#2a2f3a" text-anchor="middle">may it vanish when the account it describes leaves?</text>
+  <line x1="620" y1="112" x2="628" y2="112" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="634" y="108" font-size="13" fill="#5a6172">the one you can least</text>
+  <text x="634" y="126" font-size="13" fill="#5a6172">afford to answer wrong</text>
+
+  <!-- yes: local -->
+  <path d="M240 122 L150 122 L150 394" fill="none" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="162" y="182" font-size="13" fill="#5a6172">yes — it is theirs;</text>
+  <text x="162" y="200" font-size="13" fill="#5a6172">it may leave with them</text>
+
+  <!-- no: down to Q2 -->
+  <line x1="430" y1="154" x2="430" y2="216" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="192" font-size="13" fill="#5a6172">no — the contract owes it</text>
+
+  <!-- Q2 -->
+  <rect x="240" y="220" width="380" height="64" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="246" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">2 · Do you know every key at creation?</text>
+  <text x="430" y="268" font-size="13" fill="#2a2f3a" text-anchor="middle">a fixed schema — at most 64 pairs</text>
+
+  <!-- yes: global -->
+  <line x1="430" y1="284" x2="430" y2="394" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="442" y="330" font-size="13" fill="#5a6172">yes — a fixed set</text>
+
+  <!-- no: to Q3 -->
+  <path d="M620 252 L720 252 L720 306" fill="none" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="640" y="244" font-size="13" fill="#5a6172">no — it grows with use</text>
+
+  <!-- Q3 -->
+  <rect x="600" y="310" width="240" height="70" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="720" y="338" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">3 · What will it cost</text>
+  <text x="720" y="360" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">to hold, and to reach?</text>
+  <line x1="720" y1="380" x2="720" y2="394" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- leaves -->
+  <rect x="40" y="398" width="250" height="122" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="424" font-size="15" font-weight="600" fill="#2a2f3a">Local state</text>
+  <text x="274" y="424" font-size="12" fill="#5a6172" text-anchor="end">per slot</text>
+  <text x="56" y="447" font-size="13" fill="#2a2f3a">per-account slab, ≤ 16 pairs</text>
+  <text x="56" y="466" font-size="13" fill="#2a2f3a">paid per slot, by the member</text>
+  <text x="56" y="489" font-size="13" fill="#c94f4e">the account can clear it</text>
+  <text x="56" y="507" font-size="13" fill="#c94f4e">at any time, unasked</text>
+
+  <rect x="305" y="398" width="250" height="122" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="321" y="424" font-size="15" font-weight="600" fill="#2a2f3a">Global state</text>
+  <text x="539" y="424" font-size="12" fill="#5a6172" text-anchor="end">per slot</text>
+  <text x="321" y="447" font-size="13" fill="#2a2f3a">one slab, ≤ 64 pairs,</text>
+  <text x="321" y="466" font-size="13" fill="#2a2f3a">fixed at creation</text>
+  <text x="321" y="489" font-size="13" fill="#2a2f3a">paid per slot, by the creator:</text>
+  <text x="321" y="507" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">28,500 / 50,000 µAlgo</text>
+
+  <rect x="570" y="398" width="250" height="122" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="586" y="424" font-size="15" font-weight="600" fill="#2a2f3a">Box storage</text>
+  <text x="804" y="424" font-size="12" fill="#5a6172" text-anchor="end">per byte</text>
+  <text x="586" y="447" font-size="13" fill="#2a2f3a">as many keys as it can fund</text>
+  <text x="586" y="466" font-size="13" fill="#2a2f3a">paid by the app account:</text>
+  <text x="586" y="487" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">2,500 + 400 × (key+value)</text>
+  <text x="586" y="507" font-size="12" fill="#2a2f3a">+ I/O and opcode budget to reach</text>
+</svg>

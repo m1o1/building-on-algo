@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 480" role="img"
+     aria-label="A contract sending value: the caller signs one application call, and inside it the application account — which has no private key — is the sender of inner transfers that nobody signs"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- the caller -->
+  <rect x="30" y="64" width="190" height="96" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="46" y="92" font-size="16" font-weight="600" fill="#2a2f3a">Alice</text>
+  <text x="46" y="114" font-size="13" fill="#2a2f3a">has a private key;</text>
+  <text x="46" y="132" font-size="13" fill="#2a2f3a">signs exactly one</text>
+  <text x="46" y="150" font-size="13" fill="#2a2f3a">transaction</text>
+
+  <line x1="220" y1="112" x2="270" y2="112" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="232" y="102" font-size="13" fill="#5a6172">signs</text>
+
+  <!-- the one signed transaction -->
+  <rect x="276" y="24" width="390" height="384" rx="8" fill="#f4f5f7" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="292" y="52" font-size="15" font-weight="600" fill="#2a2f3a">ApplicationCall — <tspan font-family="DejaVu Sans Mono, monospace">withdraw()</tspan></text>
+  <text x="292" y="76" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">sender: Alice</text>
+  <text x="292" y="96" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">fee: 3,000 — covers all three</text>
+  <text x="292" y="116" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">signed: Alice <tspan fill="#3d8a5f">✓</tspan></text>
+
+  <rect x="296" y="134" width="350" height="38" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="1.5"/>
+  <text x="471" y="158" font-size="14" fill="#2a2f3a" text-anchor="middle">app 1042's program runs</text>
+  <line x1="471" y1="172" x2="471" y2="184" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="480" y="182" font-size="12" fill="#5a6172">stages</text>
+
+  <!-- inner payment -->
+  <rect x="296" y="188" width="350" height="92" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="312" y="210" font-size="14" font-weight="600" fill="#2a2f3a">Inner Payment — staged</text>
+  <text x="312" y="232" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">sender: the app account</text>
+  <text x="312" y="252" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">amount: 2 Algo · <tspan fill="#3d7dd8" font-weight="600">fee: 0</tspan></text>
+  <text x="312" y="272" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace" font-weight="600">signed: nobody</text>
+  <line x1="471" y1="280" x2="471" y2="292" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- inner asset transfer -->
+  <rect x="296" y="296" width="350" height="92" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="312" y="318" font-size="14" font-weight="600" fill="#2a2f3a">Inner AssetTransfer — staged</text>
+  <text x="312" y="340" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">sender: the app account</text>
+  <text x="312" y="360" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">100 units · <tspan fill="#3d7dd8" font-weight="600">fee: 0</tspan></text>
+  <text x="312" y="380" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace" font-weight="600">signed: nobody</text>
+
+  <!-- the application account -->
+  <rect x="690" y="110" width="150" height="190" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="706" y="138" font-size="13" font-weight="600" fill="#2a2f3a">the application</text>
+  <text x="706" y="156" font-size="13" font-weight="600" fill="#2a2f3a">account</text>
+  <text x="706" y="182" font-size="13" fill="#2a2f3a">address derived</text>
+  <text x="706" y="200" font-size="13" fill="#2a2f3a">from app ID 1042</text>
+  <text x="706" y="230" font-size="13" fill="#2a2f3a">no private key</text>
+  <text x="706" y="248" font-size="13" fill="#2a2f3a">exists; none was</text>
+  <text x="706" y="266" font-size="13" fill="#2a2f3a">ever made</text>
+
+  <line x1="646" y1="232" x2="686" y2="204" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="646" y1="340" x2="686" y2="256" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- the note at the bottom -->
+  <rect x="30" y="424" width="810" height="50" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="46" y="445" font-size="13" fill="#2a2f3a">The transfers happen inside the call, not after it, and no signature for them exists anywhere:</text>
+  <text x="46" y="464" font-size="13" fill="#2a2f3a">the authorization is that this program ran, and approved.</text>
+</svg>

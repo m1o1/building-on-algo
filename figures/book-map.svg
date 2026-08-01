@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 700" role="img" aria-label="How the book's chapters depend on each other: Part I read in order, then concept and project chapters linked by solid arrows for hard prerequisites and dashed arrows for soft ones">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- legend -->
+    <rect x="30" y="22" width="26" height="16" rx="3" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="64" y="35" font-size="13">concept chapter</text>
+    <rect x="175" y="22" width="26" height="16" rx="3" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="209" y="35" font-size="13">project chapter</text>
+    <line x1="325" y1="30" x2="360" y2="30" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="370" y="35" font-size="13">lost without it</text>
+    <line x1="480" y1="30" x2="515" y2="30" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+    <text x="525" y="35" font-size="13">builds on it, but stands alone</text>
+
+    <!-- Part I banner -->
+    <rect x="30" y="54" width="800" height="100" rx="8" fill="none" stroke="#5a6172" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="46" y="78" font-size="12" fill="#5a6172" letter-spacing="1">PART I — FOUNDATIONS · READ THESE IN ORDER</text>
+    <g>
+      <rect x="45" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="89" y="108" font-size="14" font-weight="bold" text-anchor="middle">1</text>
+      <text x="89" y="126" font-size="12" text-anchor="middle">From zero</text>
+      <line x1="133" y1="114" x2="143" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="143" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="187" y="108" font-size="14" font-weight="bold" text-anchor="middle">2</text>
+      <text x="187" y="126" font-size="12" text-anchor="middle">Mental model</text>
+      <line x1="231" y1="114" x2="241" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="241" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="285" y="108" font-size="14" font-weight="bold" text-anchor="middle">3</text>
+      <text x="285" y="126" font-size="12" text-anchor="middle">Exist/respond</text>
+      <line x1="329" y1="114" x2="339" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="339" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="383" y="108" font-size="14" font-weight="bold" text-anchor="middle">4</text>
+      <text x="383" y="126" font-size="12" text-anchor="middle">State</text>
+      <line x1="427" y1="114" x2="437" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="437" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="481" y="108" font-size="14" font-weight="bold" text-anchor="middle">5</text>
+      <text x="481" y="126" font-size="12" text-anchor="middle">Boxes</text>
+      <line x1="525" y1="114" x2="535" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="535" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="579" y="108" font-size="14" font-weight="bold" text-anchor="middle">6</text>
+      <text x="579" y="126" font-size="12" text-anchor="middle">Numbers, time</text>
+      <line x1="623" y1="114" x2="633" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="633" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="677" y="108" font-size="14" font-weight="bold" text-anchor="middle">7</text>
+      <text x="677" y="126" font-size="12" text-anchor="middle">Moving value</text>
+      <line x1="721" y1="114" x2="731" y2="114" stroke="#5a6172" stroke-width="1.5"/>
+      <rect x="731" y="90" width="88" height="48" rx="6" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+      <text x="775" y="108" font-size="14" font-weight="bold" text-anchor="middle">8</text>
+      <text x="775" y="126" font-size="12" text-anchor="middle">Proving it</text>
+    </g>
+
+    <line x1="430" y1="154" x2="430" y2="176" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="444" y="172" font-size="13" fill="#5a6172">every chapter below assumes Part I</text>
+
+    <!-- Part II -->
+    <text x="40" y="200" font-size="12" fill="#5a6172" letter-spacing="1">PART II — VALUE UNDER MANAGEMENT</text>
+    <rect x="40" y="208" width="170" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="125" y="241" font-size="14" text-anchor="middle">9 · Token vesting</text>
+    <rect x="250" y="208" width="200" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="350" y="241" font-size="14" text-anchor="middle">10 · Proving who's calling</text>
+    <rect x="490" y="208" width="160" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="570" y="241" font-size="14" text-anchor="middle">11 · Paying for it</text>
+    <rect x="690" y="208" width="140" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="760" y="241" font-size="14" text-anchor="middle">12 · NFT vesting</text>
+
+    <line x1="212" y1="236" x2="246" y2="236" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+    <line x1="452" y1="236" x2="486" y2="236" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="652" y1="236" x2="686" y2="236" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <path d="M125 266 C 125 298, 760 298, 760 268" fill="none" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="390" y1="266" x2="640" y2="324" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+
+    <!-- Part III -->
+    <text x="40" y="318" font-size="12" fill="#5a6172" letter-spacing="1">PART III — BUILDING A DEX</text>
+    <rect x="40" y="328" width="230" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="155" y="361" font-size="14" text-anchor="middle">13 · Numbers that price things</text>
+    <rect x="310" y="328" width="215" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="417" y="361" font-size="14" text-anchor="middle">14 · Constant product AMM</text>
+    <rect x="565" y="328" width="265" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="697" y="361" font-size="13" text-anchor="middle">15 · Contracts that talk to contracts</text>
+
+    <line x1="272" y1="356" x2="306" y2="356" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+
+    <rect x="310" y="428" width="230" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="425" y="461" font-size="14" text-anchor="middle">16 · Factory &amp; provenance</text>
+    <rect x="600" y="428" width="180" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="690" y="461" font-size="14" text-anchor="middle">17 · Yield farming</text>
+
+    <line x1="400" y1="386" x2="400" y2="424" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="640" y1="386" x2="470" y2="424" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="480" y1="386" x2="650" y2="424" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="720" y1="386" x2="700" y2="424" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="542" y1="456" x2="596" y2="456" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+
+    <!-- 14 to 21, routed around the factory row -->
+    <path d="M330 386 C 292 420, 286 448, 286 476 Q 286 494, 304 494 L 748 494 Q 764 494, 768 506 L 772 520"
+          fill="none" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+
+    <!-- Parts IV and V -->
+    <text x="40" y="516" font-size="12" fill="#5a6172" letter-spacing="1">PART IV — CHANCE</text>
+    <text x="470" y="516" font-size="12" fill="#5a6172" letter-spacing="1">PART V — STATELESS PROGRAMS</text>
+    <rect x="40" y="524" width="230" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="155" y="557" font-size="13" text-anchor="middle">18 · A number nobody can predict</text>
+    <rect x="300" y="524" width="110" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="355" y="557" font-size="14" text-anchor="middle">19 · Lottery</text>
+    <rect x="470" y="524" width="210" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="575" y="557" font-size="14" text-anchor="middle">20 · Signing without a key</text>
+    <rect x="720" y="524" width="110" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="775" y="557" font-size="13" text-anchor="middle">21 · Order book</text>
+
+    <line x1="272" y1="552" x2="296" y2="552" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <line x1="682" y1="552" x2="716" y2="552" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+
+    <!-- Parts VI and VII -->
+    <text x="40" y="606" font-size="12" fill="#5a6172" letter-spacing="1">PART VI — CRYPTOGRAPHY</text>
+    <text x="560" y="606" font-size="12" fill="#5a6172" letter-spacing="1">PART VII — SHIPPING</text>
+    <rect x="40" y="614" width="270" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="175" y="647" font-size="14" text-anchor="middle">22 · Proving without revealing</text>
+    <rect x="350" y="614" width="160" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="430" y="647" font-size="14" text-anchor="middle">23 · Private voting</text>
+    <rect x="560" y="614" width="270" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="695" y="647" font-size="14" text-anchor="middle">24 · Shipping and surviving</text>
+
+    <line x1="312" y1="642" x2="346" y2="642" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+  </g>
+</svg>

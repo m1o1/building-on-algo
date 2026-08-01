@@ -2,7 +2,7 @@
 title: "Building on Algorand"
 subtitle: "Smart Contracts from First Principles to Production DeFi"
 author: "Generated with Claude"
-date: "March 2026"
+date: "July 2026"
 documentclass: report
 classoption:
   - 11pt
@@ -38,6 +38,10 @@ header-includes:
     }
     \usepackage{fvextra}
     \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\},fontsize=\small}
+    % Inline code carries \allowbreak points (build.py Lua filter) but no
+    % stretchable glue; a little emergency stretch lets TeX prefer a short
+    % line over an overfull one when mono chunks do not tile the measure.
+    \setlength{\emergencystretch}{2em}
     \usepackage{fancyhdr}
     \pagestyle{fancy}
     \fancyhf{}
@@ -54,8 +58,15 @@ header-includes:
     \renewcommand{\@pnumwidth}{2.5em}
     \renewcommand{\@tocrmarg}{3.5em}
     \makeatother
+    \usepackage{tcolorbox}
+    \tcbuselibrary{breakable}
+    \newtcolorbox{BOAcallout}[1]{breakable, colback=black!3, colframe=black!45,
+      boxrule=0.6pt, arc=1.5mm, left=2mm, right=2mm, top=1.5mm, bottom=1.5mm,
+      title={#1}, fonttitle=\bfseries\small, coltitle=black, colbacktitle=black!8}
     \usepackage{titlesec}
-    \titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+    \newcommand{\BOAkind}[1]{\textsc{\normalsize #1}}
+    \newcommand{\BOAchapterkind}{}
+    \titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\BOAchapterkind\hfill\normalfont\huge\bfseries\chaptertitlename\ \thechapter}{20pt}{\Huge}
     \titlespacing*{\chapter}{0pt}{-20pt}{40pt}
     ```
 ---

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 508" role="img" aria-label="The six OnComplete actions as the lifecycle they describe: NoOp and UpdateApplication loop on a deployed application, DeleteApplication removes it, OptIn and CloseOut move an account in and out of local state, and ClearState is the forced exit a contract cannot refuse">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+    <marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#3d7dd8"/>
+    </marker>
+    <marker id="mR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <text x="60" y="38" font-size="12" fill="#5a6172" letter-spacing="1">THE APPLICATION</text>
+
+    <!-- NoOp loop -->
+    <path d="M130 58 C 112 22, 188 22, 170 58" fill="none" stroke="#3d7dd8" stroke-width="2" marker-end="url(#mB)"/>
+    <text x="196" y="32" font-size="13" font-family="DejaVu Sans Mono, monospace" fill="#3d7dd8">NoOp</text>
+    <text x="240" y="32" font-size="12.5" fill="#5a6172">— run a method; the everyday call</text>
+
+    <rect x="60" y="58" width="290" height="84" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="205" y="86" font-size="15" font-weight="bold" text-anchor="middle">deployed</text>
+    <text x="205" y="106" font-size="12.5" text-anchor="middle" fill="#5a6172">approval + clear-state programs,</text>
+    <text x="205" y="124" font-size="12.5" text-anchor="middle" fill="#5a6172">global state live</text>
+
+    <rect x="620" y="58" width="200" height="84" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="720" y="92" font-size="15" font-weight="bold" text-anchor="middle">gone</text>
+    <text x="720" y="112" font-size="12.5" text-anchor="middle" fill="#5a6172">program and global</text>
+    <text x="720" y="128" font-size="12.5" text-anchor="middle" fill="#5a6172">state deleted</text>
+
+    <!-- Delete -->
+    <line x1="352" y1="100" x2="616" y2="100" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="484" y="88" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">DeleteApplication</text>
+    <text x="484" y="118" font-size="12.5" text-anchor="middle" fill="#5a6172">if the approval program approves</text>
+
+    <!-- Update loop -->
+    <path d="M130 142 C 112 178, 188 178, 170 142" fill="none" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="60" y="200" font-size="13" font-family="DejaVu Sans Mono, monospace">UpdateApplication</text>
+    <text x="60" y="218" font-size="12.5" fill="#5a6172">swap the programs, keep the state — if approval approves</text>
+
+    <text x="60" y="266" font-size="12" fill="#5a6172" letter-spacing="1">ONE ACCOUNT'S LOCAL STATE</text>
+
+    <rect x="60" y="282" width="240" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="180" y="312" font-size="15" font-weight="bold" text-anchor="middle">not opted in</text>
+    <text x="180" y="332" font-size="12.5" text-anchor="middle" fill="#5a6172">no local state</text>
+
+    <rect x="560" y="282" width="260" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="690" y="312" font-size="15" font-weight="bold" text-anchor="middle">opted in</text>
+    <text x="690" y="332" font-size="12.5" text-anchor="middle" fill="#5a6172">local state allocated</text>
+
+    <!-- OptIn -->
+    <line x1="302" y1="300" x2="556" y2="300" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="429" y="288" font-size="12.5" text-anchor="middle"><tspan font-family="DejaVu Sans Mono, monospace">OptIn</tspan> — allocates local state</text>
+
+    <!-- CloseOut -->
+    <line x1="556" y1="330" x2="302" y2="330" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="429" y="348" font-size="12.5" text-anchor="middle"><tspan font-family="DejaVu Sans Mono, monospace">CloseOut</tspan> — leave gracefully;</text>
+    <text x="429" y="364" font-size="12.5" text-anchor="middle">the approval program can refuse</text>
+
+    <!-- ClearState -->
+    <path d="M690 358 C 690 408, 180 408, 180 358" fill="none" stroke="#c94f4e" stroke-width="2" marker-end="url(#mR)"/>
+    <text x="435" y="430" font-size="13" text-anchor="middle" fill="#c94f4e"><tspan font-family="DejaVu Sans Mono, monospace">ClearState</tspan> — the clear-state program runs; local state deleted even if it rejects</text>
+    <text x="435" y="450" font-size="12.5" text-anchor="middle" fill="#c94f4e">the one transition a contract cannot refuse</text>
+
+    <text x="60" y="490" font-size="13" fill="#5a6172">The approval program answers five of the six. ClearState alone is answered by the clear-state program — and it succeeds regardless.</text>
+  </g>
+</svg>

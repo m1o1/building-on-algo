@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 480" role="img" aria-label="One swap against a constant product pool: the reserves move along the x times y equals k curve, the quoted price is the tangent slope at the starting point, and the widening gap between tangent and curve is slippage">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+    <marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#3d7dd8"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- slippage wedge between curve and tangent -->
+    <polygon points="245.6,235 284.4,256.5 323.3,273.1 375.2,290 427,302.9 453,308.3 504.8,317.5 504.8,400"
+             fill="#e8eaef"/>
+
+    <!-- tangent: the quoted price -->
+    <line x1="128.9" y1="160.8" x2="504.8" y2="400" stroke="#5a6172" stroke-width="1.5" stroke-dasharray="7 5"/>
+    <text x="104" y="262" font-size="13">the quoted price —</text>
+    <text x="104" y="278" font-size="13">the slope where you stand</text>
+
+    <!-- the curve -->
+    <polyline points="121.1,82.7 136.7,115.5 154.8,146.2 173,170.8 193.7,193.8 219.6,216.7 245.6,235 284.4,256.5 323.3,273.1 375.2,290 427,302.9 453,308.3 504.8,317.5 582.6,328.3 660.4,336.5 738.1,343.1 777,345.9"
+              fill="none" stroke="#5a6172" stroke-width="2"/>
+    <text x="148" y="92" font-size="14" font-family="DejaVu Sans Mono, monospace">x · y = k</text>
+    <text x="148" y="110" font-size="13" fill="#5a6172">what a swap preserves</text>
+
+    <!-- the swap: movement along the curve -->
+    <polyline points="245.6,235 284.4,256.5 323.3,273.1 375.2,290 427,302.9 446,306.9"
+              fill="none" stroke="#3d7dd8" stroke-width="2.5" marker-end="url(#mB)"/>
+    <text x="300" y="248" font-size="13" fill="#3d7dd8">the swap walks down the curve</text>
+
+    <circle cx="245.6" cy="235" r="5" fill="#3d7dd8"/>
+    <text x="256" y="224" font-size="13">before: (x₀, y₀)</text>
+    <circle cx="453" cy="308.3" r="5" fill="#3d7dd8"/>
+    <text x="462" y="296" font-size="13">after — still on the curve</text>
+
+    <!-- slippage gap -->
+    <line x1="462" y1="313" x2="478" y2="313" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="470" y1="313" x2="470" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="462" y1="376" x2="478" y2="376" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="486" y="338" font-size="13">slippage: the quote implied</text>
+    <text x="486" y="356" font-size="13">this much more out</text>
+    <text x="516" y="392" font-size="13" fill="#5a6172">…and the gap grows with the size of the trade</text>
+
+    <!-- axes -->
+    <line x1="90" y1="400" x2="800" y2="400" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <line x1="90" y1="400" x2="90" y2="60" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="798" y="424" font-size="13" fill="#5a6172" text-anchor="end">reserve of A</text>
+    <text x="98" y="54" font-size="13" fill="#5a6172">reserve of B</text>
+
+    <!-- delta-x bracket -->
+    <path d="M245.6 410 L245.6 418 L453 418 L453 410" fill="none" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="349" y="436" font-size="13" text-anchor="middle">Δx — what you send in</text>
+
+    <text x="90" y="466" font-size="13" fill="#5a6172">The 0.30% fee is a separate deduction arriving in the same number; hold it apart from slippage.</text>
+  </g>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 430" role="img"
+     aria-label="A contract account funded with one Algo, drawn to scale: base minimum balance, two asset opt-ins, and one box lock 475,300 microAlgos, leaving 524,700 spendable"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+
+  <text x="430" y="26" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">the pool contract's account, funded with 1 Algo (1,000,000 µAlgo)</text>
+
+  <!-- the bar, bottom-up, to scale: 0.35 px per 1,000 µAlgo -->
+  <!-- spendable 524,700 -->
+  <rect x="300" y="40" width="120" height="183.6" fill="#dce8fa" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="360" y="136" font-size="13" fill="#2a2f3a" text-anchor="middle">spendable</text>
+  <!-- box 175,300 -->
+  <rect x="300" y="223.6" width="120" height="61.4" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <!-- ASA #2 100,000 -->
+  <rect x="300" y="285" width="120" height="35" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <!-- ASA #1 100,000 -->
+  <rect x="300" y="320" width="120" height="35" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <!-- base 100,000 -->
+  <rect x="300" y="355" width="120" height="35" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="360" y="262" font-size="13" fill="#5a6172" text-anchor="middle">locked</text>
+
+  <!-- the floor -->
+  <line x1="280" y1="223.6" x2="440" y2="223.6" stroke="#2a2f3a" stroke-width="2.5"/>
+  <text x="270" y="200" font-size="13" font-weight="600" fill="#2a2f3a" text-anchor="end">the floor — the minimum</text>
+  <text x="270" y="218" font-size="13" font-weight="600" fill="#2a2f3a" text-anchor="end">balance: 475,300</text>
+
+  <!-- left labels for the locked segments -->
+  <line x1="277" y1="254" x2="298" y2="254" stroke="#5a6172" stroke-width="1"/>
+  <text x="270" y="250" font-size="13" fill="#2a2f3a" text-anchor="end">one box (32 B key + 400 B value):</text>
+  <text x="270" y="268" font-size="12" fill="#2a2f3a" text-anchor="end" font-family="DejaVu Sans Mono, monospace">2,500 + 400 × 432 = 175,300</text>
+
+  <line x1="277" y1="302" x2="298" y2="302" stroke="#5a6172" stroke-width="1"/>
+  <text x="270" y="306" font-size="13" fill="#2a2f3a" text-anchor="end">ASA opt-in #2: 100,000</text>
+
+  <line x1="277" y1="337" x2="298" y2="337" stroke="#5a6172" stroke-width="1"/>
+  <text x="270" y="341" font-size="13" fill="#2a2f3a" text-anchor="end">ASA opt-in #1: 100,000</text>
+
+  <line x1="277" y1="372" x2="298" y2="372" stroke="#5a6172" stroke-width="1"/>
+  <text x="270" y="376" font-size="13" fill="#2a2f3a" text-anchor="end">base — every account: 100,000</text>
+
+  <!-- right bracket: spendable -->
+  <line x1="440" y1="40" x2="440" y2="223.6" stroke="#3d7dd8" stroke-width="1.5"/>
+  <line x1="434" y1="40" x2="446" y2="40" stroke="#3d7dd8" stroke-width="1.5"/>
+  <line x1="434" y1="223.6" x2="446" y2="223.6" stroke="#3d7dd8" stroke-width="1.5"/>
+  <text x="458" y="120" font-size="15" font-weight="600" fill="#2a2f3a">spendable: 524,700</text>
+  <text x="458" y="142" font-size="13" fill="#2a2f3a">the only µAlgo the</text>
+  <text x="458" y="160" font-size="13" fill="#2a2f3a">contract can move</text>
+
+  <!-- far right bracket: what an explorer reports -->
+  <line x1="660" y1="40" x2="660" y2="390" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="654" y1="40" x2="666" y2="40" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="654" y1="390" x2="666" y2="390" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="676" y="200" font-size="13" fill="#2a2f3a">the balance an</text>
+  <text x="676" y="218" font-size="13" fill="#2a2f3a">explorer reports:</text>
+  <text x="676" y="242" font-size="15" font-weight="600" fill="#2a2f3a">1,000,000</text>
+
+  <text x="430" y="418" font-size="13" fill="#5a6172" text-anchor="middle">drawn to scale — 52.5% of the balance is spendable</text>
+</svg>

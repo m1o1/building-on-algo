@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 420" role="img"
+     aria-label="Two slabs, not one store: the application owns one global slab while each opted-in account owns its own local slab and can destroy it without the application's consent"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- the application and its one global slab -->
+  <rect x="40" y="36" width="340" height="310" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="60" y="66" font-size="16" font-weight="600" fill="#2a2f3a">Application 1042</text>
+  <text x="60" y="88" font-size="13" fill="#5a6172">owns exactly one global slab</text>
+
+  <rect x="60" y="104" width="300" height="150" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="76" y="130" font-size="15" font-weight="600" fill="#2a2f3a">Global slab — up to 64 pairs</text>
+  <text x="76" y="158" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">admin        = ADMN…Q4</text>
+  <text x="76" y="180" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">member_count = 2</text>
+  <text x="76" y="208" font-size="13" fill="#5a6172">created with the application,</text>
+  <text x="76" y="228" font-size="13" fill="#5a6172">destroyed only when it is deleted</text>
+
+  <text x="60" y="282" font-size="13" fill="#2a2f3a">the application's to keep —</text>
+  <text x="60" y="302" font-size="13" fill="#2a2f3a">no account can take it away</text>
+
+  <!-- Alice -->
+  <rect x="480" y="28" width="340" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="496" y="54" font-size="15" font-weight="600" fill="#2a2f3a">Alice's account</text>
+  <rect x="496" y="64" width="308" height="84" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="512" y="86" font-size="13" font-weight="600" fill="#2a2f3a">local slab for app 1042 — ≤ 16 pairs</text>
+  <text x="512" y="108" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">joined_at = 4711</text>
+  <text x="512" y="128" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">credits   = 4200</text>
+  <text x="496" y="168" font-size="13" fill="#c94f4e">hers to delete, at any time, via ClearState</text>
+
+  <!-- Bob -->
+  <rect x="480" y="196" width="340" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="496" y="222" font-size="15" font-weight="600" fill="#2a2f3a">Bob's account</text>
+  <rect x="496" y="232" width="308" height="84" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="512" y="254" font-size="13" font-weight="600" fill="#2a2f3a">local slab for app 1042 — ≤ 16 pairs</text>
+  <text x="512" y="276" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">joined_at = 4718</text>
+  <text x="512" y="296" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">credits   = 0</text>
+  <text x="496" y="336" font-size="13" fill="#c94f4e">his to delete, at any time, via ClearState</text>
+
+  <!-- the program reaches all three -->
+  <line x1="380" y1="150" x2="474" y2="98" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="380" y1="180" x2="474" y2="270" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- the asymmetry -->
+  <text x="40" y="394" font-size="13" fill="#2a2f3a">The asymmetry: the program writes all three slabs, but the application cannot keep Alice's slab</text>
+  <text x="40" y="413" font-size="13" fill="#2a2f3a">alive — and Alice cannot touch the application's.</text>
+</svg>

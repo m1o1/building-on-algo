@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 400" role="img" aria-label="One application call and the two places identity is decided: inbound, the contract's own assertion checks who is calling; outbound, the application id in the inner call decides what answers and the AVM checks nothing about it">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+    <marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#3d7dd8"/>
+    </marker>
+    <marker id="mR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- caller -->
+    <rect x="30" y="70" width="190" height="64" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="125" y="98" font-size="15" text-anchor="middle">studio script</text>
+    <text x="125" y="118" font-size="13" text-anchor="middle" fill="#5a6172">an account that signed</text>
+
+    <!-- inbound edge -->
+    <line x1="222" y1="102" x2="346" y2="102" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="284" y="90" font-size="12" text-anchor="middle" fill="#5a6172">application call</text>
+
+    <!-- your contract -->
+    <rect x="350" y="70" width="190" height="64" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="445" y="98" font-size="15" text-anchor="middle">Payroll</text>
+    <text x="445" y="118" font-size="13" text-anchor="middle" fill="#5a6172">your contract</text>
+
+    <!-- inbound decision pin -->
+    <line x1="284" y1="108" x2="284" y2="146" stroke="#3d8a5f" stroke-width="1" stroke-dasharray="2 4"/>
+    <rect x="160" y="148" width="250" height="58" rx="8" fill="#f4f5f7" stroke="#3d8a5f" stroke-width="2"/>
+    <text x="172" y="170" font-size="13" fill="#3d8a5f" font-weight="bold">✓ inbound: decided by you</text>
+    <text x="172" y="192" font-size="13" font-family="DejaVu Sans Mono, monospace">assert Txn.sender == studio</text>
+
+    <!-- outbound edges -->
+    <line x1="544" y1="88" x2="654" y2="58" stroke="#3d7dd8" stroke-width="2" marker-end="url(#mB)"/>
+    <line x1="544" y1="116" x2="654" y2="180" stroke="#c94f4e" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mR)"/>
+    <text x="598" y="130" font-size="12" fill="#5a6172">inner calls</text>
+
+    <rect x="660" y="26" width="170" height="60" rx="8" fill="#f4f5f7" stroke="#3d7dd8" stroke-width="2"/>
+    <text x="745" y="50" font-size="14" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">app 7014</text>
+    <text x="745" y="72" font-size="13" text-anchor="middle" fill="#5a6172">the id the parent stored</text>
+
+    <rect x="660" y="152" width="170" height="60" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="1.5"/>
+    <text x="745" y="176" font-size="14" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" fill="#c94f4e">app 9333</text>
+    <text x="745" y="198" font-size="13" text-anchor="middle" fill="#c94f4e">same ABI, anybody's code</text>
+
+    <!-- outbound decision pin -->
+    <line x1="580" y1="130" x2="580" y2="226" stroke="#c94f4e" stroke-width="1" stroke-dasharray="2 4"/>
+    <rect x="430" y="228" width="300" height="76" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+    <text x="442" y="250" font-size="13" fill="#c94f4e" font-weight="bold">outbound: decided by an application id</text>
+    <text x="442" y="272" font-size="13" font-family="DejaVu Sans Mono, monospace">itxn.ApplicationCall(app_id=…)</text>
+    <text x="442" y="292" font-size="13">the AVM dispatches to whatever id you name</text>
+
+    <text x="30" y="348" font-size="13" font-family="DejaVu Sans Mono, monospace">settle(worker: Application)</text>
+    <text x="242" y="348" font-size="13" fill="#5a6172">compiles either way — an application id is a uint64, and a contract</text>
+    <text x="30" y="368" font-size="13" fill="#5a6172">answering the expected signature costs one fee to deploy.</text>
+  </g>
+</svg>

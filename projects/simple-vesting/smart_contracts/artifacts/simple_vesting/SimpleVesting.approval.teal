@@ -1,0 +1,567 @@
+#pragma version 12
+#pragma typetrack false
+
+// algopy.arc4.ARC4Contract.approval_program() -> uint64:
+main:
+    intcblock 0 1 8 4
+    bytecblock "total_amount" "vesting_end" "admin" "claimed_amount" "asset_id" "start_time" "cliff_end" "beneficiary" 0x151f7c75
+    txn ApplicationID
+    bnz main_after_if_else@2
+    // smart_contracts/simple_vesting/contract.py:19
+    // self.admin = GlobalState(Bytes())
+    bytec_2 // "admin"
+    pushbytes 0x
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:20
+    // self.asset_id = GlobalState(UInt64(0))
+    bytec 4 // "asset_id"
+    intc_0 // 0
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:21
+    // self.beneficiary = GlobalState(Bytes())
+    bytec 7 // "beneficiary"
+    pushbytes 0x
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:22
+    // self.total_amount = GlobalState(UInt64(0))
+    bytec_0 // "total_amount"
+    intc_0 // 0
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:23
+    // self.claimed_amount = GlobalState(UInt64(0))
+    bytec_3 // "claimed_amount"
+    intc_0 // 0
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:24
+    // self.start_time = GlobalState(UInt64(0))
+    bytec 5 // "start_time"
+    intc_0 // 0
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:25
+    // self.cliff_end = GlobalState(UInt64(0))
+    bytec 6 // "cliff_end"
+    intc_0 // 0
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:26
+    // self.vesting_end = GlobalState(UInt64(0))
+    bytec_1 // "vesting_end"
+    intc_0 // 0
+    app_global_put
+
+main_after_if_else@2:
+    // smart_contracts/simple_vesting/contract.py:15
+    // class SimpleVesting(ARC4Contract):
+    txn NumAppArgs
+    bz main_bare_routing@14
+    txn OnCompletion
+    !
+    assert
+    txn ApplicationID
+    assert
+    pushbytess 0xdf54e8aa 0x5e37fd9e 0xcc82ab99 0xf4618a3f 0x346b3dbc // method "opt_in_to_asset(uint64)void", method "initialize(uint64,address,uint64,uint64,uint64,axfer)void", method "claim()uint64", method "get_claimable()uint64", method "get_admin()address"
+    txna ApplicationArgs 0
+    match opt_in_to_asset initialize claim get_claimable get_admin
+
+main_after_if_else@18:
+    // smart_contracts/simple_vesting/contract.py:15
+    // class SimpleVesting(ARC4Contract):
+    err
+
+main_bare_routing@14:
+    // smart_contracts/simple_vesting/contract.py:15
+    // class SimpleVesting(ARC4Contract):
+    txn OnCompletion
+    switch main_create@15 main_after_if_else@18 main_after_if_else@18 main_after_if_else@18 main_reject_lifecycle@16 main_reject_lifecycle@16
+    err
+
+main_reject_lifecycle@16:
+    // smart_contracts/simple_vesting/contract.py:32-37
+    // @arc4.baremethod(
+    //     allow_actions=[
+    //         "UpdateApplication",
+    //         "DeleteApplication",
+    //     ]
+    // )
+    txn ApplicationID
+    assert
+    // smart_contracts/simple_vesting/contract.py:39
+    // assert False, "Contract is immutable"
+    err // Contract is immutable
+
+main_create@15:
+    // smart_contracts/simple_vesting/contract.py:28
+    // @arc4.baremethod(create="require")
+    txn ApplicationID
+    !
+    assert
+    // smart_contracts/simple_vesting/contract.py:30
+    // self.admin.value = Txn.sender.bytes
+    bytec_2 // "admin"
+    txn Sender
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:28
+    // @arc4.baremethod(create="require")
+    intc_1 // 1
+    return
+
+
+// smart_contracts.simple_vesting.contract.SimpleVesting.opt_in_to_asset[routing]() -> void:
+opt_in_to_asset:
+    // smart_contracts/simple_vesting/contract.py:41
+    // @arc4.abimethod
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    // smart_contracts/simple_vesting/contract.py:43
+    // assert Txn.sender.bytes == self.admin.value, "Only admin"
+    txn Sender
+    intc_0 // 0
+    bytec_2 // "admin"
+    app_global_get_ex
+    assert // check self.admin exists
+    ==
+    assert // Only admin
+    // smart_contracts/simple_vesting/contract.py:44-49
+    // itxn.AssetTransfer(
+    //     xfer_asset=Asset(asset),
+    //     asset_receiver=Global.current_application_address,
+    //     asset_amount=0,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_begin
+    // smart_contracts/simple_vesting/contract.py:46
+    // asset_receiver=Global.current_application_address,
+    global CurrentApplicationAddress
+    // smart_contracts/simple_vesting/contract.py:47
+    // asset_amount=0,
+    intc_0 // 0
+    itxn_field AssetAmount
+    itxn_field AssetReceiver
+    itxn_field XferAsset
+    // smart_contracts/simple_vesting/contract.py:44
+    // itxn.AssetTransfer(
+    intc_3 // axfer
+    itxn_field TypeEnum
+    // smart_contracts/simple_vesting/contract.py:48
+    // fee=UInt64(0),
+    intc_0 // 0
+    itxn_field Fee
+    // smart_contracts/simple_vesting/contract.py:44-49
+    // itxn.AssetTransfer(
+    //     xfer_asset=Asset(asset),
+    //     asset_receiver=Global.current_application_address,
+    //     asset_amount=0,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_submit
+    // smart_contracts/simple_vesting/contract.py:41
+    // @arc4.abimethod
+    intc_1 // 1
+    return
+
+
+// smart_contracts.simple_vesting.contract.SimpleVesting.initialize[routing]() -> void:
+initialize:
+    // smart_contracts/simple_vesting/contract.py:51
+    // @arc4.abimethod
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    txna ApplicationArgs 2
+    dup
+    len
+    pushint 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    txna ApplicationArgs 3
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    txna ApplicationArgs 4
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    txna ApplicationArgs 5
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    txn GroupIndex
+    intc_1 // 1
+    -
+    dup
+    gtxns TypeEnum
+    intc_3 // axfer
+    ==
+    assert // transaction type is axfer
+    // smart_contracts/simple_vesting/contract.py:61
+    // assert Txn.sender.bytes == self.admin.value, "Only admin"
+    txn Sender
+    intc_0 // 0
+    bytec_2 // "admin"
+    app_global_get_ex
+    assert // check self.admin exists
+    ==
+    assert // Only admin
+    // smart_contracts/simple_vesting/contract.py:62
+    // assert self.asset_id.value == UInt64(0), "Already initialized"
+    intc_0 // 0
+    bytec 4 // "asset_id"
+    app_global_get_ex
+    assert // check self.asset_id exists
+    !
+    assert // Already initialized
+    // smart_contracts/simple_vesting/contract.py:63
+    // assert vesting_duration > cliff_duration, "Vesting must exceed cliff"
+    dig 1
+    dig 3
+    >
+    assert // Vesting must exceed cliff
+    // smart_contracts/simple_vesting/contract.py:64
+    // assert total_amount > UInt64(0), "Amount must be positive"
+    dig 3
+    assert // Amount must be positive
+    // smart_contracts/simple_vesting/contract.py:66
+    // assert deposit_txn.xfer_asset == Asset(asset)
+    dup
+    gtxns XferAsset
+    dig 6
+    ==
+    assert
+    // smart_contracts/simple_vesting/contract.py:67
+    // assert deposit_txn.asset_receiver == Global.current_application_address
+    dup
+    gtxns AssetReceiver
+    global CurrentApplicationAddress
+    ==
+    assert
+    // smart_contracts/simple_vesting/contract.py:68
+    // assert deposit_txn.asset_amount == total_amount
+    gtxns AssetAmount
+    dig 3
+    ==
+    assert
+    // smart_contracts/simple_vesting/contract.py:70
+    // self.asset_id.value = asset
+    bytec 4 // "asset_id"
+    uncover 5
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:71
+    // self.beneficiary.value = beneficiary.bytes
+    bytec 7 // "beneficiary"
+    uncover 4
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:72
+    // self.total_amount.value = total_amount
+    bytec_0 // "total_amount"
+    uncover 3
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:73
+    // now = Global.latest_timestamp
+    global LatestTimestamp
+    // smart_contracts/simple_vesting/contract.py:74
+    // self.start_time.value = now
+    bytec 5 // "start_time"
+    dig 1
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:75
+    // self.cliff_end.value = now + cliff_duration
+    dup
+    uncover 3
+    +
+    bytec 6 // "cliff_end"
+    swap
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:76
+    // self.vesting_end.value = now + vesting_duration
+    +
+    bytec_1 // "vesting_end"
+    swap
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:51
+    // @arc4.abimethod
+    intc_1 // 1
+    return
+
+
+// smart_contracts.simple_vesting.contract.SimpleVesting.claim[routing]() -> void:
+claim:
+    pushbytes ""
+    // smart_contracts/simple_vesting/contract.py:80
+    // assert Txn.sender.bytes == self.beneficiary.value, "Only beneficiary"
+    txn Sender
+    intc_0 // 0
+    bytec 7 // "beneficiary"
+    app_global_get_ex
+    assert // check self.beneficiary exists
+    ==
+    assert // Only beneficiary
+    // smart_contracts/simple_vesting/contract.py:82
+    // now = Global.latest_timestamp
+    global LatestTimestamp
+    dup
+    // smart_contracts/simple_vesting/contract.py:83
+    // if now < self.cliff_end.value:
+    intc_0 // 0
+    bytec 6 // "cliff_end"
+    app_global_get_ex
+    assert // check self.cliff_end exists
+    <
+    bz claim_after_if_else@3
+    // smart_contracts/simple_vesting/contract.py:84
+    // return UInt64(0)
+    intc_0 // 0
+
+claim_after_inlined_smart_contracts.simple_vesting.contract.SimpleVesting.claim@10:
+    // smart_contracts/simple_vesting/contract.py:78
+    // @arc4.abimethod
+    itob
+    bytec 8 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+claim_after_if_else@3:
+    // smart_contracts/simple_vesting/contract.py:86
+    // if now >= self.vesting_end.value:
+    intc_0 // 0
+    bytec_1 // "vesting_end"
+    app_global_get_ex
+    assert // check self.vesting_end exists
+    dig 1
+    <=
+    bz claim_else_body@5
+    // smart_contracts/simple_vesting/contract.py:87
+    // vested = self.total_amount.value
+    intc_0 // 0
+    bytec_0 // "total_amount"
+    app_global_get_ex
+    assert // check self.total_amount exists
+
+claim_after_if_else@6:
+    // smart_contracts/simple_vesting/contract.py:93
+    // claimable = vested - self.claimed_amount.value
+    intc_0 // 0
+    bytec_3 // "claimed_amount"
+    app_global_get_ex
+    assert // check self.claimed_amount exists
+    -
+    dup
+    bury 3
+    // smart_contracts/simple_vesting/contract.py:94
+    // if claimable == UInt64(0):
+    bnz claim_after_if_else@8
+    // smart_contracts/simple_vesting/contract.py:95
+    // return UInt64(0)
+    intc_0 // 0
+    // smart_contracts/simple_vesting/contract.py:78
+    // @arc4.abimethod
+    b claim_after_inlined_smart_contracts.simple_vesting.contract.SimpleVesting.claim@10
+
+claim_after_if_else@8:
+    // smart_contracts/simple_vesting/contract.py:97-102
+    // itxn.AssetTransfer(
+    //     xfer_asset=Asset(self.asset_id.value),
+    //     asset_receiver=Txn.sender,
+    //     asset_amount=claimable,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_begin
+    // smart_contracts/simple_vesting/contract.py:98
+    // xfer_asset=Asset(self.asset_id.value),
+    intc_0 // 0
+    bytec 4 // "asset_id"
+    app_global_get_ex
+    assert // check self.asset_id exists
+    // smart_contracts/simple_vesting/contract.py:99
+    // asset_receiver=Txn.sender,
+    txn Sender
+    dig 3
+    dup
+    cover 3
+    itxn_field AssetAmount
+    itxn_field AssetReceiver
+    itxn_field XferAsset
+    // smart_contracts/simple_vesting/contract.py:97
+    // itxn.AssetTransfer(
+    intc_3 // axfer
+    itxn_field TypeEnum
+    // smart_contracts/simple_vesting/contract.py:101
+    // fee=UInt64(0),
+    intc_0 // 0
+    itxn_field Fee
+    // smart_contracts/simple_vesting/contract.py:97-102
+    // itxn.AssetTransfer(
+    //     xfer_asset=Asset(self.asset_id.value),
+    //     asset_receiver=Txn.sender,
+    //     asset_amount=claimable,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_submit
+    // smart_contracts/simple_vesting/contract.py:104
+    // self.claimed_amount.value = self.claimed_amount.value + claimable
+    intc_0 // 0
+    bytec_3 // "claimed_amount"
+    app_global_get_ex
+    assert // check self.claimed_amount exists
+    dig 1
+    +
+    bytec_3 // "claimed_amount"
+    swap
+    app_global_put
+    // smart_contracts/simple_vesting/contract.py:78
+    // @arc4.abimethod
+    b claim_after_inlined_smart_contracts.simple_vesting.contract.SimpleVesting.claim@10
+
+claim_else_body@5:
+    // smart_contracts/simple_vesting/contract.py:89
+    // elapsed = now - self.start_time.value
+    intc_0 // 0
+    bytec 5 // "start_time"
+    app_global_get_ex
+    assert // check self.start_time exists
+    dup2
+    -
+    // smart_contracts/simple_vesting/contract.py:90
+    // duration = self.vesting_end.value - self.start_time.value
+    intc_0 // 0
+    bytec_1 // "vesting_end"
+    app_global_get_ex
+    assert // check self.vesting_end exists
+    uncover 2
+    -
+    // smart_contracts/simple_vesting/contract.py:91
+    // vested = self.total_amount.value * elapsed // duration
+    intc_0 // 0
+    bytec_0 // "total_amount"
+    app_global_get_ex
+    assert // check self.total_amount exists
+    uncover 2
+    *
+    swap
+    /
+    b claim_after_if_else@6
+
+
+// smart_contracts.simple_vesting.contract.SimpleVesting.get_claimable[routing]() -> void:
+get_claimable:
+    // smart_contracts/simple_vesting/contract.py:109
+    // now = Global.latest_timestamp
+    global LatestTimestamp
+    dup
+    // smart_contracts/simple_vesting/contract.py:110
+    // if now < self.cliff_end.value:
+    intc_0 // 0
+    bytec 6 // "cliff_end"
+    app_global_get_ex
+    assert // check self.cliff_end exists
+    <
+    bz get_claimable_after_if_else@3
+    // smart_contracts/simple_vesting/contract.py:111
+    // return UInt64(0)
+    intc_0 // 0
+
+get_claimable_after_inlined_smart_contracts.simple_vesting.contract.SimpleVesting.get_claimable@7:
+    // smart_contracts/simple_vesting/contract.py:107
+    // @arc4.abimethod(readonly=True)
+    itob
+    bytec 8 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+get_claimable_after_if_else@3:
+    // smart_contracts/simple_vesting/contract.py:113
+    // if now >= self.vesting_end.value:
+    intc_0 // 0
+    bytec_1 // "vesting_end"
+    app_global_get_ex
+    assert // check self.vesting_end exists
+    dig 1
+    <=
+    bz get_claimable_else_body@5
+    // smart_contracts/simple_vesting/contract.py:114
+    // vested = self.total_amount.value
+    intc_0 // 0
+    bytec_0 // "total_amount"
+    app_global_get_ex
+    assert // check self.total_amount exists
+
+get_claimable_after_if_else@6:
+    // smart_contracts/simple_vesting/contract.py:120
+    // return vested - self.claimed_amount.value
+    intc_0 // 0
+    bytec_3 // "claimed_amount"
+    app_global_get_ex
+    assert // check self.claimed_amount exists
+    -
+    // smart_contracts/simple_vesting/contract.py:107
+    // @arc4.abimethod(readonly=True)
+    b get_claimable_after_inlined_smart_contracts.simple_vesting.contract.SimpleVesting.get_claimable@7
+
+get_claimable_else_body@5:
+    // smart_contracts/simple_vesting/contract.py:116
+    // elapsed = now - self.start_time.value
+    intc_0 // 0
+    bytec 5 // "start_time"
+    app_global_get_ex
+    assert // check self.start_time exists
+    dup2
+    -
+    // smart_contracts/simple_vesting/contract.py:117
+    // duration = self.vesting_end.value - self.start_time.value
+    intc_0 // 0
+    bytec_1 // "vesting_end"
+    app_global_get_ex
+    assert // check self.vesting_end exists
+    uncover 2
+    -
+    // smart_contracts/simple_vesting/contract.py:118
+    // vested = self.total_amount.value * elapsed // duration
+    intc_0 // 0
+    bytec_0 // "total_amount"
+    app_global_get_ex
+    assert // check self.total_amount exists
+    uncover 2
+    *
+    swap
+    /
+    b get_claimable_after_if_else@6
+
+
+// smart_contracts.simple_vesting.contract.SimpleVesting.get_admin[routing]() -> void:
+get_admin:
+    // smart_contracts/simple_vesting/contract.py:124
+    // return arc4.Address.from_bytes(self.admin.value)
+    intc_0 // 0
+    bytec_2 // "admin"
+    app_global_get_ex
+    assert // check self.admin exists
+    // smart_contracts/simple_vesting/contract.py:122
+    // @arc4.abimethod(readonly=True)
+    bytec 8 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return

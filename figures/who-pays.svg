@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 460" role="img"
+     aria-label="Four versions of the same application call with one inner payment, on one fee axis: the fee lands on the contract, on the caller, on nobody so the group is refused, or on a sponsor"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+
+  <text x="445" y="30" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">the same call, four ways — one application call that stages one inner payment</text>
+
+  <!-- gridlines -->
+  <line x1="230" y1="48" x2="230" y2="396" stroke="#e8eaef" stroke-width="1"/>
+  <line x1="410" y1="48" x2="410" y2="396" stroke="#e8eaef" stroke-width="1"/>
+  <line x1="590" y1="48" x2="590" y2="396" stroke="#e8eaef" stroke-width="1"/>
+  <line x1="770" y1="48" x2="770" y2="396" stroke="#e8eaef" stroke-width="1"/>
+
+  <!-- what the group owes -->
+  <line x1="590" y1="58" x2="590" y2="268" stroke="#2a2f3a" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="590" y="50" font-size="12" fill="#2a2f3a" text-anchor="middle">owed: 2,000 (two txns)</text>
+
+  <!-- row 1: the fee written in -->
+  <text x="30" y="84" font-size="14" font-weight="600" fill="#2a2f3a">Fee written on the inner</text>
+  <text x="30" y="102" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace">inner fee = min_txn_fee</text>
+  <rect x="230" y="70" width="178" height="32" rx="4" fill="#3d7dd8"/>
+  <text x="319" y="91" font-size="13" fill="#ffffff" text-anchor="middle">caller 1,000</text>
+  <rect x="412" y="70" width="178" height="32" rx="4" fill="#e8eaef" stroke="#c94f4e" stroke-width="1.5"/>
+  <text x="501" y="91" font-size="13" fill="#2a2f3a" text-anchor="middle">the contract 1,000</text>
+  <text x="230" y="124" font-size="12" fill="#c94f4e">the contract's balance pays it — the splitter's defect</text>
+
+  <!-- row 2: pooled onto the caller -->
+  <text x="30" y="160" font-size="14" font-weight="600" fill="#2a2f3a">Pooled onto the caller</text>
+  <text x="30" y="178" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace">inner 0 · outer 2,000</text>
+  <rect x="230" y="146" width="360" height="32" rx="4" fill="#3d7dd8"/>
+  <text x="410" y="167" font-size="13" fill="#ffffff" text-anchor="middle">the caller pays 2,000</text>
+  <text x="230" y="200" font-size="12" fill="#2a2f3a">outer fee raised: the cost moved to the caller, whole</text>
+
+  <!-- row 3: zeroed but not covered -->
+  <text x="30" y="236" font-size="14" font-weight="600" fill="#2a2f3a">Zeroed but not covered</text>
+  <text x="30" y="254" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace">inner 0 · outer 1,000</text>
+  <rect x="230" y="222" width="178" height="32" rx="4" fill="#3d7dd8"/>
+  <text x="319" y="243" font-size="13" fill="#ffffff" text-anchor="middle">caller 1,000</text>
+  <rect x="412" y="222" width="178" height="32" rx="4" fill="none" stroke="#c94f4e" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="501" y="243" font-size="13" fill="#c94f4e" text-anchor="middle">1,000 nobody pays</text>
+  <text x="230" y="276" font-size="12" fill="#c94f4e">paid 1,000 &lt; 2,000 owed — the whole group is refused</text>
+
+  <!-- row 4: sponsored -->
+  <text x="30" y="312" font-size="14" font-weight="600" fill="#2a2f3a">Sponsored</text>
+  <text x="30" y="330" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace">user 0 · sponsor 3,000</text>
+  <rect x="230" y="298" width="540" height="32" rx="4" fill="#5a6172"/>
+  <text x="500" y="319" font-size="13" fill="#ffffff" text-anchor="middle">the sponsor pays 3,000</text>
+  <line x1="770" y1="288" x2="770" y2="344" stroke="#2a2f3a" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="770" y="282" font-size="12" fill="#2a2f3a" text-anchor="middle">owed: 3,000 (three txns)</text>
+  <text x="230" y="354" font-size="12" fill="#2a2f3a">the sponsor's payment is itself a third transaction, so the group now owes 3,000;</text>
+  <text x="230" y="372" font-size="12" fill="#2a2f3a">the user signs a zero-fee call — an account holding no Algo can still act</text>
+
+  <!-- axis -->
+  <line x1="230" y1="396" x2="800" y2="396" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="230" y1="396" x2="230" y2="402" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="410" y1="396" x2="410" y2="402" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="590" y1="396" x2="590" y2="402" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="770" y1="396" x2="770" y2="402" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="230" y="420" font-size="12" fill="#5a6172" text-anchor="middle">0</text>
+  <text x="410" y="420" font-size="12" fill="#5a6172" text-anchor="middle">1,000</text>
+  <text x="590" y="420" font-size="12" fill="#5a6172" text-anchor="middle">2,000</text>
+  <text x="770" y="420" font-size="12" fill="#5a6172" text-anchor="middle">3,000</text>
+  <text x="515" y="444" font-size="13" fill="#2a2f3a" text-anchor="middle">fee paid, in µAlgo</text>
+</svg>

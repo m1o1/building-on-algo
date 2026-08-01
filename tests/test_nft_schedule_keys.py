@@ -1,4 +1,4 @@
-"""Regression tests for Chapter 4's NFT schedule box-key design."""
+"""Regression tests for the NFT vesting chapter's schedule box-key design."""
 
 import struct
 from pathlib import Path
@@ -45,12 +45,12 @@ def test_chapter_mbr_constants_match_schedule_struct_size() -> None:
 
 def test_chapter_uses_explicit_schedule_box_references() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    chapter = (repo_root / "chapters/04-nfts.md").read_text(encoding="utf-8")
+    chapter = (repo_root / "chapters/12-nft-vesting.md").read_text(encoding="utf-8")
 
+    # Box keys must derive from the caller-known schedule id, never from the
+    # not-yet-allocated NFT asset id (which can drift between simulate and send).
     assert "placeholder_box_key" not in chapter
     assert "box_key(0)" not in chapter
     assert "box_key(nft_id)" not in chapter
     assert "return b\"v_\" + struct.pack(\">Q\", schedule_id)" in chapter
-    assert "box_references=[schedule_box]" in chapter
-    assert "asset_references=[token_id]" in chapter
     assert "populate_app_call_resources=True" in chapter

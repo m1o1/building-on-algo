@@ -1,5 +1,9 @@
 \newpage
 
+```{=latex}
+\renewcommand{\BOAchapterkind}{}
+```
+
 # Glossary {-}
 
 **ABI (Application Binary Interface)**
@@ -35,6 +39,9 @@
 **BigUInt**
 :   An arbitrary-precision unsigned integer type (up to 512 bits) available in Algorand Python for math that exceeds `uint64` range.
 
+**BN254**
+:   The pairing-friendly elliptic curve (also called alt_bn128) native to the AVM since v10 and shared with Ethereum's precompiles. Its 64-byte G1 points and roughly 100-bit security make it the cheap verification curve; this book's zero-knowledge proofs verify on it.
+
 **Box storage**
 :   Application-controlled key-value storage where each entry is an independent "box." Only the owning application can create, read, modify, or delete its boxes on-chain.
 
@@ -65,8 +72,14 @@
 **Fee pooling**
 :   The ability for one transaction in an atomic group to overpay its fee to cover the minimum fees of other transactions in the same group.
 
+**Genesis hash**
+:   The 32-byte identifier of an Algorand network, fixed in its first block. It is the one value in a transaction that distinguishes MainNet, TestNet, and LocalNet --- and therefore the field a LogicSig pins to stop cross-network replay.
+
 **Global state**
 :   Key-value storage attached to an application, readable by any transaction that references the app. Limited to 64 key-value pairs with keys up to 64 bytes and key + value combined up to 128 bytes.
+
+**Groth16**
+:   The most compact zk-SNARK proof system: three group elements per proof, verified by a single pairing check. Its price is a trusted setup per circuit, whose "toxic waste" must be destroyed.
 
 **Impermanent loss**
 :   The reduction in value that liquidity providers experience compared to simply holding their tokens, caused by the AMM rebalancing the position as prices move. Called "impermanent" because it reverses if the price returns to its original ratio.
@@ -76,6 +89,9 @@
 
 **Keeper**
 :   A permissionless off-chain bot that monitors on-chain state and submits transactions when conditions are met --- filling limit orders, triggering liquidations, or executing other user intents for profit.
+
+**Lease**
+:   A 32-byte transaction field that reserves the pair (sender, lease) until the transaction's last valid round. While the reservation holds, the network refuses any other transaction from that sender carrying the same lease --- the protocol's replay bound.
 
 **Local state**
 :   Per-account key-value storage for each application a user opts into. Limited to 16 key-value pairs. Can be cleared unilaterally by the user via ClearState.
@@ -95,11 +111,29 @@
 **Multisig (Multi-Signature)**
 :   An account that requires signatures from multiple parties (M-of-N) to authorize a transaction. Used for admin operations, treasury management, and governance in production protocols. Algorand supports multisig natively at the protocol level.
 
+**Nullifier**
+:   A value derived from a secret and recorded on chain so the secret cannot be used twice. Private voting and payment designs spend nullifiers to stop double actions without linking either action to an identity.
+
+**Op-up**
+:   An inner application call issued for no reason but the 700 opcodes it
+    adds to the group's budget. `ensure_budget` emits as many as the number
+    it is given requires, so raising the budget costs one minimum fee per
+    op-up, paid by whoever assembles the group.
+
 **Opcode budget**
 :   The maximum computational cost allowed per execution context. Smart contracts get 700 opcodes per app call (poolable across a group); LogicSigs get 20,000 per transaction.
 
+**Pairing check**
+:   The elliptic-curve operation (`ec_pairing_check`) at the heart of SNARK verification: it tests whether a product of pairings equals one. The most expensive check the AVM offers --- a single BN254 pair costs more than a LogicSig's entire 20,000-unit budget.
+
+**PLONK**
+:   A universal zk-SNARK proof system: one trusted setup serves every circuit up to a size bound, so no per-circuit ceremony is needed. Proofs are slightly larger than Groth16's; AlgoPlonk generates PLONK verifiers for Algorand.
+
+**Randomness beacon (ARC-21)**
+:   An application that publishes unpredictable values on its own schedule and answers queries by round through `get(uint64,byte[])byte[]` and `must_get`. ARC-21 defines the interface; the deployed beacons publish VRF outputs every eight rounds.
+
 **Rekeying**
-:   Changing the private key that controls an account (its "auth address") while the account address stays the same, via the `rekey_to` transaction field. Useful for key rotation; dangerous if a malicious `rekey_to` slips through unchecked.
+:   Changing the private key that controls an account (its "auth address") while the account address stays the same, via the `rekey_to` transaction field. Useful for key rotation; dangerous if a malicious `rekey_to` slips through unchecked. It is also the only revocation a delegated LogicSig ever has: the delegation dies when the account's signing authority moves.
 
 **Slippage**
 :   The difference between the expected price of a trade and the price actually executed, caused by other trades moving the pool between quote and execution. AMM clients guard against it with minimum-output parameters.
@@ -124,9 +158,6 @@
 
 **TWAP (Time-Weighted Average Price)**
 :   A price derived by averaging spot prices over a time window, weighted by block time. Resistant to single-block manipulation. Used by lending protocols as a price oracle.
-
-**VibeKit**
-:   A CLI tool that configures AI coding agents for Algorand development. Installs agent skills, documentation tools, and blockchain interaction tools so AI assistants can write, compile, deploy, and debug contracts.
 
 **Wide arithmetic**
 :   128-bit intermediate arithmetic using `op.mulw` (multiply wide) and `op.divmodw` (divide-modulo wide) to prevent overflow in `uint64` calculations.

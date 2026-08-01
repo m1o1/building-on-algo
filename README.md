@@ -8,92 +8,147 @@
 
 [**Read the book online**](https://m1o1.github.io/building-on-algo/)
 
-1. [The Algorand Mental Model](https://m1o1.github.io/building-on-algo/01-the-algorand-mental-model.html)
-2. [Testing Smart Contracts](https://m1o1.github.io/building-on-algo/02-testing-smart-contracts.html)
-3. [A Token Vesting Contract](https://m1o1.github.io/building-on-algo/03-a-token-vesting-contract.html)
-4. [NFTs — Extending the Vesting Contract with Transferability](https://m1o1.github.io/building-on-algo/04-nfts.html)
-5. [A Constant Product AMM](https://m1o1.github.io/building-on-algo/05-a-constant-product-amm.html)
-6. [AMM Factory and Pool Provenance](https://m1o1.github.io/building-on-algo/06-amm-factory-and-pool-provenance.html)
-7. [Yield Farming — Extending the AMM with Staking Rewards](https://m1o1.github.io/building-on-algo/07-yield-farming.html)
-8. [Common Patterns and Idioms](https://m1o1.github.io/building-on-algo/08-common-patterns-and-idioms.html)
-9. [Delegated Limit Order Book with LogicSig Agents](https://m1o1.github.io/building-on-algo/09-delegated-limit-order-book.html)
-10. [Private Governance Voting with Zero-Knowledge Proofs](https://m1o1.github.io/building-on-algo/10-private-governance-voting.html)
+Twenty-four chapters in seven parts. Concept chapters teach one mechanism
+against a commission you build; project chapters assemble the mechanisms into
+something you would actually ship; each part ends with a Mastery Checkpoint —
+a novel build with an acceptance list and no walkthrough.
+
+**Part I — Foundations**
+1. [From Zero to Deployed](https://m1o1.github.io/building-on-algo/01-from-zero-to-deployed.html)
+2. [The Algorand Mental Model](https://m1o1.github.io/building-on-algo/02-the-algorand-mental-model.html)
+3. [Contracts That Exist and Respond](https://m1o1.github.io/building-on-algo/03-contracts-that-exist-and-respond.html)
+4. [Remembering Things](https://m1o1.github.io/building-on-algo/04-remembering-things.html)
+5. [Data That Grows](https://m1o1.github.io/building-on-algo/05-data-that-grows.html)
+6. [Arithmetic That Refuses](https://m1o1.github.io/building-on-algo/06-arithmetic-that-refuses.html)
+7. [Moving Value](https://m1o1.github.io/building-on-algo/07-moving-value.html)
+8. [Proving It Works](https://m1o1.github.io/building-on-algo/08-proving-it-works.html)
+
+**Part II — Value Under Management**
+
+9. [A Token Vesting Contract](https://m1o1.github.io/building-on-algo/09-a-token-vesting-contract.html)
+10. [Proving Who's Calling](https://m1o1.github.io/building-on-algo/10-proving-whos-calling.html)
+11. [Paying for It](https://m1o1.github.io/building-on-algo/11-paying-for-it.html)
+12. [NFT Vesting](https://m1o1.github.io/building-on-algo/12-nft-vesting.html)
+
+**Part III — Building a DEX**
+
+13. [Numbers That Price Things](https://m1o1.github.io/building-on-algo/13-numbers-that-price-things.html)
+14. [A Constant Product AMM](https://m1o1.github.io/building-on-algo/14-a-constant-product-amm.html)
+15. [Contracts That Talk to Contracts](https://m1o1.github.io/building-on-algo/15-contracts-that-talk-to-contracts.html)
+16. [AMM Factory and Pool Provenance](https://m1o1.github.io/building-on-algo/16-amm-factory-and-pool-provenance.html)
+17. [Yield Farming](https://m1o1.github.io/building-on-algo/17-yield-farming.html)
+
+**Part IV — Chance**
+
+18. [A Number Nobody Can Predict](https://m1o1.github.io/building-on-algo/18-a-number-nobody-can-predict.html)
+19. [A Lottery That Pays Out or Gives Back](https://m1o1.github.io/building-on-algo/19-a-lottery-that-pays-out-or-gives-back.html)
+
+**Part V — Stateless Programs**
+
+20. [Signing Without a Key](https://m1o1.github.io/building-on-algo/20-signing-without-a-key.html)
+21. [Delegated Limit Order Book](https://m1o1.github.io/building-on-algo/21-delegated-limit-order-book.html)
+
+**Part VI — Cryptography**
+
+22. [Proving Things Without Revealing Them](https://m1o1.github.io/building-on-algo/22-proving-things-without-revealing-them.html)
+23. [Private Governance Voting](https://m1o1.github.io/building-on-algo/23-private-governance-voting.html)
+
+**Part VII — Shipping**
+
+24. [Shipping and Surviving](https://m1o1.github.io/building-on-algo/24-shipping-and-surviving.html)
 
 ---
 
-A hands-on guide that takes a senior software engineer from zero smart contract knowledge to deploying production-quality DeFi applications on Algorand. Written for developers who know Python well but have never built a smart contract.
+A hands-on guide that takes a senior software engineer from zero smart
+contract knowledge to deploying production-quality DeFi applications on
+Algorand. Written for developers who know Python well but have never built a
+smart contract.
 
-All contracts use **[Algorand Python (Puya)](https://dev.algorand.co/concepts/smart-contracts/languages/python/)** — real Python code that compiles to TEAL bytecode via a multi-stage optimizing compiler.
+All contracts use **[Algorand Python (Puya)](https://dev.algorand.co/concepts/smart-contracts/languages/python/)**
+— real Python code that compiles to TEAL bytecode via a multi-stage
+optimizing compiler, pinned to a validated toolchain (PuyaPy 5.8.1,
+algorand-python 3.5.0, AlgoKit CLI 2.10.2, AVM 12).
 
 ## What You'll Build
 
-| Chapter | Project | Concepts |
-|---------|---------|----------|
-| 1 | **The Algorand Mental Model** | Execution model, account system, AVM constraints, dev environment setup |
-| 2 | **Testing Smart Contracts** | Test-first development, LocalNet testing, simulate API, coverage patterns |
-| 3 | **Token Vesting Contract** | State management, ASA handling, inner transactions, box storage, integer math, security patterns |
-| 4 | **NFT Extension** | Ownership-by-asset pattern, ARC-3 metadata, clawback mechanics, simulate-then-submit |
-| 5 | **Constant Product AMM** | Uniswap V2-style AMM, multi-token accounting, price curves, LP token mechanics, TWAP oracle |
-| 6 | **AMM Factory and Pool Provenance** | On-chain pool creation, pair registries, child app bootstrap, factory-backed verification |
-| 7 | **Yield Farming** | Staking rewards, reward-per-token accumulators, time-weighted multipliers, cross-contract state reads |
-| 8 | **Common Patterns & Idioms** | Fee subsidization, MBR lifecycle, canonical ordering, event emission, opcode budget management |
-| 9 | **Delegated Limit Order Book** | Logic Signatures, hybrid stateful/stateless architecture, template variables, keeper bots |
-| 10 | **Private Governance Voting** | Zero-knowledge proofs, elliptic curve operations (BN254), MiMC hash, post-quantum security |
+| Project | Chapter | What it teaches |
+|---------|---------|-----------------|
+| **Token vesting contract** | 9 | State, ASA custody, inner transactions, box-backed schedules, floor math, a 36-test suite |
+| **NFT vesting** | 12 | Ownership-by-asset, claim rights that travel with a token, ARC-28 events |
+| **Constant product AMM** | 14 | Uniswap V2-style pool, LP tokens, slippage bounds, an optional TWAP oracle |
+| **AMM factory** | 16 | On-chain pool creation, pair registry, provenance a stranger can verify |
+| **LP farming** | 17 | Reward-per-token accumulator, lock multipliers, cross-contract reads |
+| **Lottery** | 19 | ARC-21 randomness beacon, commit to a future round, pay out or refund — never strand money |
+| **Delegated limit order book** | 21 | LogicSig delegation, hybrid stateless/stateful architecture, keeper bots |
+| **Private governance voting** | 23 | Commit-reveal ballots, a real PLONK proof verified on-chain through an AlgoPlonk LogicSig |
+| **Shippable guestbook** | 24 | Events, error codes, pause, freeze, delete — the operability layer |
 
-Plus two appendices: a **Smart Contract Cookbook** with 50+ standalone recipes, and a **Gotchas Cheat Sheet** of common mistakes and how to avoid them.
+Plus four appendices: **A** the validated environment, **B** every limit and
+cost on one page, **C** every gotcha in the book grouped by topic, and **D**
+an example finder that maps "I need to do X" to a numbered example.
+Appendices C and D are generated from the chapters themselves and
+drift-checked in CI.
+
+## Repository Layout
+
+- `chapters/` — canonical book source (one file per chapter; the site and PDF
+  are derived outputs)
+- `examples/<topic>/` — standalone example programs, each carrying the mode
+  (`compile`, `unit`, `script`, `localnet`) a harness verifies it in
+- `projects/<name>/` — the nine AlgoKit projects, each with its own test
+  suite and workflow script
+- `scripts/` — build spine, drift checker, example harness, appendix
+  generator
+- `figures/` — hand-authored SVG diagrams
 
 ## Building Locally
 
-The canonical source is the `chapters/` directory — each chapter is a separate `.md` file. All other formats are derived from these files via `build.py`.
-
 ### Prerequisites
 
-- **Python 3.12** (validated for the book walkthroughs and helper scripts)
-- **uv** (for validation): `uv` installs the pinned test and compile dependencies from `uv.lock`
-- **mdBook** (for HTML): follow the [mdBook installation guide](https://rust-lang.github.io/mdBook/guide/installation.html).
-  Common paths: download a precompiled binary, run `cargo install mdbook`, or on macOS use `brew install mdbook`.
-- **pandoc + XeLaTeX** (for PDF): install Pandoc from the [official installer](https://pandoc.org/installing.html) or your package manager.
-  Also install a TeX distribution that includes XeLaTeX, such as [MacTeX](https://www.tug.org/mactex/) on macOS.
-
-After installing command-line tools, make sure `python`, `mdbook`, `pandoc`, and `xelatex` are available on your `PATH` as needed for the targets you plan to build.
-On Windows, use `python` or `py -3.12` anywhere the examples show `python3`.
+- **Python 3.12** and **uv** (tests, compile checks, PDF assets)
+- **mdBook** (HTML site): see the [installation guide](https://rust-lang.github.io/mdBook/guide/installation.html)
+- **pandoc + XeLaTeX** (PDF): [Pandoc](https://pandoc.org/installing.html)
+  plus a TeX distribution that includes XeLaTeX
 
 ### Build Commands
 
 ```bash
-# Build the mdbook (static HTML site) → outputs to mdbook/book/
+# Static HTML site → mdbook/book/
 python3 build.py mdbook
 
-# Build the PDF via pandoc + xelatex
-python3 build.py pdf
+# PDF (needs the "pdf" dependency group for SVG conversion)
+uv run --group pdf python3 build.py pdf
 
-# Build both
-python3 build.py all
-
-# Reconstruct single Building-on-Algorand.md from chapters
+# Reconstruct the single-file Building-on-Algorand.md
 python3 build.py concat
 ```
 
 ### Validation Harness
 
-The repository includes a uv-based validation harness for tests, extracted
-contract compilation, and tracked walkthrough coverage:
-
 ```bash
-# Unit tests
+# Book integrity: spine drift, cross-references, example numbering,
+# generated-appendix sync
 uv run --group test python -m pytest tests -q
 
-# Manifest + unit tests + PuyaPy compile checks + LocalNet status
-uv run --group test --group compile python scripts/validate.py --all
+# Structural drift checker on its own
+python3 scripts/check_book.py
+
+# Run every annotated example in its declared mode
+uv run --group compile --group test python scripts/compile_examples.py
 ```
 
-See `validation/README.md` and `validation/manifest.json` for the active
-validation targets plus pending compile, high-risk-flow, and LocalNet
-walkthrough gaps.
+`validation/manifest.json` maps every promise the front matter makes to the
+check that enforces it. CI (`.github/workflows/validate.yml`) runs the full
+set on every push.
 
 ## Disclaimer
 
-This book was generated with the assistance of AI (Claude, by Anthropic). The cover image was generated with Grok (xAI). While the code has been compiled, tested, and reviewed, it may contain errors or outdated information. **The smart contracts are for educational purposes** — any code intended for mainnet **must undergo a professional security audit**. See the full [Legal Notice](https://m1o1.github.io/building-on-algo/) in the book.
+This book was generated with the assistance of AI (Claude, by Anthropic). The
+cover image was generated with Grok (xAI). While the code has been compiled,
+tested, and reviewed, it may contain errors or outdated information. **The
+smart contracts are for educational purposes** — any code intended for
+mainnet **must undergo a professional security audit**. See the full
+[Legal Notice](https://m1o1.github.io/building-on-algo/) in the book.
 
 ## License
 

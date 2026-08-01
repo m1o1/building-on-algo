@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 410" role="img" aria-label="The two ways a logic signature is used: a contract account whose address is the hash of its program and which has no private key, beside a delegated signature where an existing keyed account signs the program once and the signed file carries that account's authority irrevocably">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- left: contract account -->
+    <rect x="30" y="26" width="395" height="360" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="50" y="56" font-size="16" font-weight="bold">Contract account</text>
+    <text x="50" y="78" font-size="13" fill="#5a6172">the program is the account</text>
+
+    <rect x="50" y="94" width="170" height="56" rx="6" fill="#e8eaef"/>
+    <text x="135" y="118" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">program P</text>
+    <text x="135" y="138" font-size="12.5" text-anchor="middle" fill="#5a6172">compiled TEAL</text>
+
+    <line x1="135" y1="154" x2="135" y2="192" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="150" y="176" font-size="12.5" font-family="DejaVu Sans Mono, monospace">address = SHA512-256(program)</text>
+
+    <rect x="50" y="196" width="355" height="76" rx="6" fill="#e8eaef"/>
+    <text x="66" y="220" font-size="13" font-family="DejaVu Sans Mono, monospace">KRT4…5DVQ</text>
+    <text x="66" y="242" font-size="13">an account — holds Algo and assets</text>
+    <text x="66" y="262" font-size="12.5" fill="#5a6172">no private key exists, or ever will</text>
+
+    <text x="50" y="300" font-size="13">signs for: its own address only</text>
+    <text x="50" y="322" font-size="13">at risk: what this address holds — nothing else</text>
+    <text x="50" y="352" font-size="12.5" fill="#5a6172">every spend from the address runs the program</text>
+
+    <!-- right: delegated signature -->
+    <rect x="435" y="26" width="395" height="360" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="455" y="56" font-size="16" font-weight="bold">Delegated signature</text>
+    <text x="455" y="78" font-size="13" fill="#5a6172">the program signs for an existing account</text>
+
+    <rect x="455" y="94" width="355" height="56" rx="6" fill="#e8eaef"/>
+    <text x="472" y="118" font-size="13">Alice's account — an ordinary keyed account</text>
+    <text x="472" y="138" font-size="12.5" fill="#5a6172">her key exists and keeps working</text>
+
+    <line x1="632" y1="154" x2="632" y2="192" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="646" y="170" font-size="12.5">Alice signs it once,</text>
+    <text x="646" y="186" font-size="12.5">with her key</text>
+
+    <rect x="455" y="196" width="355" height="76" rx="6" fill="#e8eaef"/>
+    <text x="472" y="220" font-size="13" font-family="DejaVu Sans Mono, monospace">program P + Alice's signature</text>
+    <text x="472" y="242" font-size="13">a file — whoever holds a copy can use it</text>
+    <text x="472" y="262" font-size="12.5" fill="#5a6172">the bot attaches it to transactions it builds</text>
+
+    <text x="455" y="300" font-size="13">signs for: Alice's address — her authority</text>
+    <text x="455" y="322" font-size="13">at risk: everything the account holds</text>
+
+    <rect x="455" y="336" width="355" height="42" rx="6" fill="#f4f5f7" stroke="#c94f4e" stroke-width="1.5"/>
+    <text x="469" y="353" font-size="12.5" fill="#c94f4e">cannot be revoked — copies may be anywhere;</text>
+    <text x="469" y="369" font-size="12.5" fill="#c94f4e">every bound must be in the program before signing</text>
+  </g>
+</svg>

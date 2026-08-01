@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 450" role="img"
+     aria-label="The byte layout of an ABI method call: args[0] holds the four-byte method selector and args[1] holds the ARC-4 encoded string argument, a two-byte length followed by the bytes"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+
+  <!-- the transaction envelope -->
+  <rect x="20" y="16" width="820" height="110" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="40" y="44" font-size="16" font-weight="600" fill="#2a2f3a">ApplicationCall transaction — the greeter's <tspan font-family="DejaVu Sans Mono, monospace">greet("Ada")</tspan></text>
+
+  <rect x="40" y="60" width="120" height="44" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="100" y="87" font-size="14" fill="#2a2f3a" text-anchor="middle">sender</text>
+  <rect x="172" y="60" width="150" height="44" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="247" y="87" font-size="14" fill="#2a2f3a" text-anchor="middle">app ID 1042</text>
+  <rect x="334" y="60" width="90" height="44" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="379" y="87" font-size="14" fill="#2a2f3a" text-anchor="middle">fee</text>
+  <rect x="436" y="60" width="210" height="44" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="541" y="87" font-size="14" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">ApplicationArgs[]</text>
+  <rect x="658" y="60" width="60" height="44" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="688" y="87" font-size="14" fill="#2a2f3a" text-anchor="middle">…</text>
+
+  <!-- zoom lines -->
+  <line x1="436" y1="104" x2="60" y2="168" stroke="#5a6172" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="646" y1="104" x2="680" y2="255" stroke="#5a6172" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- args[0] -->
+  <text x="60" y="190" font-size="15" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace" font-weight="600">args[0]</tspan> — always 4 bytes: the method selector</text>
+  <rect x="60" y="200" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="92" y="229" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">d0</text>
+  <rect x="126" y="200" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="158" y="229" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">a2</text>
+  <rect x="192" y="200" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="224" y="229" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">82</text>
+  <rect x="258" y="200" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="290" y="229" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">00</text>
+  <text x="92" y="264" font-size="12" fill="#5a6172" text-anchor="middle">0</text>
+  <text x="158" y="264" font-size="12" fill="#5a6172" text-anchor="middle">1</text>
+  <text x="224" y="264" font-size="12" fill="#5a6172" text-anchor="middle">2</text>
+  <text x="290" y="264" font-size="12" fill="#5a6172" text-anchor="middle">3</text>
+  <text x="360" y="220" font-size="13" fill="#2a2f3a">= the first 4 bytes of</text>
+  <text x="360" y="240" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">SHA-512/256("greet(string)string")</text>
+
+  <!-- args[1] -->
+  <text x="60" y="304" font-size="15" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace" font-weight="600">args[1]</tspan> — the argument, ARC-4 encoded</text>
+  <rect x="60" y="314" width="64" height="46" rx="6" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="92" y="343" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">00</text>
+  <rect x="126" y="314" width="64" height="46" rx="6" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="158" y="343" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">03</text>
+  <rect x="192" y="314" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="224" y="343" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">41</text>
+  <rect x="258" y="314" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="290" y="343" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">64</text>
+  <rect x="324" y="314" width="64" height="46" rx="6" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="356" y="343" font-size="15" fill="#2a2f3a" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">61</text>
+  <text x="92" y="378" font-size="12" fill="#5a6172" text-anchor="middle">0</text>
+  <text x="158" y="378" font-size="12" fill="#5a6172" text-anchor="middle">1</text>
+  <text x="224" y="378" font-size="12" fill="#5a6172" text-anchor="middle">2</text>
+  <text x="290" y="378" font-size="12" fill="#5a6172" text-anchor="middle">3</text>
+  <text x="356" y="378" font-size="12" fill="#5a6172" text-anchor="middle">4</text>
+
+  <!-- the boundary -->
+  <line x1="191" y1="308" x2="191" y2="366" stroke="#3d7dd8" stroke-width="2"/>
+  <text x="432" y="326" font-size="13" fill="#2a2f3a">length <tspan font-family="DejaVu Sans Mono, monospace">0x0003</tspan> — the width the decoder trusts;</text>
+  <text x="432" y="345" font-size="13" fill="#2a2f3a">the three bytes after the boundary, <tspan font-family="DejaVu Sans Mono, monospace">"Ada"</tspan>, are</text>
+  <text x="432" y="364" font-size="13" fill="#2a2f3a">read to exactly that width</text>
+
+  <!-- bottom note -->
+  <text x="60" y="412" font-size="13" fill="#2a2f3a">A <tspan font-family="DejaVu Sans Mono, monospace">uint64</tspan> argument would be exactly 8 bytes in a slot of its own, with no header. The decoder checks widths;</text>
+  <text x="60" y="431" font-size="13" fill="#2a2f3a">a call fails to decode when the two ends disagree about a boundary, never about a value.</text>
+</svg>

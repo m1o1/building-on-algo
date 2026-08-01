@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 500" role="img"
+     aria-label="The hybrid architecture: an order book smart contract holding next_order_id and per-order boxes with four methods, joined by an atomic group to a per-order limit order LogicSig carrying nine template variables and validating the group, price, amount, expiry and safety fields"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="haN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- left: order book -->
+  <rect x="30" y="26" width="380" height="448" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="50" y="56" font-size="16" font-weight="bold" fill="#2a2f3a">Order Book</text>
+  <text x="50" y="78" font-size="13" fill="#5a6172">smart contract</text>
+
+  <text x="50" y="112" font-size="13" font-weight="600" fill="#2a2f3a">Global state</text>
+  <text x="66" y="134" font-size="12.5" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">next_order_id</tspan> — and nothing else</text>
+
+  <text x="50" y="168" font-size="13" font-weight="600" fill="#2a2f3a">Box storage</text>
+  <text x="66" y="190" font-size="12.5" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">orders/{order_id} &#8594; OrderInfo</text>
+  <text x="66" y="210" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace">(seller, sell_asset, buy_asset,</text>
+  <text x="66" y="228" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace"> price, max_amount, filled_amount,</text>
+  <text x="66" y="246" font-size="12" fill="#5a6172" font-family="DejaVu Sans Mono, monospace"> status, expiry)</text>
+
+  <text x="50" y="284" font-size="13" font-weight="600" fill="#2a2f3a">Methods</text>
+  <text x="66" y="306" font-size="12.5" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">place_order(...)</tspan> — registers an order</text>
+  <text x="66" y="328" font-size="12.5" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">fill_order(...)</tspan> — keeper executes fill</text>
+  <text x="66" y="350" font-size="12.5" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">cancel_order(...)</tspan> — seller cancels</text>
+  <text x="66" y="372" font-size="12.5" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">cleanup_expired_order(...)</tspan></text>
+  <text x="66" y="390" font-size="12.5" fill="#2a2f3a">    — frees the box</text>
+
+  <!-- connector -->
+  <line x1="414" y1="250" x2="446" y2="250" stroke="#5a6172" stroke-width="1.5" marker-start="url(#haN)" marker-end="url(#haN)"/>
+  <text x="430" y="232" font-size="12.5" fill="#5a6172" text-anchor="middle">atomic</text>
+  <text x="430" y="274" font-size="12.5" fill="#5a6172" text-anchor="middle">group</text>
+
+  <!-- right: limit order logicsig -->
+  <rect x="450" y="26" width="380" height="448" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="470" y="56" font-size="16" font-weight="bold" fill="#2a2f3a">Limit Order LogicSig</text>
+  <text x="470" y="78" font-size="13" fill="#5a6172">smart signature, one program per order</text>
+
+  <text x="470" y="112" font-size="13" font-weight="600" fill="#2a2f3a">Template variables</text>
+  <text x="486" y="134" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">ORDER_BOOK_APP_ID, GENESIS_HASH,</text>
+  <text x="486" y="152" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">SELL_ASSET, BUY_ASSET, PRICE_N,</text>
+  <text x="486" y="170" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">PRICE_D, MAX_SELL, EXPIRY_ROUND,</text>
+  <text x="486" y="188" font-size="12" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">ORDER_ID</text>
+
+  <text x="470" y="226" font-size="13" font-weight="600" fill="#2a2f3a">Validates</text>
+  <text x="486" y="248" font-size="12.5" fill="#2a2f3a">&#8226; grouped with <tspan font-family="DejaVu Sans Mono, monospace">fill_order(ORDER_ID)</tspan></text>
+  <text x="486" y="266" font-size="12.5" fill="#2a2f3a">   on the order book app</text>
+  <text x="486" y="288" font-size="12.5" fill="#2a2f3a">&#8226; asset transfer matches price constraints</text>
+  <text x="486" y="310" font-size="12.5" fill="#2a2f3a">&#8226; amount &#8804; <tspan font-family="DejaVu Sans Mono, monospace">MAX_SELL</tspan></text>
+  <text x="486" y="332" font-size="12.5" fill="#2a2f3a">&#8226; not expired</text>
+  <text x="486" y="354" font-size="12.5" fill="#2a2f3a">&#8226; network, close-to, rekey, and fee safety</text>
+
+  <text x="470" y="400" font-size="12.5" fill="#5a6172">rests off-chain, signed once by the trader,</text>
+  <text x="470" y="418" font-size="12.5" fill="#5a6172">submitted by any keeper</text>
+</svg>

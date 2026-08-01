@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "lottery"
+version = "0.1.0"
+description = "Chapter 19 beacon lottery sample for Building on Algorand"
+authors = ["Building on Algorand contributors"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+algokit-utils = "^4.0.0"
+python-dotenv = "^1.0.0"
+algorand-python = "^3"
+algorand-python-testing = "^1"
+
+[tool.poetry.group.dev.dependencies]
+algokit-client-generator = "^2.1.0"
+puyapy = "*"
+pytest = "^9.0.0"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+  "localnet: requires a running AlgoKit LocalNet",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

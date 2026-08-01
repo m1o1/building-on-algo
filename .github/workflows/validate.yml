@@ -1,0 +1,26 @@
+name: Validate manuscript and examples
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Manuscript drift-check + regression suite
+        run: uv run --group test python -m pytest tests -q
+
+      - name: Structure check (explicit)
+        run: python3 scripts/check_book.py
+
+      - name: Example harness (declared modes)
+        run: uv run --group test --group compile python scripts/compile_examples.py --no-cache

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 450" role="img"
+     aria-label="A transaction group writing into one shared copy-on-write view of the ledger, which becomes the ledger only if every transaction approves and is thrown away if any one rejects"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#3d8a5f"/>
+    </marker>
+    <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+
+  <!-- the ledger -->
+  <rect x="30" y="120" width="180" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="48" y="150" font-size="16" font-weight="600" fill="#2a2f3a">The ledger</text>
+  <text x="48" y="174" font-size="13" fill="#2a2f3a">as of round r —</text>
+  <text x="48" y="194" font-size="13" fill="#2a2f3a">the only real state</text>
+
+  <line x1="210" y1="182" x2="274" y2="182" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="242" y="170" font-size="13" fill="#5a6172" text-anchor="middle">copied</text>
+
+  <!-- the shared working copy -->
+  <rect x="280" y="40" width="330" height="350" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="296" y="68" font-size="15" font-weight="600" fill="#2a2f3a">the group's shared working copy</text>
+  <text x="296" y="88" font-size="13" fill="#5a6172">staged state — not yet the ledger</text>
+
+  <rect x="300" y="108" width="290" height="62" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="316" y="130" font-size="14" font-weight="600" fill="#2a2f3a">txn 1 — Payment</text>
+  <text x="316" y="152" font-size="13" fill="#2a2f3a">writes: pool balance +5 Algo</text>
+  <line x1="445" y1="170" x2="445" y2="184" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="300" y="186" width="290" height="62" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="316" y="208" font-size="14" font-weight="600" fill="#2a2f3a">txn 2 — AppCall <tspan font-family="DejaVu Sans Mono, monospace">swap()</tspan></text>
+  <text x="316" y="230" font-size="13" fill="#2a2f3a">sees 1's write · writes reserves</text>
+  <line x1="445" y1="248" x2="445" y2="262" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="300" y="264" width="290" height="62" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="316" y="286" font-size="14" font-weight="600" fill="#2a2f3a">txn 3 — AppCall <tspan font-family="DejaVu Sans Mono, monospace">claim()</tspan></text>
+  <text x="316" y="308" font-size="13" fill="#2a2f3a">sees 2's write · writes owed</text>
+
+  <text x="296" y="352" font-size="13" fill="#5a6172">they run in order, each seeing the</text>
+  <text x="296" y="370" font-size="13" fill="#5a6172">writes before it — applied nowhere</text>
+
+  <!-- the single moment -->
+  <line x1="610" y1="215" x2="646" y2="215" stroke="#5a6172" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="650" y="187" width="190" height="56" rx="8" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="745" y="210" font-size="14" font-weight="600" fill="#2a2f3a" text-anchor="middle">did every one of</text>
+  <text x="745" y="230" font-size="14" font-weight="600" fill="#2a2f3a" text-anchor="middle">them approve?</text>
+
+  <!-- yes: commit -->
+  <line x1="745" y1="243" x2="745" y2="286" stroke="#3d8a5f" stroke-width="1.5" marker-end="url(#aG)"/>
+  <text x="756" y="270" font-size="13" fill="#3d8a5f">yes — all</text>
+  <rect x="620" y="290" width="220" height="84" rx="8" fill="#f4f5f7" stroke="#3d8a5f" stroke-width="2"/>
+  <text x="730" y="316" font-size="13" fill="#2a2f3a" text-anchor="middle">the copy's final state</text>
+  <text x="730" y="336" font-size="13" fill="#2a2f3a" text-anchor="middle">becomes the ledger —</text>
+  <text x="730" y="356" font-size="13" fill="#2a2f3a" text-anchor="middle">one commit, at block write</text>
+  <path d="M730 374 C 700 440 260 450 140 276" fill="none" stroke="#3d8a5f" stroke-width="1.5" marker-end="url(#aG)"/>
+  <text x="430" y="437" font-size="13" fill="#3d8a5f" text-anchor="middle">the one moment it becomes real</text>
+
+  <!-- no: discard -->
+  <line x1="745" y1="187" x2="745" y2="146" stroke="#c94f4e" stroke-width="1.5" marker-end="url(#aD)"/>
+  <text x="756" y="172" font-size="13" fill="#c94f4e">no — any one</text>
+  <rect x="620" y="60" width="220" height="82" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="730" y="86" font-size="13" fill="#2a2f3a" text-anchor="middle">the copy is thrown away —</text>
+  <text x="730" y="106" font-size="13" fill="#2a2f3a" text-anchor="middle">the ledger never changes,</text>
+  <text x="730" y="126" font-size="13" fill="#2a2f3a" text-anchor="middle">and there is nothing to unwind</text>
+</svg>

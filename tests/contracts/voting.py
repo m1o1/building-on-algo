@@ -1,4 +1,4 @@
-"""Private governance voting contract - extracted from Chapter 10 of the book.
+"""Private governance voting contract - extracted from Chapter 23 of the book.
 Tests the MiMC padding fix (choice must be padded to 32 bytes)."""
 
 from algopy import (

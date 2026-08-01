@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 264" role="img"
+     aria-label="The eight-transaction proof-submission group: a LogicSig-signed call to the verifier anchor app at index 0 performing the ZK verification, six companion transactions at indices 1 through 6 contributing 20,000 opcode units each, and the voter's call to record_bound_proof at index 7 performing the state update"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="pgN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5a6172"/>
+    </marker>
+  </defs>
+
+  <!-- annotations above, one per slot -->
+  <text x="155" y="34" font-size="13" fill="#5a6172" text-anchor="middle">ZK verification</text>
+  <line x1="155" y1="42" x2="155" y2="62" stroke="#5a6172" stroke-width="1.5" marker-end="url(#pgN)"/>
+
+  <text x="430" y="34" font-size="13" fill="#5a6172" text-anchor="middle">+20,000 units each</text>
+  <line x1="430" y1="42" x2="430" y2="62" stroke="#5a6172" stroke-width="1.5" marker-end="url(#pgN)"/>
+
+  <text x="705" y="34" font-size="13" fill="#5a6172" text-anchor="middle">state update</text>
+  <line x1="705" y1="42" x2="705" y2="62" stroke="#5a6172" stroke-width="1.5" marker-end="url(#pgN)"/>
+
+  <!-- [0] the verifier call -->
+  <rect x="40" y="66" width="230" height="102" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="2"/>
+  <text x="56" y="94" font-size="15" font-weight="600" fill="#2a2f3a">[0]</text>
+  <text x="56" y="120" font-size="13" fill="#2a2f3a">LogicSig-signed call</text>
+  <text x="56" y="140" font-size="13" fill="#2a2f3a">to the verifier anchor app</text>
+
+  <!-- [1..6] companions -->
+  <rect x="290" y="66" width="280" height="102" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="306" y="94" font-size="15" font-weight="600" fill="#2a2f3a">[1..6]</text>
+  <text x="306" y="120" font-size="13" fill="#2a2f3a">companion transactions</text>
+  <text x="306" y="140" font-size="13" fill="#2a2f3a">for LogicSig budget</text>
+
+  <!-- [7] the governance call -->
+  <rect x="590" y="66" width="230" height="102" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="2"/>
+  <text x="606" y="94" font-size="15" font-weight="600" fill="#2a2f3a">[7]</text>
+  <text x="606" y="120" font-size="13" fill="#2a2f3a">voter &#8594; <tspan font-family="DejaVu Sans Mono, monospace">GovernanceVoting</tspan></text>
+  <text x="606" y="140" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">.record_bound_proof</text>
+
+  <!-- group bracket -->
+  <path d="M40 178 L40 186 L820 186 L820 178" fill="none" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="430" y1="186" x2="430" y2="194" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="430" y="212" font-size="13" fill="#5a6172" text-anchor="middle">one transaction group &#8212; eight transactions, one fate</text>
+
+  <text x="40" y="248" font-size="13" fill="#2a2f3a">If the proof is invalid, the LogicSig at [0] rejects and nothing in the group is applied.</text>
+</svg>

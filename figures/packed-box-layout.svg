@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 552" role="img" aria-label="The same twenty-four-byte struct stored two ways with the minimum balance priced both times: packed in one box for 25,300 microAlgo, or split across three boxes for 56,700 microAlgo because the address in each name is paid for three times">
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- Panel A: one box, packed -->
+    <rect x="30" y="28" width="800" height="216" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="46" y="58" font-size="16" font-weight="bold">One box, packed</text>
+    <text x="814" y="58" font-size="13" text-anchor="end" font-family="DejaVu Sans Mono, monospace">2,500 + 400 × (33 + 24) = 25,300 microAlgo</text>
+
+    <text x="46" y="90" font-size="13" fill="#5a6172">key — 33 bytes</text>
+    <text x="420" y="90" font-size="13" fill="#5a6172">value — 24 bytes, three fields at fixed offsets</text>
+
+    <!-- key ruler -->
+    <rect x="46" y="98" width="48" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="70" y="117" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">v</text>
+    <text x="70" y="133" font-size="12" text-anchor="middle" fill="#5a6172">1 B</text>
+    <rect x="94" y="98" width="266" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="227" y="117" font-size="13" text-anchor="middle">holder's address</text>
+    <text x="227" y="133" font-size="12" text-anchor="middle" fill="#5a6172">32 B</text>
+
+    <!-- value ruler -->
+    <rect x="420" y="98" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="475" y="117" font-size="13" text-anchor="middle">total</text>
+    <text x="475" y="133" font-size="12" text-anchor="middle" fill="#5a6172">uint64 · 8 B</text>
+    <rect x="530" y="98" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="585" y="117" font-size="13" text-anchor="middle">claimed</text>
+    <text x="585" y="133" font-size="12" text-anchor="middle" fill="#5a6172">uint64 · 8 B</text>
+    <rect x="640" y="98" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="695" y="117" font-size="13" text-anchor="middle">deadline</text>
+    <text x="695" y="133" font-size="12" text-anchor="middle" fill="#5a6172">uint64 · 8 B</text>
+
+    <!-- byte-offset ruler -->
+    <line x1="420" y1="142" x2="420" y2="150" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="530" y1="142" x2="530" y2="150" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="640" y1="142" x2="640" y2="150" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="750" y1="142" x2="750" y2="150" stroke="#5a6172" stroke-width="1.5"/>
+    <line x1="420" y1="146" x2="750" y2="146" stroke="#5a6172" stroke-width="1"/>
+    <text x="420" y="164" font-size="12" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">0</text>
+    <text x="530" y="164" font-size="12" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">8</text>
+    <text x="640" y="164" font-size="12" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">16</text>
+    <text x="750" y="164" font-size="12" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">24</text>
+
+    <text x="46" y="192" font-size="13">One 2,500 constant; the address named once. References needed: 1.</text>
+    <text x="46" y="218" font-size="13" font-family="DejaVu Sans Mono, monospace">extract(offset, 8) reads one field; replace(offset, bytes) writes it</text>
+
+    <!-- Panel B: three boxes, split -->
+    <rect x="30" y="268" width="800" height="270" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="46" y="298" font-size="16" font-weight="bold">Three boxes, split</text>
+    <text x="814" y="298" font-size="13" text-anchor="end" font-family="DejaVu Sans Mono, monospace">3 × (2,500 + 400 × (33 + 8)) = 56,700 microAlgo</text>
+
+    <!-- box 1 -->
+    <rect x="46" y="312" width="48" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="70" y="337" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">t</text>
+    <rect x="94" y="312" width="266" height="40" rx="3" fill="#3d7dd8" fill-opacity="0.16" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="227" y="337" font-size="13" text-anchor="middle">holder's address — 32 B</text>
+    <rect x="420" y="312" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="475" y="337" font-size="13" text-anchor="middle">total — 8 B</text>
+
+    <!-- box 2 -->
+    <rect x="46" y="368" width="48" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="70" y="393" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">c</text>
+    <rect x="94" y="368" width="266" height="40" rx="3" fill="#3d7dd8" fill-opacity="0.16" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="227" y="393" font-size="13" text-anchor="middle">holder's address — 32 B</text>
+    <rect x="420" y="368" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="475" y="393" font-size="13" text-anchor="middle">claimed — 8 B</text>
+
+    <!-- box 3 -->
+    <rect x="46" y="424" width="48" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="70" y="449" font-size="13" text-anchor="middle" font-family="DejaVu Sans Mono, monospace">d</text>
+    <rect x="94" y="424" width="266" height="40" rx="3" fill="#3d7dd8" fill-opacity="0.16" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="227" y="449" font-size="13" text-anchor="middle">holder's address — 32 B</text>
+    <rect x="420" y="424" width="110" height="40" rx="3" fill="#e8eaef" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="475" y="449" font-size="13" text-anchor="middle">deadline — 8 B</text>
+
+    <!-- side notes -->
+    <text x="560" y="330" font-size="13" fill="#3d7dd8">the same 32 bytes in every name:</text>
+    <text x="560" y="350" font-size="13" font-family="DejaVu Sans Mono, monospace" fill="#3d7dd8">400 × 32 = 12,800 — paid three times</text>
+    <text x="560" y="392" font-size="13">+ two more 2,500 constants</text>
+    <text x="560" y="412" font-size="13">+ the one-byte prefix, twice more</text>
+    <text x="560" y="452" font-size="13">three boxes — references needed: 3</text>
+
+    <text x="46" y="498" font-size="13" fill="#5a6172">Splitting buys I/O only when a call reads one piece and not the others.</text>
+    <text x="46" y="518" font-size="13" fill="#5a6172">These three are always read together — packing wins on both counts.</text>
+  </g>
+</svg>

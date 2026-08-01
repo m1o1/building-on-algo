@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 508" role="img" aria-label="The two ways a method is reached: a person calling directly and a contract calling through an inner transaction; both populate Txn.sender, and only Global.caller_application_id, zero exactly on the direct path, separates them">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <text x="225" y="48" font-size="15" font-weight="bold" text-anchor="middle">A person calls you directly</text>
+    <text x="225" y="68" font-size="12.5" text-anchor="middle" fill="#5a6172">a top-level application call</text>
+    <text x="635" y="48" font-size="15" font-weight="bold" text-anchor="middle">A contract calls you</text>
+    <text x="635" y="68" font-size="12.5" text-anchor="middle" fill="#5a6172">an inner call from another application</text>
+
+    <!-- left column -->
+    <rect x="110" y="84" width="230" height="52" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="225" y="106" font-size="14" text-anchor="middle">Alice — holds a key</text>
+    <text x="225" y="126" font-size="12.5" text-anchor="middle" fill="#5a6172">she signed this transaction</text>
+    <line x1="225" y1="140" x2="225" y2="176" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="237" y="162" font-size="12.5" fill="#5a6172">app call</text>
+    <rect x="110" y="180" width="230" height="48" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="225" y="208" font-size="14" text-anchor="middle">your method</text>
+
+    <!-- right column -->
+    <rect x="520" y="84" width="230" height="40" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="635" y="109" font-size="14" text-anchor="middle">Alice — holds a key</text>
+    <line x1="635" y1="128" x2="635" y2="152" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="647" y="144" font-size="12.5" fill="#5a6172">calls app 7001</text>
+    <rect x="520" y="156" width="230" height="40" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="635" y="181" font-size="14" text-anchor="middle">App 7001</text>
+    <line x1="635" y1="200" x2="635" y2="224" stroke="#5a6172" stroke-width="1.5" marker-end="url(#mN)"/>
+    <text x="647" y="208" font-size="12.5" fill="#5a6172">inner call, sent by</text>
+    <text x="647" y="222" font-size="12.5" fill="#5a6172">7001's app address</text>
+    <rect x="520" y="228" width="230" height="48" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="635" y="256" font-size="14" text-anchor="middle">your method</text>
+
+    <!-- left fields -->
+    <rect x="30" y="248" width="390" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="46" y="272" font-size="12.5" fill="#5a6172">what your guard sees:</text>
+    <text x="46" y="300" font-size="13" font-family="DejaVu Sans Mono, monospace">Txn.sender = ALICE…</text>
+    <text x="46" y="318" font-size="12" fill="#5a6172">she signed it herself</text>
+    <rect x="40" y="332" width="370" height="26" rx="4" fill="#3d7dd8" opacity="0.12"/>
+    <text x="46" y="350" font-size="13" font-family="DejaVu Sans Mono, monospace">Global.caller_application_id = 0</text>
+    <text x="46" y="378" font-size="12.5" fill="#3d7dd8">zero exactly when a person called directly</text>
+
+    <!-- right fields -->
+    <rect x="440" y="292" width="390" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="456" y="316" font-size="12.5" fill="#5a6172">what your guard sees:</text>
+    <text x="456" y="344" font-size="13" font-family="DejaVu Sans Mono, monospace">Txn.sender = 7001's app address</text>
+    <text x="456" y="362" font-size="12" fill="#5a6172">a real sender — an address with no key</text>
+    <rect x="450" y="376" width="370" height="26" rx="4" fill="#3d7dd8" opacity="0.12"/>
+    <text x="456" y="394" font-size="13" font-family="DejaVu Sans Mono, monospace">Global.caller_application_id = 7001</text>
+    <text x="456" y="422" font-size="12.5" fill="#3d7dd8">nonzero exactly when a contract called</text>
+
+    <text x="430" y="472" font-size="13" text-anchor="middle">Both paths populate <tspan font-family="DejaVu Sans Mono, monospace">Txn.sender</tspan> — it says who sent, not whether a person decided.</text>
+    <text x="430" y="494" font-size="13" text-anchor="middle">Only <tspan font-family="DejaVu Sans Mono, monospace">Global.caller_application_id</tspan> separates them.</text>
+  </g>
+</svg>

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 560" role="img" aria-label="Four bills for one application call, shown as four concurrent panels with no arrows: minimum balance billed to the creator and the application account, fees billed to the sender, opcode budget spent and discarded, and the reference list checked at each read">
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <text x="30" y="42" font-size="13" fill="#5a6172" letter-spacing="1">CHARGED IN MONEY</text>
+
+    <!-- Panel 1: minimum balance -->
+    <rect x="30" y="52" width="390" height="220" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="46" y="82" font-size="16" font-weight="bold">MINIMUM BALANCE</text>
+    <rect x="288" y="64" width="116" height="22" rx="11" fill="#e8eaef"/>
+    <text x="346" y="79" font-size="12" text-anchor="middle" fill="#5a6172">billed weeks ago</text>
+    <text x="46" y="104" font-size="13">for: the storage the application occupies</text>
+
+    <rect x="46" y="114" width="358" height="48" rx="6" fill="#e8eaef"/>
+    <text x="58" y="134" font-size="13">schema + extra pages — billed to <tspan font-weight="bold" fill="#3d7dd8">the creator</tspan></text>
+    <text x="58" y="153" font-size="12" font-family="DejaVu Sans Mono, monospace">100,000 + 28,500/uint + 50,000/byte slot</text>
+
+    <rect x="46" y="168" width="358" height="48" rx="6" fill="#e8eaef"/>
+    <text x="58" y="188" font-size="13">each box — billed to <tspan font-weight="bold" fill="#3d7dd8">the application account</tspan></text>
+    <text x="58" y="207" font-size="12" font-family="DejaVu Sans Mono, monospace">2,500 + 400 × (len(key) + len(value))</text>
+
+    <text x="46" y="240" font-size="13" fill="#5a6172">Two payers — the pair most often reversed.</text>
+    <text x="46" y="258" font-size="13" fill="#5a6172">Locked, not spent; returns on delete.</text>
+
+    <!-- Panel 2: fee -->
+    <rect x="445" y="52" width="385" height="220" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="461" y="82" font-size="16" font-weight="bold">FEE</text>
+    <rect x="736" y="64" width="78" height="22" rx="11" fill="#e8eaef"/>
+    <text x="775" y="79" font-size="12" text-anchor="middle" fill="#5a6172">billed now</text>
+    <text x="461" y="104" font-size="13">for: every transaction sent, inner ones included</text>
+
+    <rect x="461" y="114" width="353" height="48" rx="6" fill="#e8eaef"/>
+    <text x="473" y="134" font-size="13">billed to <tspan font-weight="bold" fill="#3d7dd8">the sender</tspan> of each transaction</text>
+    <text x="473" y="153" font-size="12" font-family="DejaVu Sans Mono, monospace">minimum today: 1,000 microAlgo — a parameter</text>
+
+    <rect x="461" y="168" width="353" height="48" rx="6" fill="#e8eaef"/>
+    <text x="473" y="188" font-size="13">fee pooling: any group member may cover another</text>
+    <text x="473" y="207" font-size="12" font-family="DejaVu Sans Mono, monospace">inner txns: fee=0 — make the caller cover them</text>
+
+    <text x="461" y="240" font-size="13" fill="#5a6172">Spent when the transaction confirms.</text>
+    <text x="461" y="258" font-size="13" fill="#5a6172">It does not come back.</text>
+
+    <text x="30" y="304" font-size="13" fill="#5a6172" letter-spacing="1">NOT MONEY AT ALL</text>
+
+    <!-- Panel 3: opcode budget -->
+    <rect x="30" y="314" width="390" height="220" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="46" y="344" font-size="16" font-weight="bold">OPCODE BUDGET</text>
+    <rect x="233" y="326" width="171" height="22" rx="11" fill="#e8eaef"/>
+    <text x="318" y="341" font-size="12" text-anchor="middle" fill="#5a6172">spent within milliseconds</text>
+    <text x="46" y="366" font-size="13">for: every opcode the program executes</text>
+
+    <rect x="46" y="376" width="358" height="48" rx="6" fill="#e8eaef"/>
+    <text x="58" y="396" font-size="13">billed to <tspan font-weight="bold">nobody</tspan> — no account receives it</text>
+    <text x="58" y="415" font-size="12" font-family="DejaVu Sans Mono, monospace">700 per app call, pooled across the group</text>
+
+    <rect x="46" y="430" width="358" height="48" rx="6" fill="#e8eaef"/>
+    <text x="58" y="450" font-size="13">leftovers are discarded, never banked</text>
+    <text x="58" y="469" font-size="12" font-family="DejaVu Sans Mono, monospace">buy more: ensure_budget() or pad the group</text>
+
+    <text x="46" y="502" font-size="13" fill="#5a6172">Who pays for the extra calls is the real</text>
+    <text x="46" y="520" font-size="13" fill="#5a6172">question — one of the two sources is a drain.</text>
+
+    <!-- Panel 4: reference list -->
+    <rect x="445" y="314" width="385" height="220" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="461" y="344" font-size="16" font-weight="bold">REFERENCE LIST</text>
+    <rect x="674" y="326" width="140" height="22" rx="11" fill="#e8eaef"/>
+    <text x="744" y="341" font-size="12" text-anchor="middle" fill="#5a6172">checked at each read</text>
+    <text x="461" y="366" font-size="13">for: each account, asset, app and box touched</text>
+
+    <rect x="461" y="376" width="353" height="48" rx="6" fill="#e8eaef"/>
+    <text x="473" y="396" font-size="13">billed to <tspan font-weight="bold">nobody</tspan> — capacity, not currency</text>
+    <text x="473" y="415" font-size="12" font-family="DejaVu Sans Mono, monospace">fixed slots per transaction, declared up front</text>
+
+    <rect x="461" y="430" width="353" height="48" rx="6" fill="#e8eaef"/>
+    <text x="473" y="450" font-size="13">an undeclared read fails at the reading opcode</text>
+    <text x="473" y="469" font-size="12" font-family="DejaVu Sans Mono, monospace">fails as: unavailable Account …</text>
+
+    <text x="461" y="502" font-size="13" fill="#5a6172">Checked as each read happens —</text>
+    <text x="461" y="520" font-size="13" fill="#5a6172">not before the program starts.</text>
+  </g>
+</svg>

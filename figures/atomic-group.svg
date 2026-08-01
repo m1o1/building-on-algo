@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 416" role="img"
+     aria-label="The same three grouped transactions run twice: once with every transaction approving and one commit, once with the third rejecting so that nothing in the group is applied"
+     font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#3d8a5f"/>
+    </marker>
+    <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+
+  <!-- Run one -->
+  <text x="40" y="32" font-size="15" font-weight="600" fill="#2a2f3a">Run one — every transaction approves</text>
+
+  <rect x="40" y="50" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="76" font-size="15" font-weight="600" fill="#2a2f3a">1 · Payment</text>
+  <text x="56" y="98" font-size="13" fill="#2a2f3a">5 Algo → the pool</text>
+  <text x="214" y="74" font-size="15" fill="#3d8a5f" text-anchor="end">✓</text>
+
+  <rect x="244" y="50" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="260" y="76" font-size="15" font-weight="600" fill="#2a2f3a">2 · AssetTransfer</text>
+  <text x="260" y="98" font-size="13" fill="#2a2f3a">100 units → the pool</text>
+  <text x="418" y="74" font-size="15" fill="#3d8a5f" text-anchor="end">✓</text>
+
+  <rect x="448" y="50" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="464" y="76" font-size="15" font-weight="600" fill="#2a2f3a">3 · AppCall</text>
+  <text x="464" y="98" font-size="13" fill="#2a2f3a" font-family="DejaVu Sans Mono, monospace">swap()</text>
+  <text x="622" y="74" font-size="15" fill="#3d8a5f" text-anchor="end">✓</text>
+
+  <path d="M40 132 L40 140 L638 140 L638 132" fill="none" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="339" y1="140" x2="339" y2="148" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="339" y="166" font-size="13" fill="#5a6172" text-anchor="middle">one group ID stamped on all three — submitted as one unit</text>
+
+  <line x1="642" y1="86" x2="654" y2="86" stroke="#3d8a5f" stroke-width="1.5" marker-end="url(#aG)"/>
+  <rect x="660" y="50" width="180" height="72" rx="8" fill="#f4f5f7" stroke="#3d8a5f" stroke-width="2"/>
+  <text x="750" y="76" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">committed</text>
+  <text x="750" y="98" font-size="13" fill="#2a2f3a" text-anchor="middle">all three applied,</text>
+  <text x="750" y="116" font-size="13" fill="#2a2f3a" text-anchor="middle">at one moment</text>
+
+  <!-- Run two -->
+  <text x="40" y="228" font-size="15" font-weight="600" fill="#2a2f3a">Run two — the third transaction rejects</text>
+
+  <rect x="40" y="246" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="56" y="272" font-size="15" font-weight="600" fill="#2a2f3a">1 · Payment</text>
+  <text x="56" y="294" font-size="13" fill="#2a2f3a">5 Algo → the pool</text>
+  <text x="214" y="270" font-size="15" fill="#3d8a5f" text-anchor="end">✓</text>
+
+  <rect x="244" y="246" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="260" y="272" font-size="15" font-weight="600" fill="#2a2f3a">2 · AssetTransfer</text>
+  <text x="260" y="294" font-size="13" fill="#2a2f3a">100 units → the pool</text>
+  <text x="418" y="270" font-size="15" fill="#3d8a5f" text-anchor="end">✓</text>
+
+  <rect x="448" y="246" width="190" height="72" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="464" y="272" font-size="15" font-weight="600" fill="#2a2f3a">3 · AppCall</text>
+  <text x="464" y="294" font-size="13" fill="#2a2f3a"><tspan font-family="DejaVu Sans Mono, monospace">swap()</tspan> — assert fails</text>
+  <text x="622" y="270" font-size="15" fill="#c94f4e" text-anchor="end">✗</text>
+
+  <path d="M40 328 L40 336 L638 336 L638 328" fill="none" stroke="#5a6172" stroke-width="1.5"/>
+  <line x1="339" y1="336" x2="339" y2="344" stroke="#5a6172" stroke-width="1.5"/>
+  <text x="339" y="362" font-size="13" fill="#5a6172" text-anchor="middle">the same group — one member fails</text>
+
+  <line x1="642" y1="282" x2="654" y2="282" stroke="#c94f4e" stroke-width="1.5" marker-end="url(#aD)"/>
+  <rect x="660" y="246" width="180" height="72" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="2"/>
+  <text x="750" y="272" font-size="15" font-weight="600" fill="#2a2f3a" text-anchor="middle">discarded</text>
+  <text x="750" y="294" font-size="13" fill="#2a2f3a" text-anchor="middle">nothing applied —</text>
+  <text x="750" y="312" font-size="13" fill="#2a2f3a" text-anchor="middle">not even 1 and 2</text>
+
+  <!-- bottom note -->
+  <text x="40" y="392" font-size="13" fill="#2a2f3a">There is no rollback, because nothing was ever applied: the effects of 1 and 2 were</text>
+  <text x="40" y="410" font-size="13" fill="#2a2f3a">staged, and the stage was thrown away with the group.</text>
+</svg>

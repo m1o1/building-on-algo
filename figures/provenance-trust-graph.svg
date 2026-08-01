@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 512" role="img" aria-label="Why a factory cannot take a child contract's word for anything: the pool and a clone both claim the factory as parent, and only the entry the factory recorded in its own registry box is unforgeable">
+  <defs>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6172"/>
+    </marker>
+    <marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#3d7dd8"/>
+    </marker>
+    <marker id="mR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c94f4e"/>
+    </marker>
+  </defs>
+  <g font-family="DejaVu Sans, Verdana, sans-serif" fill="#2a2f3a">
+
+    <!-- factory -->
+    <rect x="40" y="60" width="280" height="150" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="56" y="88" font-size="15" font-weight="bold">Factory — app 4200</text>
+    <rect x="56" y="100" width="248" height="64" rx="6" fill="#e8eaef"/>
+    <text x="68" y="122" font-size="12.5" fill="#5a6172">its own box — the registry:</text>
+    <text x="68" y="144" font-size="13" font-family="DejaVu Sans Mono, monospace">pools[(A, B)] = 7001</text>
+    <text x="56" y="192" font-size="12.5" fill="#5a6172">only the factory writes its own boxes</text>
+
+    <!-- pool -->
+    <rect x="580" y="40" width="250" height="124" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="596" y="66" font-size="15" font-weight="bold">Pool — app 7001</text>
+    <rect x="596" y="78" width="218" height="56" rx="6" fill="#e8eaef"/>
+    <text x="608" y="98" font-size="12.5" fill="#5a6172">its global state:</text>
+    <text x="608" y="118" font-size="13" font-family="DejaVu Sans Mono, monospace">factory_app_id = 4200</text>
+    <text x="596" y="152" font-size="12.5" fill="#5a6172">a claim it wrote itself</text>
+
+    <!-- clone -->
+    <rect x="580" y="230" width="250" height="134" rx="8" fill="#f4f5f7" stroke="#c94f4e" stroke-width="1.5"/>
+    <text x="596" y="256" font-size="15" font-weight="bold" fill="#c94f4e">Clone — app 9999</text>
+    <rect x="596" y="268" width="218" height="56" rx="6" fill="#e8eaef"/>
+    <text x="608" y="288" font-size="12.5" fill="#5a6172">its global state:</text>
+    <text x="608" y="308" font-size="13" font-family="DejaVu Sans Mono, monospace">factory_app_id = 4200</text>
+    <text x="596" y="346" font-size="12.5" fill="#c94f4e">✗ not in the factory's registry</text>
+
+    <!-- trust edge: factory registry to pool -->
+    <line x1="304" y1="132" x2="576" y2="108" stroke="#3d7dd8" stroke-width="2.5" marker-end="url(#mB)"/>
+    <text x="330" y="86" font-size="13" fill="#3d7dd8">recorded by the factory itself</text>
+    <text x="330" y="154" font-size="13" fill="#3d7dd8">— the one arrow an attacker cannot forge</text>
+
+    <!-- pool's claim -->
+    <line x1="576" y1="150" x2="328" y2="172" stroke="#5a6172" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#mN)"/>
+    <text x="330" y="196" font-size="12.5" fill="#5a6172">claims its parent — forgeable:</text>
+    <text x="330" y="212" font-size="12.5" fill="#5a6172">the claimant wrote it</text>
+
+    <!-- clone's claim -->
+    <line x1="576" y1="300" x2="308" y2="218" stroke="#c94f4e" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#mR)"/>
+    <text x="348" y="256" font-size="12.5" fill="#c94f4e">the identical claim — and a lie</text>
+
+    <!-- verification strip -->
+    <rect x="40" y="396" width="790" height="96" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="58" y="424" font-size="13"><tspan font-family="DejaVu Sans Mono, monospace">verify_pool(7001)</tspan>: the registry maps (A, B) to 7001 — <tspan fill="#3d8a5f" font-weight="bold">✓ canonical</tspan></text>
+    <text x="58" y="450" font-size="13"><tspan font-family="DejaVu Sans Mono, monospace">verify_pool(9999)</tspan>: the registry maps (A, B) to 7001, not 9999 — <tspan fill="#c94f4e" font-weight="bold">✗ rejected</tspan></text>
+    <text x="58" y="478" font-size="12.5" fill="#5a6172">Every arrow that starts inside the caller is forgeable. Verify in the direction where the trusted party did the writing.</text>
+  </g>
+</svg>
