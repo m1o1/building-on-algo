@@ -509,7 +509,7 @@ After discovering a new API fact via compile-testing that is NOT already documen
 
 Facts verified against the toolchain and official changelogs. Each entry lists the wrong (stale) form and the correct form. When reviewing book content, do NOT flag the correct forms below as errors, and do NOT recommend the stale forms.
 
-**Toolchain context (verified 2026-07-23):** The book pins puyapy 5.8.1 / algorand-python 3.5.0 (PyPI latest: 5.9.0 / 3.5.1), algorand-python-testing 1.1.0, algokit-utils 4.2.3, algokit CLI 2.10.2. All book contracts compile clean with `--target-avm-version 12`. Current MainNet: consensus v41, AVM v12, go-algorand 4.7.x.
+**Toolchain context (verified 2026-09-04):** The book pins puyapy 5.10.1 / algorand-python 4.0.0 (PyPI latest at verification), algorand-python-testing 1.1.0, algokit-utils 4.2.3, algokit CLI 2.10.2. All book contracts compile with `--target-avm-version 13`. Current MainNet: consensus v42, AVM v13, go-algorand 5.0.1.
 
 ### PuyaPy 4.x → 5.x changes (verified against puya CHANGELOG, 2026-07-23)
 
@@ -529,7 +529,9 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
 
 ### Protocol facts (verified against config/consensus.go and release notes, 2026-07-23)
 
-- Consensus v41 / AVM v12 is current on MainNet. AVM v11 (mimc, online_stake, block incentive fields) shipped in go-algorand 4.0 (Jan 2025); AVM v12 (`falcon_verify`, `RejectVersion` app versioning) shipped in go-algorand 4.3.0 (Sep 2025).
+- Consensus v42 / AVM v13 is current on MainNet (go-algorand 5.0.0 protocol upgrade 2026-08-12; 5.0.1 patch 2026-08-31, no protocol change). AVM v11 (mimc, online_stake, block incentive fields) shipped in go-algorand 4.0 (Jan 2025); AVM v12 (`falcon_verify`, `RejectVersion` app versioning) shipped in go-algorand 4.3.0 (Sep 2025); AVM v13 (`sha512`, `poseidon2`, `app_box_*`, `app_params_set`, SizeSponsor, extra pages 3→7, native Falcon-1024 accounts, per-byte usage fees) shipped in go-algorand 5.0.0.
+- **v42 schema/pages on update (verified 2026-09-04 against specs.algorand.co/ledger/ledger-txn-semantics-application):** Local schema is NEVER changed by an update. An `UpdateApplication` MAY rewrite extra pages and GLOBAL schema; supplying either field installs both (growing schema while leaving extra pages at zero also zeroes the pages). Global schema must not shrink below current usage. SizeSponsor = the update sender (unset/zero when sender is the creator). AlgoKit utils 4.2.3 `deploy()` still treats any schema/page increase as `on_schema_break` with no in-place widen option.
+- **`sha512` cost is `15 + 2 per 32 bytes` of input** (`costByLength(15, 2, 32, 0)` in go-algorand `opcodes.go`; max 271 at 4,096 bytes). **`specs.algorand.co/avm/avm-appendix-a` currently renders this transposed** as "15 + 32 per 2 bytes" — that is a spec-site bug, not the real cost. Do not "correct" the book to the spec-site figure.
 - v41 resource access: `MaxAppTxnAccounts` raised 4 → 8; new unified `txn.Access` list with up to 16 entries (accounts/assets/apps/boxes/holdings/locals); `BytesPerBoxReference` raised 1,024 → 2,048 bytes. The classic foreign arrays still work; do not flag either model as wrong, but know both exist.
 - Average block time ~2.8s (dynamic filter timeouts, consensus v39, 2024). Staking rewards live since Jan 2025 (block bonus ~10 ALGO decaying 1%/1M rounds, 50% of fees to proposer, 30K-70M ALGO eligibility window, 2 ALGO go-online fee, heartbeat txn type `hb`).
 - `/v2/teal/dryrun` is deprecated and already deleted from go-algorand master (gone in 4.8+); simulate (`/v2/transactions/simulate`, with `extra-opcode-budget` up to 320,000, `allow-more-logging`, `allow-unnamed-resources`, exec traces) is the only path to teach.
@@ -554,7 +556,7 @@ Facts verified against the toolchain and official changelogs. Each entry lists t
 
 - **The AVM's BN254 G2 point encoding is `x0 ‖ x1 ‖ y0 ‖ y1` (real component first in each coordinate pair), NOT Ethereum EIP-197's imaginary-first order.** Feeding an EIP-197-ordered G2 point to `ec_*` opcodes fails with `point not on curve`. Verified by an on-chain `ec_subgroup_check` probe across all four orderings. This is documented nowhere obvious (not in the algopy stubs, not on dev.algorand.co) and will bite anyone porting Ethereum pairing/verifier fixtures — check the ordering FIRST when a known-good Ethereum G2 vector is rejected.
 - `ec_multi_scalar_mul` costs 3,600 + 90 per 32 bytes of scalars on BN254g1 and **7,200 + 270 on BN254g2** (per `TEAL_opcodes_v12.md` — a plausible-sounding 10,600 figure circulated in review and is wrong). `ec_subgroup_check` is 20 on BN254g1 vs 3,100 on BN254g2 because BN254 G1 has cofactor 1 (membership = on-curve check).
-- LogicSig **size** pooling: consensus v40 (AVM v11) raises `MaxAbsoluteLogicSigProgramSize` to 16,000 while `LogicSigMaxSize` stays 1,000 — the pool is `len(group) × 1,000` over program + args, capped at 16,000 absolute. LogicSig **cost** pooling is v39 (AVM v10). A >1,000-byte LogicSig needs group companions for size even when its opcode cost is trivial; error is `txgroup had N bytes of LogicSigs, more than the available pool of M bytes`.
+- LogicSig **size** pooling: consensus v40 (AVM v11) raises `MaxAbsoluteLogicSigProgramSize` to 16,000 while `LogicSigMaxSize` stays 1,000. Consensus v42 splits program vs args: the pooled 1,000-byte-per-txn program allowance becomes the *free* amount (a single txn can buy up to 16,000 by paying the per-byte surcharge); LogicSig **args** get an independent pooled 1,000 bytes per txn and are **not purchasable**. LogicSig **cost** pooling is v39 (AVM v10). Error for exceeding the free pool without paying is still of the form `txgroup had N bytes of LogicSigs, more than the available pool of M bytes`.
 
 ### algorand-python-testing 1.1.0 behavior (verified empirically, 2026-07-31)
 
@@ -742,7 +744,7 @@ Source: [dev.algorand.co/concepts/protocol/state-proofs/](https://dev.algorand.c
 | Phase | Status | Mechanism |
 |-------|--------|-----------|
 | History protection | Done | State Proofs signed with Falcon-1024 (live since 2022) |
-| Transaction protection | Done | `falcon_verify` opcode shipped in AVM v12 (go-algorand v4.3.0, Sep 2025; consensus v41 activated on MainNet ~Q4 2025). First mainnet PQ transaction Nov 3, 2025 via LogicSig-based Falcon accounts |
+| Transaction protection | Done | `falcon_verify` opcode shipped in AVM v12 (go-algorand v4.3.0, Sep 2025). First mainnet PQ transaction Nov 3, 2025 via LogicSig-based Falcon accounts. Native Falcon-1024 account signatures shipped in consensus v42 / go-algorand 5.0.0 (Aug 2026): 1,793-byte pubkey, sig up to 1,423 bytes, three min-fees |
 | Consensus protection | Research | Post-quantum VRF (ZKBoo/ZKB++, XMSS, or lattice-based). No timeline committed |
 
 Chris Peikert (CSO, Algorand Foundation; formerly Head of Cryptography, Algorand Technologies) co-authored the GPV framework that Falcon is built on. Algorand's implementation uses deterministic signing (Lazar & Peikert).

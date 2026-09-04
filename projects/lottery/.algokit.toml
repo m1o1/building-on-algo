@@ -9,7 +9,7 @@ artifacts = "smart_contracts/artifacts"
 [project.run]
 build = { commands = [
   "poetry run python -m smart_contracts build",
-], description = "Build both contracts at --target-avm-version=12" }
+], description = "Build both contracts at --target-avm-version=13" }
 
 test = { commands = [
   "poetry run pytest -q",

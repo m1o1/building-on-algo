@@ -240,7 +240,7 @@ def test_the_caller_pays_for_both_inner_transactions(algorand) -> None:
     system.run_to_the_draw()
     refuses(
         lambda: system.draw(fee=2_000, quiet=True),
-        "group fee 0.0A too small (need 1mA)",
+        "group fee 0.0A too small (needs 1mA more)",
     )
     system.draw(fee=3_000)
     assert system.state()["drawn"] == 1

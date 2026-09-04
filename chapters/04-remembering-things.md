@@ -298,11 +298,11 @@ class Registry(
 
 `state_totals=StateTotals(global_uints=8, global_bytes=2)` sits on a contract that currently uses exactly one uint and zero bytes. That is deliberate, not sloppy.
 
-**An application's state schema is fixed at creation and can never be widened.** Not by an update, not by a call, not by anything. The schema fields are read once, off the creation transaction, and are never read again.
+**For a contract that refuses updates --- every contract in this book before Chapter 24 --- the state schema declared at creation is the schema it keeps.** Local schema can never be widened by anything. Consensus v42 lets an approved `UpdateApplication` rewrite *global* schema and extra pages, moving the extra MBR onto the updater --- but a refused update never gets that far.
 
 What that failure looks like depends on how you deploy, and the two paths are nothing alike.
 
-A raw `ApplicationUpdate` transaction compares nothing. It pushes new bytecode to the existing application ID, the network accepts it, and the schema fields on that transaction are ignored, because schema is a creation-time property. Nothing anywhere reports an error. You find out in production, when the ninth uint the new code writes has nowhere to go.
+A raw `ApplicationUpdate` transaction compares nothing. It pushes new bytecode to the existing application ID and the network accepts it. Consensus v42 lets that same transaction rewrite extra pages and the *global* schema (the local schema is still ignored). An update that supplies either field installs both, replacing the previous values: growing global schema while leaving extra pages at zero also zeroes the pages, and shrinking global schema below current usage fails. If the update supplies neither field, the old sizes stand and the ninth uint the new code writes has nowhere to go --- nothing reports an error until a call tries to write it. If the contract refuses the update, the new code never deploys at all.
 
 AlgoKit's `deploy()` does compare, and it stops:
 
@@ -324,13 +324,13 @@ That is the default, and it is the right one. Table 4-1 is the whole decision su
 | Only the bytecode | an *update* | `on_update`: `Fail` raises (default), `UpdateApp` keeps the app ID, `AppendApp` creates a second app, `ReplaceApp` creates and deletes |
 | Any schema number went up, or extra pages did | a *schema break* | `on_schema_break`: `Fail` raises (default), `ReplaceApp` creates a new app and deletes the old one **in the same group**, `AppendApp` creates a new app and leaves the old one standing |
 
-The third row has no option that widens the schema in place, because there is no such thing. Every option in it produces a **new application ID**, and a new ID means every opted-in account, every stored balance, and every integration pointing at the old one is now pointing somewhere else.
+The third row still has no in-place widen: as of algokit-utils 4.x, `deploy()` treats a schema increase as a break, even though consensus v42 would accept an `UpdateApplication` that grows global schema or extra pages (local schema still cannot grow). Every option in that row produces a **new application ID**, and a new ID means every opted-in account, every stored balance, and every integration pointing at the old one is now pointing somewhere else.
 
 So you reserve. Eight uints and two bytes cost 8 × 28,500 + 2 × 50,000 = 328,000 microAlgos of MBR, about a third of an Algo, one time, and it is charged to the *creator's* account, not to the application account. Global schema MBR follows the creator; only box storage is funded from the application account itself. That distinction bites when a deployment script funds the app address and then cannot work out why the creator is short.
 
 Every state field you add after launch is either free (because you reserved) or a migration (because you did not).
 
-*Predict: you add a ninth global uint and run `algokit project deploy localnet` against the deployed application. What does `deploy()` print, and what would have happened instead if you had sent a bare `ApplicationUpdate` yourself?*
+*Predict: you add a ninth global uint and run `algokit project deploy localnet` against the deployed application. What does `deploy()` print, and what would have happened instead if you had sent a bare `ApplicationUpdate` that did not declare the new schema?*
 
 **Example 4-8.** Redeploying when the schema no longer fits
 
@@ -490,7 +490,7 @@ class Registry(ARC4Contract):
 
 `arc4.Struct` gives you a named record whose fields are packed into a single ARC-4 encoded byte string. `self.house = GlobalState(Profile(...))` is the whole declaration: one `GlobalState`, one key, one slot of schema --- but two logical fields, and room for more without touching the schema. Because the value is a byte string, it costs a *bytes* slot rather than a *uint* slot, which matters when you count your schema in Example 4-7.
 
-The schema you declare at creation is the schema you have forever (Example 4-7 shows why), so packing related fields into one struct buys you the ability to add a field later by widening the struct instead of widening the schema.
+For every contract that refuses updates --- every one in this book before Chapter 24 --- the schema you declare at creation is the schema you have forever (Example 4-7 shows why), so packing related fields into one struct buys you the ability to add a field later by widening the struct instead of widening the schema.
 
 **Example 4-13.** Assigning an ARC-4 struct without copying it
 
@@ -581,7 +581,7 @@ class Vault(ARC4Contract):
 
 `frozen=True` makes the compiler reject any assignment to a field; `kw_only=True` makes every construction name its fields, so a two-`UInt64` record cannot be built with its arguments transposed. For terms that are set once at creation and read forever, both are free correctness.
 
-Nothing in the registry changes yet. Packing `joined_at` and `credits` into a `Profile` is what makes the corrections that follow affordable, because a schema, once declared, is the schema you have forever.
+Nothing in the registry changes yet. Packing `joined_at` and `credits` into a `Profile` is what makes the corrections that follow affordable, because a refused-update contract's schema, once declared, is the schema it keeps.
 
 ## Getting In and Getting Out
 Every account that interacts with your application does so through a small set of protocol-defined transitions. Four of them touch state: **create** (the application's global slab appears), **opt-in** (the account's local slab appears), **close-out** (the account leaves politely, running your code), and **clear-state** (the account leaves rudely, and your code cannot stop it). The last of the four is what lost the 4,200 credits.

@@ -31,7 +31,7 @@ def load_manifest() -> dict:
 ACTIVE = {"active"}
 PENDING = {"pending", "pending-pr", "pending-extraction"}
 KNOWN_STATUSES = ACTIVE | PENDING
-TARGET_AVM_VERSION = "12"
+TARGET_AVM_VERSION = "13"
 
 
 def test() -> None:

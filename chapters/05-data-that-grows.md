@@ -10,7 +10,7 @@ The last chapter ended on a ceiling. A registry that moved its liabilities into 
 The price is that you now pay per byte, in three currencies: minimum balance, I/O budget, and opcode budget. None of the three is checked by the compiler. This chapter is about seeing those three numbers before the chain shows them to you.
 
 ## A Record Per Attendee
-A conference wants an on-chain guestbook. Attendees sign it once; the contract records who signed and in which round; anybody can ask whether a given account has signed. It is about as simple as a stateful contract gets, and it needs forty bytes per attendee: a 32-byte address followed by an 8-byte round number. Neither slab in Chapter 4 will hold that. The application's 64 global pairs and each account's 16 local ones are fixed at creation, and the number of people who will walk through the door is not.
+A conference wants an on-chain guestbook. Attendees sign it once; the contract records who signed and in which round; anybody can ask whether a given account has signed. It is about as simple as a stateful contract gets, and it needs forty bytes per attendee: a 32-byte address followed by an 8-byte round number. Neither slab in Chapter 4 will hold that. The application's 64 global pairs and each account's 16 local ones are hard ceilings, and the number of people who will walk through the door is not a number you can declare in advance.
 
 So the guestbook goes in a box.
 

@@ -37,7 +37,7 @@ Table 23-1 lists the output checkpoints to compare against the workflow output.
 
 | Output checkpoint | What to watch for |
 |-------------------|-------------------|
-| Verifier LogicSig size | 3,464 assembled bytes of generated verifier |
+| Verifier LogicSig size | 3,447 assembled bytes of generated verifier |
 | Commitment registered | The voter is eligible without the contract knowing how they will vote |
 | Group size on the verifying call | Eight transactions, of which one carries the proof |
 | LogicSig budget consumed | About 143,000 units against the 160,000 that eight transactions pool |
@@ -45,7 +45,7 @@ Table 23-1 lists the output checkpoints to compare against the workflow output.
 
 Seven of those eight transactions do nothing. They are there because the opcode budget pools across the group at 20,000 units per transaction, and one pairing check does not fit in one transaction's share --- which Example 22-9 prices exactly.
 
-The first row is a measurement of one build, not a property of the circuit. The committed `VoteVerifier.teal` was compiled by puyapy 5.9.0; the toolchain this book pins is 5.8.1, and it assembles the same AlgoPlonk source to 3,483 bytes. Both verify the same proof, and each produces a *different* program hash, which is the LogicSig's address. That is why the project commits the TEAL rather than rebuilding it: recompiling moves the verifier's address, and an election bound to the old one stops accepting proofs until its admin rebinds it.
+The first row is a measurement of one build, not a property of the circuit. The committed `VoteVerifier.teal` was compiled by the toolchain this book pins (puyapy 5.10.1, `--target-avm-version 13`) and assembles to 3,447 bytes; the same AlgoPlonk source assembled to 3,464 bytes under puyapy 5.9.0 targeting v12. Both verify the same proof, and each produces a *different* program hash, which is the LogicSig's address. That is why the project commits the TEAL rather than rebuilding it: recompiling moves the verifier's address, and an election bound to the old one stops accepting proofs until its admin rebinds it. puyapy 5.10 also writes `#pragma autosalt true` so a LogicSig whose program hash would be a valid Ed25519 point gets a trailing salt --- the address cannot double as a public key.
 
 ## What You Need First
 
@@ -88,14 +88,7 @@ You do not need elliptic curve arithmetic to follow any of this. AlgoPlonk gener
 
 ## Project Setup
 
-Scaffold a new project for this chapter. The template creates a `hello_world/` contract directory, which you rename:
-
-```bash
-algokit init -t python --name governance-voting
-cd governance-voting/projects/governance-voting
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/governance_voting
-```
+You are already in `projects/governance-voting/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies unchanged, with `governance_voting` in place of `token_vesting`.
 
 Your contract code goes in `smart_contracts/governance_voting/contract.py`. Delete the template-generated `deploy_config.py` in the renamed directory; it references the old `HelloWorld` contract.
 
@@ -114,7 +107,7 @@ The LogicSig and smart contract opcode pools are independent --- Example 20-11's
 | Opcode budget per txn | 700 (pooled) | 20,000 (pooled separately) |
 | Max pooled budget | ~190,400 (16 outer × 700 + up to 256 inner × 700) | 320,000 (16 × 20,000; all txns contribute, not just those with LogicSigs) |
 
-Chapter 20 ended the budget discussion by saying that which wall a program meets first --- the pooled cost or the pooled size --- depends on its shape. This verifier answers that question. It assembles to 3,464 bytes against a per-program allowance of 1,000, and since AVM v11 that allowance pools too: `len(group) x 1,000` bytes, counted across every program and every argument in the group. Four transactions make the verifier *legal*; eight make it *affordable*. The budget sets the group length, the size limit never binds, and a group one transaction short fails inside `ec_pairing_check` rather than at the size check.
+Chapter 20 ended the budget discussion by saying that which wall a program meets first --- the pooled cost or the pooled size --- depends on its shape. This verifier answers that question. It assembles to 3,447 bytes against a per-transaction free allowance of 1,000. Since AVM v11 that allowance pools across the group; consensus v42 also lets a single transaction carry a program up to 16,000 bytes by paying a per-byte surcharge, so padding is no longer required to make this verifier *legal*. Eight transactions are still required to make it *affordable*: the opcode budget sets the group length, and a group one transaction short fails inside `ec_pairing_check` rather than at the size check.
 
 This project uses LogicSigs in **contract account mode**, Example 20-4's binding: the LogicSig program hash determines the account address. The verifier LogicSig does not need delegated authority; it needs enough pooled LogicSig opcode budget to run the elliptic curve operations. The generated verifier checks the proof and the lengths of its two arguments, and nothing else --- no fee bound, no rekey-to check, no group binding --- so as a program it fails Chapter 21's checklist on every line of it. That gap and its consequences are what the rest of this chapter is arranged around: the governance contract defends itself against a verifier account somebody else has taken over, and Exercise 5 closes the hole at its source.
 
@@ -335,7 +328,7 @@ class GovernanceVoting(ARC4Contract):
         assert False, "Contract is immutable"
 ```
 
-Nine global values, seven of them integers, and the schema is fixed at creation: an election that later wants a tenth needs a new application, not an upgrade. The `reject_lifecycle` bare method is what makes that stance explicit. Without it the default `ARC4Contract` routing would reject an update anyway, because no handler is registered for one --- but the rejection would be an anonymous `err`, and here it is a sentence an integrator can read.
+Nine global values, seven of them integers, and because this contract refuses updates the schema is the one it was created with: an election that later wants a tenth needs a new application, not an upgrade. The `reject_lifecycle` bare method is what makes that stance explicit. Without it the default `ARC4Contract` routing would reject an update anyway, because no handler is registered for one --- but the rejection would be an anonymous `err`, and here it is a sentence an integrator can read.
 
 The `initialize` method sets up the proposal parameters and creates tally boxes for each choice. The loop iterates up to a fixed maximum of 16 and breaks early. The cap is a design choice, not an AVM requirement (dynamic loop bounds are fine on the AVM): every tally box the method creates needs its own box reference and MBR funding from the caller, so a small fixed maximum keeps the box-reference count, the MBR bill, and the opcode budget of `initialize` predictable:
 

@@ -58,7 +58,7 @@ The deprecation is silent at compile time, so the old form keeps working and kee
 
 ### The string in an assert message is not in your program {-}
 
-`assert cond, "message"` puts the string in two places and neither is the chain: a TEAL comment, discarded at assembly, and an ARC-56 `sourceInfo` entry keyed by the program counter of the `assert` opcode. The compiled bytes do not contain it (`b"owner only" in bytecode` is `False`), and the AVM reports only `assert failed pc=85`; everything legible after that is a client-side lookup against the app spec, so a caller integrating from a different toolchain, a different language, or a block explorer gets a number and has to come and ask you what it means. A *bare* `assert` produces no `sourceInfo` entry at all --- invisible to every tool that reads the spec, sitting beside the messaged existence assertions PuyaPy inserts on state reads.
+`assert cond, "message"` puts the string in two places and neither is the chain: a TEAL comment, discarded at assembly, and an ARC-56 `sourceInfo` entry keyed by the program counter of the `assert` opcode. The compiled bytes do not contain it (`b"owner only" in bytecode` is `False`), and the AVM reports only `assert failed pc=82`; everything legible after that is a client-side lookup against the app spec, so a caller integrating from a different toolchain, a different language, or a block explorer gets a number and has to come and ask you what it means. A *bare* `assert` produces no `sourceInfo` entry at all --- invisible to every tool that reads the spec, sitting beside the messaged existence assertions PuyaPy inserts on state reads.
 
 *From Chapter 8.*
 
@@ -96,7 +96,7 @@ Test your error handling against `simulate`, which returns the logs, rather than
 
 ### The ARC-56 spec carries no error-code mapping {-}
 
-`logged_assert`'s output is described as ARC-56 compatible, which is true of the *format* and not of a lookup table. PuyaPy 5.8.1 --- the version this book pins --- emits no `errors` key in the generated spec, so a client cannot resolve a code to a message by reading the app spec.
+`logged_assert`'s output is described as ARC-56 compatible, which is true of the *format* and not of a lookup table. PuyaPy 5.10.1 --- the version this book pins --- emits no `errors` key in the generated spec, so a client cannot resolve a code to a message by reading the app spec.
 
 The code is recoverable because it is in the log and in the error string, not because anything published a dictionary. If your client wants human text for a code, it has to carry that mapping itself.
 
@@ -106,7 +106,7 @@ The code is recoverable because it is in the log and in the error string, not be
 
 `UpdateApplication` swaps the approval and clear programs entirely, keeping the application id, the global and local state, and the balance. There is no partial update and no diff.
 
-Two consequences people meet late. Anyone auditing your deployed bytecode audited a snapshot, and an update invalidates it silently. And the new program inherits the old program's state without ever having declared it, so a schema the new code does not expect is still there and still counted against the creator's minimum balance.
+Two consequences people meet late. Anyone auditing your deployed bytecode audited a snapshot, and an update invalidates it silently. And the new program inherits the old program's state without ever having declared it, so a schema the new code does not expect is still there and still counted against the creator's minimum balance --- unless that same update also supplies a larger global schema or extra pages, which consensus v42 now accepts. Local schema still cannot grow.
 
 *From Chapter 24.*
 
@@ -120,7 +120,7 @@ Delete every box first, then close. A contract that permits deletion should chec
 
 ### puyapy does not target the newest AVM version by default {-}
 
-`puyapy` does not default to the newest AVM version the network supports --- it defaults to a conservative one, currently 11. Code that uses a v12 feature compiles without complaint and then fails at assembly with an opcode error, or worse, silently takes a different code path. Pass `--target-avm-version` explicitly on every build, and pin it in the project's own build step --- `smart_contracts/__main__.py` in an AlgoKit project --- so that no one has to remember the flag.
+`puyapy` does not default to the newest AVM version the network supports --- it defaults to a conservative one, currently 11. Code that uses a v13 opcode fails the compile with a hard error naming both versions (`Opcode 'sha512' requires a min AVM version of 13 but the target AVM version is 11`). The quieter hazard is shipping a program whose assembly differs from the one you measured, because a lower target silently omits v12/v13 codegen. Pass `--target-avm-version` explicitly on every build, and pin it in the project's own build step --- `smart_contracts/__main__.py` in an AlgoKit project --- so that no one has to remember the flag. This book's projects pin `--target-avm-version=13`.
 
 *From Appendix B.*
 
@@ -158,7 +158,7 @@ The three values of `create` are not three flavours of the same check. `"require
 
 ### A role set in global state has a hard ceiling you will hit without warning {-}
 
-A `GlobalMap` keyed by account spends one of the application's 64 global key/value pairs per member, and that budget is shared with everything else the contract stores and is fixed at creation. A moderator list built this way works, and then one day `grant` starts failing for a reason that has nothing to do with permissions, and no upgrade can widen the schema. Decide at design time whether the set is bounded by its nature (operators, signers, a committee) or by nothing (users, holders, applicants). The first belongs in global state. The second belongs in boxes, where each entry carries its own minimum-balance charge and somebody has to fund it, which is the cost that makes it unbounded in the first place.
+A `GlobalMap` keyed by account spends one of the application's 64 global key/value pairs per member, and that budget is shared with everything else the contract stores and is fixed at creation unless the contract later approves an `UpdateApplication` that rewrites the global schema --- which none of the contracts in this book before Chapter 24 do. A moderator list built this way works, and then one day `grant` starts failing for a reason that has nothing to do with permissions, and no refused-update contract can widen the schema. Decide at design time whether the set is bounded by its nature (operators, signers, a committee) or by nothing (users, holders, applicants). The first belongs in global state. The second belongs in boxes, where each entry carries its own minimum-balance charge and somebody has to fund it, which is the cost that makes it unbounded in the first place.
 
 *From Chapter 10.*
 
@@ -270,7 +270,7 @@ There is no fractional arithmetic on the AVM, so any split, share, rate or fee c
 
 ### A method that makes inner transactions carries a fee its own source never states {-}
 
-`fee=0` on an inner transaction means the caller pays for it, so a method making two inner transactions needs three minimum fees on the outer call and there is nothing in the contract that says three. A client written from the contract alone sends one, and the failure it gets back is `group fee 0.0A too small (need 1mA)` at whichever `itxn_submit` ran out --- which is not necessarily the first one, because the credit is checked as each inner transaction submits rather than against the whole group before the program runs. A method whose first inner transaction succeeds and whose second fails is underpaid rather than broken. Count the inner transactions on every path, take the largest, and send that many fees.
+`fee=0` on an inner transaction means the caller pays for it, so a method making two inner transactions needs three minimum fees on the outer call and there is nothing in the contract that says three. A client written from the contract alone sends one, and the failure it gets back is `group fee 0.0A too small (needs 1mA more)` at whichever `itxn_submit` ran out --- which is not necessarily the first one, because the credit is checked as each inner transaction submits rather than against the whole group before the program runs. A method whose first inner transaction succeeds and whose second fails is underpaid rather than broken. Count the inner transactions on every path, take the largest, and send that many fees.
 
 *From Chapter 18.*
 
@@ -393,15 +393,15 @@ Any global number that a close-out handler decrements (member counts, active-sta
 
 *From Chapter 7.*
 
-### The state schema is fixed at creation and can never be widened {-}
+### The local schema is fixed at creation; global schema grows only if you allow updates {-}
 
-The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch: a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
+The number of *local* slots an application declares is written into the create transaction and is immutable for the life of the contract. Consensus v42 lets an update rewrite *global* slots and extra pages, but only if the contract approves `UpdateApplication` --- which every contract in this book before Chapter 24 refuses. For those contracts there is still no migration hatch: a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
 
 *From Chapter 9.*
 
 ### Declare schema for every field the deployed contract will ever need {-}
 
-An application's state schema is fixed at creation --- Chapter 4's rule --- so a field added to the source after deployment has nowhere to live: the deployed instance can never grow it, and for an immutable contract no update path changes that. Budget slots for planned features at deployment time, even ones you have not written yet. Chapter 14's pool carries the optional TWAP oracle's three fields from day one, so a pool deployed before that section was built can still run the oracle. On LocalNet the mistake costs nothing, because every run deploys fresh; on MainNet it costs a redeployment and a liquidity migration.
+This pool refuses updates, so its state schema is fixed at creation (Chapter 4: local schema can never grow; global schema grows only if you allow updates) and a field added after deployment has nowhere to live. Budget slots for planned features at deployment time, even ones you have not written yet. The TWAP oracle later in this chapter adds three fields the listing above does not reserve, which is why adding it costs a fresh deployment rather than an in-place grow. On LocalNet the mistake costs nothing, because every run deploys fresh; on MainNet it costs a redeployment and a liquidity migration.
 
 *From Chapter 14.*
 

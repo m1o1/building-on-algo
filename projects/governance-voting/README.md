@@ -50,7 +50,7 @@ Watch for these checkpoints, which are the rows of the chapter's Table 23-1:
 
 - `Verifier LogicSig address:` --- the hash of the verifier program, and
   therefore a commitment to the circuit. Change the circuit and this changes.
-- `Verifier program bytes: 3464` --- the assembled verifier, the size the
+- `Verifier program bytes: 3447` --- the assembled verifier, the size the
   chapter reports.
 - `App account funded with 187000 microAlgo of box MBR.` --- the exact bill,
   not a round number: `100,000` of account base, three tally boxes at `9,700`,
@@ -88,18 +88,17 @@ as produced. Nothing is hand-written, edited or approximated.
 | `zk/generated/vote_circuit.pk` | the PLONK proving key | same |
 | `zk/generated/vote_circuit.vk` | the PLONK verifying key | same |
 | `zk/generated/VoteVerifier.py` | the AlgoPlonk verifier, PuyaPy source, with the verifying key compiled in | same |
-| `zk/generated/VoteVerifier.teal` | that verifier as TEAL, 3,464 bytes assembled | `python -m scripts.build_verifier` (puyapy 5.9.0) |
+| `zk/generated/VoteVerifier.teal` | that verifier as TEAL, 3,447 bytes assembled | `python -m scripts.build_verifier` (puyapy 5.10.1) |
 | `zk/generated/vote.proof` | one PLONK proof, 768 bytes | `go run ./cmd/prove` |
 | `zk/generated/vote.public_inputs` | its two public inputs, 64 bytes | same |
 | `zk/generated/vote.json` | the ballot behind that proof, so the client can drive it | same |
 
 The verifier TEAL is the one row whose producing toolchain is not this
-project's own. It was compiled by puyapy 5.9.0; the project pins 5.8.1, like
-the other project directories in this book, and 5.8.1 assembles the same
-AlgoPlonk source to 3,483 bytes instead of 3,464. Both verify the same proof.
-`build_verifier` therefore leaves a committed `VoteVerifier.teal` alone unless
-you pass `--force`, so the size and the LogicSig address stay put no matter
-which puyapy a reader has installed.
+project's own. It was compiled by the puyapy this book pins (5.10.1,
+`--target-avm-version 13`) and assembles to 3,447 bytes. puyapy's output
+moves between releases, so `build_verifier` leaves a committed
+`VoteVerifier.teal` alone unless you pass `--force`, and the size and
+the LogicSig address stay put no matter which puyapy a reader has installed.
 
 **The proving and verifying keys come from a real ceremony.** `cmd/gen-verifier`
 runs the setup against `setup.PerpetualPowersOfTauBN254`, which AlgoPlonk
@@ -143,13 +142,15 @@ Regenerate all of them, and re-run `set_verifier` on any live election.
 
 ## What this project measured
 
-Four numbers the chapter states, checked on LocalNet against go-algorand
-v4.7.4 rather than derived:
+Four numbers the chapter states. Assembled size was re-measured with puyapy
+5.10.1. Opcode-budget consumption was last checked on LocalNet against
+go-algorand v4.7.4 and was not re-run on 5.0.1 in this pass:
 
 - **The verifier consumes 142,955 LogicSig budget units.** Read from
   `logic-sig-budget-consumed` in a simulate of the real group, which is what
   the workflow script prints; `scripts/localnet_helpers.py` has the one-call
-  helper. The chapter says "about 143,000".
+  helper. The chapter says "about 143,000". Re-measure on a v42 LocalNet
+  before treating the unit count as current.
 - **The circuit compiles to 4,102 SCS constraints.** Not the hundreds a reader
   would guess from three constraint declarations: `AssertIsLessOrEqual` against
   a variable bound decomposes a full 254-bit field element, and that dominates

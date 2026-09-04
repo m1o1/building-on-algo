@@ -85,14 +85,7 @@ Answer the predict column before you follow the link.
 
 ## Project Setup
 
-Scaffold a new project for this chapter. The `--name` flag sets the project directory; the template always creates a `hello_world/` contract inside it, which you rename:
-
-```bash
-algokit init -t python --name constant-product-amm
-cd constant-product-amm/projects/constant-product-amm
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/constant_product_pool
-```
+You are already in `projects/constant-product-amm/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies unchanged, with `constant_product_pool` in place of `token_vesting`.
 
 Your contract code goes in `smart_contracts/constant_product_pool/contract.py`. Replace the template-generated contents of `contract.py` with the code shown below; do not append to the existing template code. Also delete the template-generated `deploy_config.py` in the renamed directory, which references the old `HelloWorld` contract.
 
@@ -109,7 +102,7 @@ What the formula bills this chapter's own pool: seed 10,000 of each token, send 
 ::: {.note}
 **Design decision: why constant product?** If I were designing this from scratch, I would start with the simplest invariant: what relationship between reserves should never be violated? The product $x \times y = k$ is the simplest nonlinear invariant. It is not the only option.
 
-*Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a ±1% range provides roughly 200x the capital efficiency of a full-range V2 position, and an extremely tight ±0.05% range (practical only for stable pairs) approaches ~4,000x, but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8KB program size and 700-opcode budget constraints.
+*Concentrated liquidity* (Uniswap V3 - no equivalent on Algorand) lets LPs provide liquidity within a chosen price range instead of across the entire curve. An LP who concentrates in a ±1% range provides roughly 200x the capital efficiency of a full-range V2 position, and an extremely tight ±0.05% range (practical only for stable pairs) approaches ~4,000x, but their position becomes an NFT (each range is unique), and they suffer amplified impermanent loss if price leaves their range. V3 is powerful but significantly more complex to implement, especially within Algorand's 8,192-byte free program ceiling (2 KB base plus extra pages; Appendix B) and 700-opcode-per-call budget.
 
 *StableSwap* (Curve, and Pact stable pools on Algorand) uses a hybrid invariant tuned for assets that should trade near 1:1 (stablecoins, wrapped assets). It provides dramatically lower slippage for pegged pairs.
 
@@ -161,7 +154,7 @@ The pool uses global state rather than box storage for its reserves and configur
 One property of application state deserves a moment before it costs you one.
 
 ::: {.gotcha #schema-for-future-fields topic="Global and local state" title="Declare schema for every field the deployed contract will ever need"}
-An application's state schema is fixed at creation --- Chapter 4's rule --- so a field added to the source after deployment has nowhere to live: the deployed instance can never grow it, and for an immutable contract no update path changes that. Budget slots for planned features at deployment time, even ones you have not written yet. Chapter 14's pool carries the optional TWAP oracle's three fields from day one, so a pool deployed before that section was built can still run the oracle. On LocalNet the mistake costs nothing, because every run deploys fresh; on MainNet it costs a redeployment and a liquidity migration.
+This pool refuses updates, so its state schema is fixed at creation (Chapter 4: local schema can never grow; global schema grows only if you allow updates) and a field added after deployment has nowhere to live. Budget slots for planned features at deployment time, even ones you have not written yet. The TWAP oracle later in this chapter adds three fields the listing above does not reserve, which is why adding it costs a fresh deployment rather than an in-place grow. On LocalNet the mistake costs nothing, because every run deploys fresh; on MainNet it costs a redeployment and a liquidity migration.
 :::
 
 
@@ -928,7 +921,7 @@ The oracle adds one constant and three global state fields. This is the diff aga
 +        self.twap_last_update = GlobalState(UInt64(0))
 ```
 
-`TWAP_PRECISION` is Example 13-3's scale constant --- one billion, arbitrary in value, load-bearing in agreement. The accumulators are `BigUInt` by Example 13-4's rule: the stored value is the thing with no ceiling, so the stored value is what must be wide. Two schema consequences are worth naming, because this is where they are paid for. `BigUInt` values are stored as byte-slice slots, not uint slots, so these two fields raise the contract's `global_bytes` allocation (PuyaPy computes both allocations for you), which raises the creator's schema MBR at deployment. And because the schema is fixed at creation, this diff must be in the contract *before* the pool you care about is deployed; on LocalNet, deploy a fresh pool after recompiling.
+`TWAP_PRECISION` is Example 13-3's scale constant --- one billion, arbitrary in value, load-bearing in agreement. The accumulators are `BigUInt` by Example 13-4's rule: the stored value is the thing with no ceiling, so the stored value is what must be wide. Two schema consequences are worth naming, because this is where they are paid for. `BigUInt` values are stored as byte-slice slots, not uint slots, so these two fields raise the contract's `global_bytes` allocation (PuyaPy computes both allocations for you), which raises the creator's schema MBR at deployment. And because this pool refuses updates, this diff must be in the contract *before* the pool you care about is deployed; on LocalNet, deploy a fresh pool after recompiling.
 
 Why wide is not optional here: Example 13-11 worked the horizon arithmetic --- at a $10^9$ scale a price near one has centuries of `UInt64` headroom, but the headroom collapses in proportion to the price ratio, and a ratio of a million turns years into hours. [Uniswap V2](https://docs.uniswap.org/contracts/v2/guides/smart-contract-integration/building-an-oracle), the reference implementation for cumulative price tracking, solves the same problem in the opposite style, accumulating 224-bit fixed-point values in `uint256` and letting them overflow on purpose, with modular subtraction making the wraparound harmless. On the AVM, `BigUInt` (up to 512 bits) absorbs any practical accumulation without wrapping. The bill: byte-math opcodes cost roughly 10--20 budget units each, so a full `_update_twap` pass (four `b*`, two `b/`, two `b+`) is roughly 140 units --- real, and still small against the 700-unit budget.
 

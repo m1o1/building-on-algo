@@ -124,16 +124,9 @@ turns out wrong.
 
 ## Project Setup
 
-You can reuse the project you scaffolded in Chapter 1, or scaffold a fresh one. The `--name` flag sets the project directory name; the template always creates a `hello_world/` contract directory inside it; rename it to match the chapter:
+You are already in `projects/token-vesting/` from Run It First. You can reuse the project you scaffolded in Chapter 1, keep working from this book's committed copy, or scaffold a fresh one. A fresh `algokit init -t python --name token-vesting` nests the contract project one level down, at `token-vesting/projects/token-vesting` --- the layout Chapter 1 used for `my-first-contract`; `--no-workspace` flattens it if you would rather. Either way, rename `smart_contracts/hello_world` to `smart_contracts/token_vesting` before following the listings.
 
-```bash
-algokit init -t python --name token-vesting
-cd token-vesting/projects/token-vesting
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/token_vesting
-```
-
-Your contract code goes in `smart_contracts/token_vesting/contract.py`. The build system discovers contracts by directory, so renaming the folder is all that is needed. Delete the template-generated `deploy_config.py` inside the renamed directory; it references the old `HelloWorld` contract and is not needed for the scripts in this chapter.
+Your contract code goes in `smart_contracts/token_vesting/contract.py`. The build system discovers contracts by directory, so renaming the folder is all that is needed if you scaffolded. Delete the template-generated `deploy_config.py` inside the renamed directory; it references the old `HelloWorld` contract and is not needed for the scripts in this chapter.
 
 ## The Data Model
 
@@ -217,10 +210,11 @@ Example 4-7 being paid for rather than described: the schema is
 written into the create transaction, so a slot you have not thought of yet is a
 slot this contract will never have. Reserving `beneficiary_count` and
 `available_tokens` now costs 28,500 microAlgos each and buys the option to use
-them later; declaring them later is not an option at any price.
+them later; declaring them later is not an option at any price for a
+contract that refuses updates, which this one does.
 
-::: {.gotcha #schema-is-immutable topic="Global and local state" title="The state schema is fixed at creation and can never be widened"}
-The number of global and local slots an application declares is written into the create transaction and is immutable for the life of the contract. There is no migration, no resize, no `UpdateApplication` escape hatch: a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
+::: {.gotcha #schema-is-immutable topic="Global and local state" title="The local schema is fixed at creation; global schema grows only if you allow updates"}
+The number of *local* slots an application declares is written into the create transaction and is immutable for the life of the contract. Consensus v42 lets an update rewrite *global* slots and extra pages, but only if the contract approves `UpdateApplication` --- which every contract in this book before Chapter 24 refuses. For those contracts there is still no migration hatch: a contract that needs a sixty-fifth global key needs a new application and a state migration you write yourself. The MBR is charged for what you *declare*, not what you use, so a slot reserved against future need costs 28,500 or 50,000 microAlgos whether you ever write to it or not. That is the price of the option, and it is usually worth paying.
 :::
 
 `available_tokens` will track deposited tokens not yet reserved against a
@@ -818,7 +812,7 @@ argument has to have whenever a second writer exists.
 `calculate_vested` is a `@subroutine` because `claim`, `revoke`, and
 `get_claimable` all need it, and the decorator makes the compiler emit one TEAL
 subroutine called via `callsub`/`retsub` rather than three inlined copies
-competing for the program's 2,048-byte page (extra pages exist, at 300,000 microAlgos of creator MBR each --- this contract stays under half of its first page).
+competing for the program's 2,048-byte page (extra pages exist, at 100,000 microAlgos of creator MBR each --- this contract stays under half of its first page).
 
 Add this module-level function to `smart_contracts/token_vesting/contract.py`, placed **between** the `VestingSchedule` struct definition and the `TokenVesting` class (outside the class, not as a method). Module-level subroutines can be shared across multiple contracts in the same file. Class methods decorated with `@subroutine` are also valid and are scoped to that contract; Chapters 14 and 16 use class-method subroutines. `calculate_vested` is module-level because it is pure logic that could be reused by other contracts (see the [PuyaPy structure guide](https://algorandfoundation.github.io/puya/language-guide/structure/)):
 

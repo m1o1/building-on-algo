@@ -146,13 +146,14 @@ class Sizing(ARC4Contract):
     @arc4.abimethod(readonly=True)
     def pages(self, app: Application) -> UInt64:
         # A program is one 2,048-byte page by default. Each extra page is
-        # another 100,000 microAlgo on the creator's minimum balance, and
-        # the count is fixed at creation like the schema.
+        # another 100,000 microAlgo on the creator's minimum balance.
+        # Consensus v42 lets an update change the count, but only if the
+        # contract approves UpdateApplication --- this one does not.
         extra, _exists = op.AppParamsGet.app_extra_program_pages(app)
         return extra
 ```
 
-An application gets one 2,048-byte page free, and that is approval and clear-state *combined*, not each. Every additional page costs another 100,000 microAlgo of the creator's minimum balance. Like the schema, the count is fixed at creation: a contract cannot grow a page later, so a program approaching the boundary is a deployment decision rather than an optimisation.
+An application gets one 2,048-byte page free, and that is approval and clear-state *combined*, not each. Every additional page costs another 100,000 microAlgo of the creator's minimum balance. Consensus v42 lets an update grow pages (and global schema), moving the extra MBR onto the updater --- but only if the contract approves `UpdateApplication`. A program approaching the boundary is still a deployment decision for every contract in this book that refuses updates.
 
 **Example 11-4.** Charge the user for the box they create
 

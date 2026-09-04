@@ -212,7 +212,7 @@ PuyaPy warns about four things here, none of which is an error --- the compiler 
 The last is the one that catches people, because it is a rule about a coincidence rather than about a mistake: `ERR:insufficient:balance too low` reads fine and is exactly 32 bytes, and adding one word fixes it. Keep both strings short, but not accidentally exact.
 
 ::: {.gotcha #arc56-has-no-errors-block topic="Compilation, tooling, and shipping" title="The ARC-56 spec carries no error-code mapping"}
-`logged_assert`'s output is described as ARC-56 compatible, which is true of the *format* and not of a lookup table. PuyaPy 5.8.1 --- the version this book pins --- emits no `errors` key in the generated spec, so a client cannot resolve a code to a message by reading the app spec.
+`logged_assert`'s output is described as ARC-56 compatible, which is true of the *format* and not of a lookup table. PuyaPy 5.10.1 --- the version this book pins --- emits no `errors` key in the generated spec, so a client cannot resolve a code to a message by reading the app spec.
 
 The code is recoverable because it is in the log and in the error string, not because anything published a dictionary. If your client wants human text for a code, it has to carry that mapping itself.
 :::
@@ -291,7 +291,7 @@ That is why the freeze matters. `frozen` is one-way, and after it is set the con
 ::: {.gotcha #update-is-a-replacement-not-a-patch topic="Compilation, tooling, and shipping" title="An update replaces the whole program, not the method you meant to fix"}
 `UpdateApplication` swaps the approval and clear programs entirely, keeping the application id, the global and local state, and the balance. There is no partial update and no diff.
 
-Two consequences people meet late. Anyone auditing your deployed bytecode audited a snapshot, and an update invalidates it silently. And the new program inherits the old program's state without ever having declared it, so a schema the new code does not expect is still there and still counted against the creator's minimum balance.
+Two consequences people meet late. Anyone auditing your deployed bytecode audited a snapshot, and an update invalidates it silently. And the new program inherits the old program's state without ever having declared it, so a schema the new code does not expect is still there and still counted against the creator's minimum balance --- unless that same update also supplies a larger global schema or extra pages, which consensus v42 now accepts. Local schema still cannot grow.
 :::
 
 A freeze is one of two switches, and shipping without the other is the more common mistake. The freeze removes a power permanently; a **pause** suspends a behaviour and can be lifted --- `frozen` minus the one-way constraint --- and it is what an operator reaches for when the fix is four hours away and the contract is losing money now. Deploying an update path without a pause means the only way to stop a live problem is to write, review and ship replacement code while it is happening.

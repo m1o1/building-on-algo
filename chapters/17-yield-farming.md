@@ -107,14 +107,7 @@ Before tackling the real accumulator math, build the simplest staking contract t
 
 The contract accepts LP tokens (passed as an initialization parameter), locks them for 30 days, and distributes rewards proportionally based on each staker's share of the total staked LP tokens.
 
-Create a new project for this chapter:
-
-```bash
-algokit init -t python --name lp-farming
-cd lp-farming/projects/lp-farming
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/lp_farming
-```
+You are already in `projects/lp-farming/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies unchanged, with `lp_farming` in place of `token_vesting`.
 
 Delete the template-generated `deploy_config.py` inside the renamed directory. Your contract code goes in `smart_contracts/lp_farming/contract.py`.
 
@@ -581,7 +574,9 @@ farm.send.initialize(
 ```
 
 
-## Project Setup and Full Contract
+## Project Setup
+
+You are already in `projects/lp-farming/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies unchanged, with `lp_farming` in place of `token_vesting`.
 
 Now build the production staking contract, incorporating the accumulator pattern, duration multipliers, and cross-contract verification. This replaces the simplified version entirely.
 
@@ -590,6 +585,8 @@ The contract file is `smart_contracts/lp_farming/contract.py`. Compile with:
 ```bash
 algokit project run build
 ```
+
+## The Full Contract
 
 ### State Design
 
@@ -617,7 +614,7 @@ Table 17-7 tracks who owns that minimum balance at each moment in a staker's lif
 | During the lock | The box stores the position and the MBR remains locked |
 | `unstake` | The app deletes the box and refunds exactly 32,100 microAlgos |
 
-The global state schema uses 10 `UInt64` slots and 1 `Bytes` slot (the admin address). Since the default schema allows up to 64 of each, there is plenty of room. The extra `rewards_remaining` slot is a circuit breaker: every payout decrements it, so a math bug cannot distribute more reward tokens than the funded pool.
+The global state schema uses 10 `UInt64` slots and 1 `Bytes` slot (the admin address). The protocol cap is 64 pairs in total, so eleven is plenty of room. The extra `rewards_remaining` slot is a circuit breaker: every payout decrements it, so a math bug cannot distribute more reward tokens than the funded pool.
 
 Reward accounting follows one invariant:
 

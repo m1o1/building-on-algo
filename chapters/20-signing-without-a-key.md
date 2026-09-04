@@ -577,7 +577,9 @@ accepted
 
 Same program, same arguments, same signature. The only thing that changed is that a second transaction was sitting beside it. Since AVM v10 the LogicSig budget is `len(group) x 20,000`, and **every transaction in the group contributes, whether or not it carries a LogicSig**. A verifier too costly to run on its own becomes affordable next to seven transactions that do nothing --- which is the mechanism Chapter 23 runs on, and the reason its proof verification is arithmetically possible at all.
 
-Cost pooling arrived one consensus version before size pooling: cost at AVM v10, size at AVM v11. Size pooling raises a 1,000-byte limit, on the program *and its arguments* together, to `len(group) x 1,000`. Which wall a program meets first depends on its shape rather than its ambition: a loop is tiny and expensive, and Example 20-11 exhausts the whole cost budget in well under a hundred bytes.
+Cost pooling arrived one consensus version before size pooling: cost at AVM v10, size at AVM v11. Size pooling raised a 1,000-byte limit, on the program *and its arguments* together, to `len(group) x 1,000`. Consensus v42 split those. The program's 1,000-byte-per-transaction allowance is now the *free* amount rather than a hard cap --- a single transaction may carry up to 16,000 bytes of program by paying a per-byte surcharge --- and LogicSig arguments get their own pooled 1,000 bytes per transaction, which you cannot buy past.
+
+Which wall a program meets first depends on its shape rather than its ambition: a loop is tiny and expensive, and Example 20-11 exhausts the whole cost budget in well under a hundred bytes.
 
 ## Four Programs With One Hole Each
 Each of the four below is a working LogicSig that does the job its author wrote it for, and each is missing something that lets a holder take money the author did not mean to give them. Cover the explanation under each one and find the hole before reading on.

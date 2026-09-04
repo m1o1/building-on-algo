@@ -23,13 +23,14 @@ Every walkthrough and example in this book was validated with the versions in Ta
 | Tool | Version | Notes |
 |---|---|---|
 | Python | 3.12 | Exactly 3.12 for walkthroughs; the toolchain accepts newer, the book pins |
-| AlgoKit | 2.10.2 | Newer patch/minor versions usually work |
+| AlgoKit | 2.10.2 | Latest CLI as of this baseline; newer patch/minor versions usually work |
 | Docker Compose | v2.5.0+ | LocalNet requirement |
 | Poetry | 2.x | Installed separately; bootstrap drives it |
-| PuyaPy | 5.8.1 | The pinned compiler; the repository's harness compiles every example with it |
-| `algorand-python` | 3.5.0 | Installed by the template; the book pins this exact version |
+| PuyaPy | 5.10.1 | The pinned compiler; the repository's harness compiles every example with it |
+| `algorand-python` | 4.0.0 | Installed by the template; the book pins this exact version |
 | `algokit-utils` | 4.2.3 | Installed by the template |
 | `algorand-python-testing` | 1.1.0 | Unit-test emulator (Chapter 8) |
+| go-algorand / algod | 5.0.1 | Consensus v42 / AVM v13; LocalNet should track this node line |
 
 If a later AlgoKit release changes scaffolded files or command behavior mid-chapter, pin back to this baseline, finish the chapter, then experiment. Pinning back: `pipx install --force 'algokit==2.10.2'`, and for a scaffolded project, set the dependency versions above in `pyproject.toml` and re-run `algokit project bootstrap all`.
 

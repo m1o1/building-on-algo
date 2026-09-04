@@ -82,7 +82,7 @@ def compile_one(p: Path) -> tuple[bool, str]:
                 "--out-dir",
                 out,
                 "--target-avm-version",
-                "12",
+                "13",
             ],
             capture_output=True,
             text=True,

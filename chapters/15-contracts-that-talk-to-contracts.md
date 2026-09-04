@@ -514,7 +514,7 @@ class Parent(ARC4Contract):
 
 `compile_contract(Child)` produces the child's approval program, clear-state program, schema and page count at compile time, so the parent's bytecode contains the child's. The `itxn.ApplicationCall` that follows is an ordinary inner transaction with no `app_id`, which is what makes it a creation, and `created_app` on the result is how the parent learns what it made.
 
-The schema is passed explicitly from `compiled.global_uints` and its siblings rather than typed out, because Chapter 4's rule that schema is fixed at creation and can never be widened applies to a child exactly as it does to anything else. A transcribed number that drifts from the child's actual declarations produces a contract that cannot write its own state.
+The schema is passed explicitly from `compiled.global_uints` and its siblings rather than typed out, because Chapter 4's rule --- a child's schema is the one it is created with, and a refused-update child can never widen it --- applies here exactly as it does to anything else. A transcribed number that drifts from the child's actual declarations produces a contract that cannot write its own state.
 
 Compile the pair now, before going further. Both classes have to reach the compiler in one run, because `compile_contract` needs the child's bytecode at the moment the parent is being built:
 

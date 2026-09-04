@@ -105,19 +105,7 @@ The same `AssetTransfer` transaction that moves fungible tokens also moves NFTs,
 
 ## Project Setup
 
-Now build the same system from a fresh scaffold, reusing the structure from
-Chapter 9. Keep the finished project open as a reference if you get stuck, but
-type the following steps into the new project.
-
-If you still have your `token-vesting` project, you can duplicate it. Otherwise,
-scaffold a new one:
-
-```bash
-algokit init -t python --name nft-vesting
-cd nft-vesting/projects/nft-vesting
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/nft_vesting
-```
+You are already in `projects/nft-vesting/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies unchanged, with `nft_vesting` in place of `token_vesting`.
 
 Delete the template-generated `deploy_config.py` inside the renamed directory. Your contract code goes in `smart_contracts/nft_vesting/contract.py`.
 

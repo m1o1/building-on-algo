@@ -68,15 +68,7 @@ Answer the predict column before you follow the link.
 
 ## Scaffolding Two Contracts
 
-This project compiles two contracts, so it needs two directories under `smart_contracts/`:
-
-```bash
-algokit init -t python --name lottery
-cd lottery/projects/lottery
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/lottery
-mkdir smart_contracts/beacon_stub
-```
+This project compiles two contracts, so it needs two directories under `smart_contracts/`. You are already in `projects/lottery/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies, with `lottery` in place of `token_vesting`, and add a second directory, `smart_contracts/beacon_stub/`.
 
 The lottery replaces the template's contract in `smart_contracts/lottery/contract.py`, and the beacon stand-in goes in `smart_contracts/beacon_stub/contract.py`. Delete the template's `deploy_config.py` in the renamed directory; it refers to a `HelloWorld` class that no longer exists.
 
