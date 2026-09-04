@@ -15,7 +15,7 @@ Chapter 8 ended with a single-beneficiary version of this contract. It was deplo
 
 Almost nothing here is new: the concept chapters of Part I were written to make this one an assembly rather than an introduction. Concretely, the whole chapter is a delta against Chapter 8's `simple_vesting_fixed.py`, and the delta is the story:
 
-- **Kept, unchanged in kind** --- the admin captured at creation; an initialize-once guard; the contract opting itself into its asset; `fee=UInt64(0)` on every inner transaction; the vesting curve itself; the `Claimed` event from Example 8-16.
+- **Kept, unchanged in kind** --- the admin captured at creation; an initialize-once guard; the contract opting itself into its asset; `fee=UInt64(0)` on every inner transaction; the vesting curve itself; the `Claimed` event from Example 8-17.
 - **Changed** --- one beneficiary becomes many. Six of SimpleVesting's globals (`beneficiary`, `total`, `claimed`, `start`, `cliff`, `end`) collapse into a 41-byte `VestingSchedule` struct, one box per beneficiary, paid for by whoever creates the schedule (the old `beneficiary` global survives as the box *key*, and one field, `is_revoked`, is new). SimpleVesting's combined configure-and-deposit `initialize` splits in two --- `deposit_tokens` fills a pool, `create_schedule` promises from it --- because a pool that funds many schedules cannot be created by any one of them; the name `initialize` survives, doing ch8's `opt_in_to_asset` job. And the curve's division is swapped from `divw` to `divmodw` plus an explicit overflow assert --- a deliberate deviation from what Chapter 6 taught, argued where it happens, and reversed by you in Exercise 5.
 - **New, because production is where they matter** --- `revoke` for the person who leaves, `cleanup` to reclaim a spent schedule's storage deposit, the read-only queries a wallet polls, an explicit lifecycle stance taken before the first depositor arrives, and one genuinely new patch of teaching: the encoding and array-type decisions Chapter 5 left as a labeled IOU, redeemed here at the three points where each one lands --- the encoding in the data model, the key shape beside the box arithmetic, and the array-type choice at the first read-modify-write.
 - **Not yet done, on purpose** --- seven of the contract's assertions still carry no message. Table 9-2 counts them, and the testing section is where you will feel the absence: a refusal without a message can only ever be tested as "an exception was raised," which Chapter 8 taught you to distrust. Supplying the seven sentences is left to you, and the stranger-tests you write will tell you whether yours are good ones.
@@ -923,11 +923,11 @@ goes back into the box. Convert at the edge, compute in the middle.
 **Quick reference: converting between ARC-4 and native types.** When you read `schedule.total_amount`, you get an `arc4.UInt64`. To do math with it, convert: `total = schedule.total_amount.as_uint64()`. To write it back: `schedule.total_amount = arc4.UInt64(new_value)`. For booleans: `schedule.is_revoked.native` yields a Python `bool`. Use `.as_uint64()` and `.as_biguint()` on the numeric ARC-4 types, where `.native` is deprecated (see the `@deprecated` annotations in the [PuyaPy `arc4` stubs](https://github.com/algorandfoundation/puya/blob/main/stubs/algopy-stubs/arc4.pyi)); use `.native` for `String`, `Bool`, `Address`, and `DynamicBytes`, where it remains the standard conversion.
 :::
 
-Add the event from Example 8-16 at module level (beside the `VestingSchedule` struct), then the method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
+Add the event from Example 8-17 at module level (beside the `VestingSchedule` struct), then the method to the `TokenVesting` class in `smart_contracts/token_vesting/contract.py`:
 
 ```python
 class Claimed(arc4.Struct):
-    """ARC-28 event: who was paid, and how much (Example 8-16's device)."""
+    """ARC-28 event: who was paid, and how much (Example 8-17's device)."""
 
     beneficiary: arc4.Address
     amount: arc4.UInt64
@@ -1231,7 +1231,7 @@ entirely a function of the clock, and a multi-month schedule is not something yo
 can wait for. So the suite splits along the line Table 8-1
 drew.
 
-The fast half is Example 8-14 applied to the schedule arithmetic.
+The fast half is Example 8-15 applied to the schedule arithmetic.
 `algorand-python-testing` runs `calculate_vested` and the read-only methods as
 ordinary Python against an in-memory ledger, and
 `ctx.ledger.patch_global_fields(latest_timestamp=...)` moves the clock four
@@ -1262,7 +1262,7 @@ are AVM all the way down.
 
 The slow suite is not "the methods you could not unit-test," it is "the last few
 lines of most of them." LocalNet, real accounts, real MBR, and the
-Example 8-15 pattern for every security assertion. The project
+Example 8-16 pattern for every security assertion. The project
 directory for this chapter ships both: `tests/test_vesting_unit.py` for the fast
 half and `tests/test_token_vesting.py` for the slow one, with a `conftest.py`
 that skips the slow file entirely when LocalNet is not running.
@@ -1471,7 +1471,8 @@ import algokit_utils
 
 # Wraps the v4 send.call pattern for concise test code. Methods that emit
 # inner transactions (claim, revoke, cleanup_schedule) need a static_fee of
-# 2,000 so the outer transaction's fee covers the inner one by pooling; the
+# 2,000 so the outer transaction's fee covers the inner one by pooling --- a
+# LocalNet Ed25519 floor, not a production constant (Example 8-11); the
 # note is what tells two otherwise identical calls apart.
 FEE_FOR_ONE_INNER = algokit_utils.AlgoAmount.from_micro_algo(2_000)
 
@@ -1586,7 +1587,7 @@ The suite so far submits everything it tests; some of what belongs in it should 
 Use the `simulate` endpoint for debugging and security testing, not just read-only queries. Simulate executes the full transaction logic without committing state changes or charging fees, which is ideal for diagnosing failures and verifying security checks.
 :::
 
-This is a client-side script illustrating the simulate pattern (not part of the contract code). It is Example 8-15 pointed at this contract, and the shape is the one that chapter insisted on: a failing simulate *raises*, so the assertion is on the exception, not on a field of a returned object.
+This is a client-side script illustrating the simulate pattern (not part of the contract code). It is Example 8-16 pointed at this contract, and the shape is the one that chapter insisted on: a failing simulate *raises*, so the assertion is on the exception, not on a field of a returned object.
 
 ```python
 import algokit_utils

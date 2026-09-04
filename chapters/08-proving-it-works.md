@@ -41,7 +41,7 @@ By the end of this chapter you will be able to:
 - Choose between `assert`, `logged_assert()`, `logged_err()` and `op.err()` for a given contract, and state what each one costs and buys
 - Name the validation the ARC-4 router already performs, so you stop writing assertions that restate it, and write the ones it cannot perform
 - Explain why there is no reentrancy on Algorand, in two separate facts, and say what that does and does not license you to do
-- Run a method against real ledger state without committing it, read the opcodes it consumed, discover the resources it touched, and see the trace of its execution
+- Run a method against real ledger state without committing it, read the opcodes it consumed, the fee the group must pay, and the resources it touched, and see the trace of its execution
 - Turn a program counter reported by a failing call back into the line of Python that emitted it
 - Write unit tests against an in-memory ledger you can rewrite, and negative tests that prove a rejection happened *for the reason you intended*
 
@@ -171,7 +171,7 @@ Those three are green because they assert what the broken contract does. They ar
 
 Such a suite has a house style, and its names give it away. `test_a_claim_returns_zero_when_nothing_is_due` asserts that `claim()` returns `0`, which is what the contract does and the opposite of what the requirement says. Its overflow test uses four Algo of supply, because that is what the fixture had. Its rejection test asserts that an `AssertionError` is raised and never looks at the message. Not one of the three is wrong about the program, and a suite of them runs green on every commit for as long as you care to run it: **a test that asserts what the code does can never disagree with the code.** Two months of green means two months of asking the contract to confirm itself.
 
-The move that separates the two is small --- Example 8-13 later isolates it into a pair of vaults; here is one behaviour, asserted both ways:
+The move that separates the two is small --- Example 8-14 later isolates it into a pair of vaults; here is one behaviour, asserted both ways:
 
 ```python
 # From the code. The contract returns 0 when nothing is due, so this
@@ -701,7 +701,84 @@ A passing simulate with `allow_unnamed_resources=True` is not evidence the call 
 A contract that logs its reason before failing does not get that reason back with the rejection. On a submitted transaction, the node's response to a failed `POST /v2/transactions` is a message and nothing else, with no logs array, no matter what the program logged before it aborted. Logs from a failing group survive in exactly one place: the simulate response, at `txn-groups[g].txn-results[i].txn-result.logs`, which the simulator saves specifically because a debugging tool needs them. ARC-65's promise that the failure reason is recoverable from the API response is therefore true of simulate and false of a real submission. For a client that can re-run a failure through simulate, logs are recoverable; for one reacting to a rejection in the wild, the program counter is all there is.
 :::
 
-**Example 8-11.** One return value, three call paths, three shapes
+Opcode cost is one of the things simulate reports. The other, and the one that stops being a constant the moment an account is Falcon-authorized, is the *fee*.
+
+**Example 8-11.** Ask simulate for the group's fee
+
+<!-- example: examples/proving_it_works/discover_group_fee.py mode=script -->
+<!-- finder: ask simulate for the fee a group must pay -->
+
+```python
+"""Ask simulate for the fee a group must pay, then set it.
+
+Do not hard-code a fee. Read minFee from suggested params and
+group-usage from simulate. Heat: total = ceil(minFee * usage / 1e6).
+"""
+
+import sys
+from pathlib import Path
+
+from algokit_utils import (AlgoAmount, AlgorandClient, AppClient,
+                           AppClientMethodCallParams, AppClientParams)
+
+USAGE_SCALE = 1_000_000
+
+
+def required_group_fee(min_fee: int, group_usage: int) -> int:
+    """Convert simulate's group-usage into a pooled fee in microAlgo.
+
+    group-usage is millionths of a min-fee, including every inner
+    transaction. Round up once for the group, never per transaction.
+    """
+    return -(-min_fee * group_usage // USAGE_SCALE)
+
+
+def main(app_id: int, spec_path: str) -> int:
+    algorand = AlgorandClient.from_environment()
+    beneficiary = algorand.account.from_environment("BENEFICIARY")
+    client = AppClient(AppClientParams(
+        app_spec=Path(spec_path).read_text(),
+        algorand=algorand,
+        app_id=app_id,
+        default_sender=beneficiary.address,
+    ))
+    min_fee = algorand.client.algod.suggested_params().min_fee
+    # Probe high enough that the group finishes. An underpaid
+    # simulate stops early and underreports usage.
+    probe = AlgoAmount.from_micro_algo(min_fee * 100)
+    group = algorand.new_group().add_app_call_method_call(
+        client.params.call(AppClientMethodCallParams(
+            method="claim", args=[], static_fee=probe,
+        ))
+    )
+    # Empty signers + allow-empty-signatures: algokit-utils already
+    # enables this. The transactions still carry the signature *type*
+    # that will be used once signed (Ed25519 here; a Falcon sender
+    # needs a placeholder PQ envelope or usage is understated).
+    result = group.simulate(allow_empty_signatures=True)
+    usage = result.simulate_response["txn-groups"][0]["group-usage"]
+    needed = required_group_fee(min_fee, usage)
+    print(f"group-usage {usage}: pay {needed} microAlgo before signing")
+    return needed
+
+
+if __name__ == "__main__":
+    main(int(sys.argv[1]), sys.argv[2])
+```
+
+Chapter 7's splitter asserted `Global.min_txn_fee * 3` as a floor. That floor is what the contract can check without knowing who is paying. The number the *client* attaches is this one: `group-usage` from simulate, scaled by the network's current `minFee`, rounded up once for the group. [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note, and the guidance is not a preference: **do not hard-code anything related to fees.**
+
+Three facts make the pattern what it is, rather than "call simulate and hope."
+
+First, `suggested_params()` still provides `minFee`, and that is still the unit. It is not the whole fee. Multiplying it by the number of transactions underpays as soon as a transaction uses more than one min-fee: a Falcon-1024 authorization adds two extra min-fees to that one signature (three total, against one for Ed25519), and bytes beyond the free size allowances in Appendix B add a per-byte surcharge. The arithmetic lives in `group-usage`, reported in millionths of a min-fee, inners included.
+
+Second, empty signers plus `allow-empty-signatures` let you price the group before anyone has signed it --- algokit-utils already turns both on --- but the unsigned transactions must still carry the *type* of signature that will be used. Simulate an Ed25519 envelope and then collect a Falcon signature and the priced fee is short: simulate succeeded, submit fails. Identify the account type first, then simulate. A placeholder PQ envelope (scheme only, no key, no signature bytes) is how you price a Falcon sender you have not yet asked to sign.
+
+Third, an underpaid simulate stops early. Inner transactions that never execute are not in `group-usage`, so the reported fee is a lower bound on a failed run, not the fee a successful submit needs. Example 8-11 probes at `minFee * 100` so the group finishes; you then overwrite that probe with `needed` *before* collecting signatures. Spread the total across the group however you like --- fees still pool.
+
+`CongestionTax` on the block header is informational today. Nothing in the current fee formula reads it. Heat flags that it may later raise fees above the minimum under congestion, which is another reason the number comes from simulate against live state rather than from a constant in your repo. Appendix B dates the snapshot; this book does not guess an activation date.
+
+**Example 8-12.** One return value, three call paths, three shapes
 
 <!-- finder: get the decoded return value from each of the three ways to call a method -->
 
@@ -743,7 +820,7 @@ if __name__ == "__main__":
     main(int(sys.argv[1]), sys.argv[2], sys.argv[3])
 ```
 
-Example 8-11 belongs here rather than in Chapter 3: the shapes diverge only once you are switching between submitting and simulating, which is what debugging consists of. `AppClient.send.call()` hands you the decoded Python value. `algorand.send.app_call_method_call()` hands you an `ABIReturn` wrapper, or `None` if there was no method call at all, so `abi_return is None` and `abi_return.value is None` are different facts, and conflating them turns a missing method into a method that returned nothing. And a simulate has no `abi_return` at all; it has `returns`.
+Example 8-12 belongs here rather than in Chapter 3: the shapes diverge only once you are switching between submitting and simulating, which is what debugging consists of. `AppClient.send.call()` hands you the decoded Python value. `algorand.send.app_call_method_call()` hands you an `ABIReturn` wrapper, or `None` if there was no method call at all, so `abi_return is None` and `abi_return.value is None` are different facts, and conflating them turns a missing method into a method that returned nothing. And a simulate has no `abi_return` at all; it has `returns`.
 
 ::: {.gotcha #readonly-is-client-side topic="Compilation, tooling, and shipping" title="A readonly call is simulated with skipped signatures and a huge budget"}
 Chapter 3 established that `readonly=True` is a promise to callers, not something the AVM enforces. The half that bites later is *how* the client keeps the promise: algokit-utils answers a readonly call with a simulate, run with signatures skipped and the maximum extra opcode budget granted. That is why readonly calls are free and instant --- and why they run in a far more permissive environment than a real submission. A readonly method that consumes 2,000 opcodes answers correctly in your client every time and fails the first time anybody submits it. Submit every readonly method at least once, on LocalNet, before you trust its numbers.
@@ -751,7 +828,7 @@ Chapter 3 established that `readonly=True` is a promise to callers, not somethin
 
 *Predict: you have a failing call. You have a program counter from the error and a message from the app spec. What is still missing, and where would it have to come from?*
 
-**Example 8-12.** Reading a program counter back to a source line
+**Example 8-13.** Reading a program counter back to a source line
 
 <!-- finder: turn a program counter into the Python statement that produced it -->
 
@@ -795,7 +872,7 @@ if __name__ == "__main__":
 
 What is missing is the line of Python, and the reason no tool gives it to you is a gap between two artifacts. The ARC-56 app spec carries `sourceInfo` keyed by program counter, but PuyaPy never populates its `teal` field, and sets `pcOffsetMethod` to `none`, so `LogicError.line_no` comes back `None`. Meanwhile PuyaPy writes a second file next to the bytecode, `<Contract>.approval.puya.map`, by default, on every compile. It is a Source Map v3 whose `mappings` array has one segment per bytecode byte, indexed by program counter, resolving to a zero-based line number in the Python source. **algokit-utils never reads that file.**
 
-Example 8-12's `explain_pc` is the sixteen lines that close the gap, and the key line is `SourceMap(raw).get_line_for_pc(pc)`: `algosdk` already ships the Source Map v3 decoder, so the example is mostly plumbing around one call. Point it at the map and a program counter and it answers (wrapped here at the `|` separators to fit the page):
+Example 8-13's `explain_pc` is the sixteen lines that close the gap, and the key line is `SourceMap(raw).get_line_for_pc(pc)`: `algosdk` already ships the Source Map v3 decoder, so the example is mostly plumbing around one call. Point it at the map and a program counter and it answers (wrapped here at the `|` separators to fit the page):
 
 ```console
 $ uv run --group test python examples/proving_it_works/pc_to_source_line.py \
@@ -818,7 +895,7 @@ For the vesting contract, this is how you would have found the defects. The over
 ## Tests That Can Actually Fail
 Three things: the assertion that can fail, the ledger you can rewrite, and the negative test that pins a rejection to its reason.
 
-**Example 8-13.** The same behaviour, asserted from the code and from the requirement
+**Example 8-14.** The same behaviour, asserted from the code and from the requirement
 
 <!-- finder: see the one assertion that can tell a correct contract from an incorrect one -->
 
@@ -860,13 +937,13 @@ class RefusingVault(ARC4Contract):
         return amount
 ```
 
-Example 8-13 has two vaults and one requirement: *a withdrawal above the cap must be refused*. One of them meets it. `ClampingVault` quietly reduces an over-cap request to the cap and reports success. `RefusingVault` refuses.
+Example 8-14 has two vaults and one requirement: *a withdrawal above the cap must be refused*. One of them meets it. `ClampingVault` quietly reduces an over-cap request to the cap and reports success. `RefusingVault` refuses.
 
 The difference that matters is not in the contracts but in the test file. An assertion copied out of the code, `withdraw` returns what it paid, is true of both vaults. It is a fact about the implementation, and no implementation that is wrong in this particular way could ever make it fail. The assertion taken from the requirement is `pytest.raises(AssertionError, match="over the cap")`, and it separates them on the first run. **A test that both a correct and an incorrect implementation pass is not a test.**
 
 *Predict: a third vault rejects over-cap requests but pays out one unit less than asked on every withdrawal. Which of the two assertions catches it? Say what that tells you about the limits of the rule you just read.*
 
-**Example 8-14.** An in-memory ledger you are allowed to rewrite
+**Example 8-15.** An in-memory ledger you are allowed to rewrite
 
 <!-- finder: test time-dependent behaviour without waiting or deploying -->
 
@@ -902,7 +979,7 @@ class Deadline(ARC4Contract):
         return self.entries.value
 ```
 
-`algorand-python-testing` runs your contract's methods as ordinary Python against an in-memory ledger. There is no compilation, no deployment, no network, and no Docker; a test takes milliseconds. The payoff in Example 8-14 is not the speed but the writability of the ledger. `ctx.ledger.patch_global_fields(latest_timestamp=...)` is time travel in one assignment, which turns a four-year vesting schedule into a test that runs instantly. `ctx.any.account()` produces a stranger, and `ctx.txn.create_group([...])` puts that stranger in the sender field so an authorization check can be exercised from the wrong side.
+`algorand-python-testing` runs your contract's methods as ordinary Python against an in-memory ledger. There is no compilation, no deployment, no network, and no Docker; a test takes milliseconds. The payoff in Example 8-15 is not the speed but the writability of the ledger. `ctx.ledger.patch_global_fields(latest_timestamp=...)` is time travel in one assignment, which turns a four-year vesting schedule into a test that runs instantly. `ctx.any.account()` produces a stranger, and `ctx.txn.create_group([...])` puts that stranger in the sender field so an authorization check can be exercised from the wrong side.
 
 The contract's own test file, `unit_test_context_test.py`, is four tests: an entry before the deadline, an entry after the deadline with the clock moved between them, a deadline set in the past, and a stranger attempting an owner-only method. Every one of them is a negative test or a boundary, and none of them takes longer than a millisecond.
 
@@ -924,7 +1001,7 @@ A unit test cannot fail for opcode budget, because it never ran an opcode. It ca
 
 The emulator's error messages also diverge from the AVM's in wording. On an overflow the emulator raises `OverflowError("* overflows")`; the AVM says `* overflowed`. Underflow is `- underflows` against `- would result negative`. Division by zero is `ZeroDivisionError` against `/ 0`. Since `OverflowError` and `ZeroDivisionError` are both subclasses of `ArithmeticError` in Python, **`pytest.raises(ArithmeticError)` is the form that stays true across both**; matching on the message text breaks when you port a test to LocalNet.
 
-**Example 8-15.** A negative test through simulate
+**Example 8-16.** A negative test through simulate
 
 <!-- finder: prove a rejection happens for the reason you intended -->
 
@@ -980,7 +1057,7 @@ Two limits of the exception are worth knowing before you lean on it. `.traces` e
 `simulate` (`/v2/transactions/simulate`) is the endpoint for this job. go-algorand 5.0.0 removed the `dryrun` REST endpoint and the `tealdbg` tool. Older material that still calls dryrun fails on a 5.0.x node; LocalNet tracking this book's algod pin (5.0.1) has nothing to answer.
 :::
 
-Example 8-15 asserts not that an exception was raised, but that `"not the beneficiary" in rejected.message`. The `in` matters: `LogicError.message` is your string wrapped in the contract name, application ID and transaction ID, so an equality comparison against the bare string never holds. **One negative test per security assertion, each pinned to its own message,** is the practice that separates a suite which proves your authorization works from one which proves that *something* went wrong. A test that catches any exception passes when your contract rejects the stranger for the wrong reason, and passes when it rejects everybody, and passes when it is broken.
+Example 8-16 asserts not that an exception was raised, but that `"not the beneficiary" in rejected.message`. The `in` matters: `LogicError.message` is your string wrapped in the contract name, application ID and transaction ID, so an equality comparison against the bare string never holds. **One negative test per security assertion, each pinned to its own message,** is the practice that separates a suite which proves your authorization works from one which proves that *something* went wrong. A test that catches any exception passes when your contract rejects the stranger for the wrong reason, and passes when it rejects everybody, and passes when it is broken.
 
 ### Every Example in This Book Ships With Its Test
 Every numbered example in this book is a complete program in `examples/`, registered with an execution mode that CI enforces. Five modes: `compile` means it is compiled by PuyaPy on every commit; `compile-fail` means compilation is *expected* to fail and the error text is checked against a recorded substring; `unit` means it is compiled *and* a test file beside it is run under pytest; `script` means it is client-side code that is byte-compiled, because running it would need a funded LocalNet; `localnet` means it is run end to end. A `unit` example is two files and one printed artifact: the contract is what appears on the page, and its test file sits next to it on disk under the same name with `_test` appended.
@@ -1036,18 +1113,18 @@ Against the commission, then:
 1. Every refusal on the claim path names a reason --- the bare authorization assert gained `"not the beneficiary"`.
 2. A claim that would move nothing is refused --- `"nothing vested since the last claim"` instead of a confirmation; requirements one and two settled by the same diff.
 3. The schedule survives a production-sized supply, and a test says so: the assertion that was red against `total * elapsed // duration` is green against `mulw`/`divw`, in a suite you just watched flip.
-4. Every security assertion has a negative test pinned to its own message with `in` --- the shape Example 8-15 turned from advice into a working pattern.
-5. Any failing call can be traced back to the line of Python that refused: Example 8-12's sixteen lines, good for any program counter this contract can ever emit.
+4. Every security assertion has a negative test pinned to its own message with `in` --- the shape Example 8-16 turned from advice into a working pattern.
+5. Any failing call can be traced back to the line of Python that refused: Example 8-13's sixteen lines, good for any program counter this contract can ever emit.
 
 Five for five --- and unlike every earlier chapter's acceptance run, this one is not a transcript you read once. It is a suite you can run again tomorrow, which was the entire commission.
 
 ## Saying What Happened
 
-The corrected contract now refuses well. What it still does badly is *succeed*: a beneficiary claims, tokens move, and the only records are a confirmed transaction and a changed number in state. The beneficiary's wallet learns of it because the beneficiary signed it. Nobody else --- a dashboard, a payroll system, an accountant's indexer query --- learns anything without polling the contract's state and diffing snapshots, which is expensive for them and invisible to you. The return value is no help: Example 8-11 showed it riding in the transaction log, addressed to the caller who knows how to decode it, and to no one else.
+The corrected contract now refuses well. What it still does badly is *succeed*: a beneficiary claims, tokens move, and the only records are a confirmed transaction and a changed number in state. The beneficiary's wallet learns of it because the beneficiary signed it. Nobody else --- a dashboard, a payroll system, an accountant's indexer query --- learns anything without polling the contract's state and diffing snapshots, which is expensive for them and invisible to you. The return value is no help: Example 8-12 showed it riding in the transaction log, addressed to the caller who knows how to decode it, and to no one else.
 
 The mechanism for announcing success is the same log, used deliberately. An [ARC-28](https://dev.algorand.co/arc-standards/arc-0028) *event* is an ARC-4 struct whose class name is the event's name; `arc4.emit` writes a log entry whose first four bytes identify the event --- `sha512_256` of its signature, exactly the trick method selectors use --- followed by the ARC-4 encoding of the fields. Two declarations and one line in `claim` give the vesting contract a voice:
 
-**Example 8-16.** The claim that announces itself
+**Example 8-17.** The claim that announces itself
 
 <!-- example: examples/proving_it_works/simple_vesting_events.py mode=compile -->
 <!-- finder: emit an event a stranger can find without reading state -->
@@ -1085,7 +1162,7 @@ Answer these from memory before moving on. Four reach back into earlier chapters
 5. A method reports 2,400 opcodes consumed under `extra_opcode_budget=20_000`. How many application calls does the real group need, and where does the extra budget exist?
 6. Your simulate of a failing group returns no object at all. What happened, and where are `pc` and the failure message?
 7. *(From Chapter 6)* `total * elapsed // duration` overflows and `mulw`/`divw` does not, for the same inputs. Say precisely which value exceeds sixty-four bits in the first form and why it never has to in the second.
-8. *(From Chapter 7)* Example 7-4 set every inner transaction's fee to zero and asserted that the caller's `Txn.fee` covered the whole pool. Say how you would find out, before deploying, how many transactions that pool actually has to cover for a given method.
+8. *(From Chapter 7)* Example 7-4 set every inner transaction's fee to zero and asserted that the caller's `Txn.fee` covered the whole pool. Say what you read from a simulate of that method to learn the fee the *client* must attach, and why counting inner transactions and multiplying `minFee` is the wrong production rule.
 9. *(From Chapter 3)* A method marked `readonly=True` increments a counter. Say what happens to the counter when a client calls it, why nothing reports an error, and what this chapter adds about the environment that call ran in.
 10. *(From Chapter 2)* You already knew a program counter identifies a byte in the compiled approval program. Name the file that maps it back to a line of Python, say which tool writes it, and say which tool does not read it.
 11. A return value and an ARC-28 event both travel in the transaction log. Say who each one is addressed to, and what a consumer needs to know to find every `Claimed(address,uint64)` event without holding the app spec.
@@ -1163,7 +1240,7 @@ You should be able to check off all five of these:
 
 - [ ] I can say where an assert message is stored, prove it is not in the bytecode, explain what a caller without the app spec sees, and choose between `assert`, `logged_assert()` and `op.err()` for a given contract.
 - [ ] I can name what the ARC-4 router validates before my method runs, stop writing assertions that restate it, and give the two separate reasons there is no reentrancy on Algorand.
-- [ ] I can run a method through simulate against live state, read its opcode cost with extra budget, discover the resources it touched, and say why none of that is permission to submit.
+- [ ] I can run a method through simulate against live state, read its opcode cost with extra budget, discover the resources it touched, convert `group-usage` into the fee the group must pay, and say why none of that is permission to submit.
 - [ ] I can turn a program counter into a line of Python using the `.puya.map` file, and say what it means when a program counter does not resolve.
 - [ ] I can write a test that would go red if the contract were wrong, say why a test written from the code cannot, and pin a negative test to the specific message its assertion produces.
 
@@ -1176,9 +1253,10 @@ Chapter 9 builds the production version of this chapter's vesting contract: mult
 |-------------------|---------------------------------|----------------------------|
 | Example 8-2 | Giving every rejection on the claim path a message a beneficiary can act on | The project has more than a dozen assertions and no bare ones. Pick the authorization check on the claim path and write the message you would put on it, then compare. |
 | Example 8-6 | `deposit_tokens`, which takes a typed transfer parameter | The project asserts the transfer's asset, amount and receiver, and never asserts that it is an asset transfer or that it sits directly before the app call. Say which of those the router already guaranteed, and why the group size is still checked by hand. |
-| Example 8-13 | Deciding, for each of the project's methods, what the requirement says rather than what the draft does | Vesting has one requirement that is easy to state and easy to implement wrongly. Write it as one sentence, then write the assertion that would fail if the contract broke it. |
-| Example 8-14 | The fast half of the suite, over the schedule arithmetic | Vesting is entirely a function of the clock. Say which of the project's methods can be tested with `patch_global_fields` alone, and which cannot and why. |
-| Example 8-15 | One test per security assertion, each pinned to its message | The project's admin-only methods each need a stranger test. Write down what such a test must assert beyond "an exception was raised". |
+| Example 8-14 | Deciding, for each of the project's methods, what the requirement says rather than what the draft does | Vesting has one requirement that is easy to state and easy to implement wrongly. Write it as one sentence, then write the assertion that would fail if the contract broke it. |
+| Example 8-15 | The fast half of the suite, over the schedule arithmetic | Vesting is entirely a function of the clock. Say which of the project's methods can be tested with `patch_global_fields` alone, and which cannot and why. |
+| Example 8-16 | One test per security assertion, each pinned to its message | The project's admin-only methods each need a stranger test. Write down what such a test must assert beyond "an exception was raised". |
 | Example 8-9 | Sizing the group for a multi-beneficiary payout | A payout loop's cost scales with beneficiaries. Say how you would find the point at which the group needs a second app call, without deploying twice. |
-| Example 8-12 | The debugging procedure when a claim fails on LocalNet | The project's build writes a `.puya.map` beside its bytecode. Say what you would do with a `pc` from a failed claim, in order, and where the procedure stops working. |
-| Example 8-16 | Events on every state-changing method, from the first deployment | The project has five state-changing methods. Decide which of them deserve an event and what belongs in each payload, then compare against what the project ships. |
+| Example 8-11 | The `static_fee` on every payout the project's tests attach | The project hard-codes 2,000 microAlgo for one inner transfer. Say what that number is (a LocalNet Ed25519 floor) and what you would read instead before sending the same call from a Falcon account. |
+| Example 8-13 | The debugging procedure when a claim fails on LocalNet | The project's build writes a `.puya.map` beside its bytecode. Say what you would do with a `pc` from a failed claim, in order, and where the procedure stops working. |
+| Example 8-17 | Events on every state-changing method, from the first deployment | The project has five state-changing methods. Decide which of them deserve an event and what belongs in each payload, then compare against what the project ships. |

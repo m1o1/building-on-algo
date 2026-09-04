@@ -244,15 +244,13 @@ A passing simulate with `allow_unnamed_resources=True` is not evidence the call 
 
 ### A min-fee times a group size is not the group's fee {-}
 
-1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes beyond the free size allowances (Appendix B) add a per-byte surcharge. `/v2/transactions/params` still provides `minFee`; it is not the whole fee. Ask `simulate` for the group's usage rather than inventing the arithmetic ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)).
-
-Inside a contract, `Global.min_txn_fee` is the floor and costs one opcode, so a cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale as a floor check. It is not a substitute for the client's simulate-reported fee.
+1,000 microAlgo is the minimum *today*. Multiplying it --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes past the free allowances (Appendix B) add a per-byte surcharge. Identify the signer's account type, then ask `simulate` for `group-usage` and scale it (Example 8-11); an empty Ed25519 envelope underprices a Falcon signature ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)). Inside a contract, `Global.min_txn_fee * UInt64(N)` is a floor check that cannot go stale. It is not the client's fee.
 
 *From Chapter 11.*
 
 ### An inner transaction's fee is spent from the contract's own balance {-}
 
-The fee on an inner transaction comes from the application account, and `fee=0` is already the default on every `itxn` builder in algorand-python. So the hazard is not a forgotten fee but a fee somebody wrote a value into, usually `Global.min_txn_fee`, believing a transaction must carry one. On a method anybody may call, that is an unbounded withdrawal, a minimum fee per inner transaction per call from an account with no income --- and spending toward the minimum makes every *other* inner transaction the contract sends start failing, so the symptom is a contract that stops working entirely rather than one that reports a shortfall. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and require the caller to cover the group with one assertion counting every transaction, inner ones included.
+The fee on an inner transaction comes from the application account, and `fee=0` is already the default on every `itxn` builder in algorand-python. So the hazard is not a forgotten fee but a fee somebody wrote a value into, usually `Global.min_txn_fee`, believing a transaction must carry one. On a method anybody may call, that is an unbounded withdrawal, a minimum fee per inner transaction per call from an account with no income --- and spending toward the minimum makes every *other* inner transaction the contract sends start failing, so the symptom is a contract that stops working entirely rather than one that reports a shortfall. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and require the caller to cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor. The number the client attaches is Example 8-11, not this product.
 
 *From Chapter 11.*
 
@@ -527,7 +525,7 @@ An inner payment of `app.balance` fails for every account that will still exist 
 
 ### A non-zero inner transaction fee is paid out of the contract's own balance {-}
 
-The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder in algorand-python, so the danger is not an omitted fee: it is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee` in the belief that a transaction must carry one. On a method anybody may call, that is an unbounded drain at 1,000 microAlgo per call, and it matters even when the balance is large: an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and make the caller cover the group with `assert Txn.fee >= UInt64(TOTAL)`, counting one minimum fee per transaction, inner ones included.
+The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder, so the danger is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee`. On a public method that is an unbounded drain of one min-fee per call, and an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly, and make the caller cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor, not the fee the client attaches. Chapter 8's `simulate` reports `group-usage`; that, not this product, is the client's fee.
 
 *From Chapter 7.*
 

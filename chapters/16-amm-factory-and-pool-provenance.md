@@ -534,10 +534,11 @@ assert info["params"]["creator"] == factory.app_address
 
 The seed is Table 16-3's bill arriving as a grouped payment, and the
 `static_fee` of 7,000 is Chapter 11's [fee pooling](https://dev.algorand.co/concepts/transactions/fees/)
-at work: one outer call
+at work as a LocalNet Ed25519 floor: one outer call
 plus six zero-fee inner transactions --- the app create, the funding payment,
 the `bootstrap` call, and, inside `bootstrap`, the LP-token create and two
-asset opt-ins --- is seven minimum fees.
+asset opt-ins --- is seven minimum fees. Production clients use Example 8-11
+rather than baking 7,000 into the script.
 
 Run it from the project root (the script imports the generated client by its
 package path, so the working directory matters):

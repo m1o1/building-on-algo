@@ -248,10 +248,9 @@ The return value is deliberately *not* `account.balance`. Reading the balance ba
 ```python
 from algopy import ARC4Contract, Account, Global, Txn, UInt64, arc4, itxn
 
-# One app call plus two inner payments is three transactions. At the
-# 1,000 microAlgo minimum that is 3,000 microAlgo, and the app call is
-# the only one of the three a caller can attach a fee to.
-POOLED_FEE = 3_000
+# One app call plus two inner payments. The contract asserts a floor of
+# one min-fee each; the client's actual fee is not this product.
+INNER_PAYMENTS = 2
 
 
 class Splitter(ARC4Contract):
@@ -260,7 +259,8 @@ class Splitter(ARC4Contract):
     @arc4.abimethod
     def split(self, a: Account, b: Account, amount: UInt64) -> None:
         assert Txn.sender == Global.creator_address, "creator only"
-        assert Txn.fee >= UInt64(POOLED_FEE), "cover the whole group"
+        needed = Global.min_txn_fee * UInt64(1 + INNER_PAYMENTS)
+        assert Txn.fee >= needed, "cover the whole group"
         half = amount // UInt64(2)
         # `fee=UInt64(0)` is already PuyaPy's default. Writing it out
         # says the omission was a decision, not an oversight.
@@ -274,7 +274,7 @@ class Splitter(ARC4Contract):
 
 `fee: UInt64 | int = 0` is the declared default on every `itxn` builder in algorand-python. Leaving the field out does not produce a default fee; it produces a zero fee. **The danger is never an omitted fee. It is a fee somebody wrote a non-zero value into.** Writing `fee=UInt64(0)` explicitly changes no behaviour, and it turns an omission a reviewer has to assume was intentional into a line they can see was.
 
-A zero fee is not free money. Algorand pools fees across an atomic group: the group is valid if the total fee paid across it meets the total minimum required, including every inner transaction any of them submits. So a zero-fee inner payment means somebody else in the group is covering it, and the line that matters is `assert Txn.fee >= UInt64(POOLED_FEE)`. One app call plus two inner payments is three transactions and 3,000 microAlgo, and the app call is the only one of the three a caller can attach a fee to. Omit that assertion and you have not created a vulnerability, only a method that fails at submission when the caller under-pays. Omit the `fee=UInt64(0)` and you have created one. The section on groups covers why the network lets one transaction pay for another's fee.
+A zero fee is not free money. Algorand pools fees across an atomic group: the group is valid if the total fee paid across it meets the total minimum required, including every inner transaction any of them submits. So a zero-fee inner payment means somebody else in the group is covering it, and the line that matters is `assert Txn.fee >= needed`. One app call plus two inner payments is three transactions; `Global.min_txn_fee * 3` is the *floor* the contract can assert without baking in today's 1,000. The app call is the only one of the three a caller can attach a fee to. That floor is necessary, not sufficient: a Falcon-authorized caller, or a transaction past the free size allowances, owes more than one min-fee per transaction, and the client learns that from `simulate` in the next chapter rather than by multiplying. Omit the assertion and you have not created a vulnerability, only a method that fails at submission when the caller under-pays. Omit the `fee=UInt64(0)` and you have created one. The section on groups covers why the network lets one transaction pay for another's fee.
 
 **Example 7-5.** A method that charges the contract a thousand microAlgo per call
 
@@ -304,7 +304,7 @@ class SelfFundedEcho(ARC4Contract):
 Eighteen lines, no authorization, and a zero-Algo payment, which looks harmless because it moves nothing. It moves 1,000 microAlgo per call out of the application account, forever, to nobody. A hundred thousand calls is 100 Algo, and the attacker's own cost is the outer fee they were going to pay anyway. The contract does not need to hold a treasury for this to matter: draining it to its minimum balance is enough to make every *other* inner transaction it wants to send start failing.
 
 ::: {.gotcha #inner-fee-zero topic="Inner transactions" title="A non-zero inner transaction fee is paid out of the contract's own balance"}
-The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder in algorand-python, so the danger is not an omitted fee: it is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee` in the belief that a transaction must carry one. On a method anybody may call, that is an unbounded drain at 1,000 microAlgo per call, and it matters even when the balance is large: an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and make the caller cover the group with `assert Txn.fee >= UInt64(TOTAL)`, counting one minimum fee per transaction, inner ones included.
+The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder, so the danger is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee`. On a public method that is an unbounded drain of one min-fee per call, and an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly, and make the caller cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor, not the fee the client attaches. Chapter 8's `simulate` reports `group-usage`; that, not this product, is the client's fee.
 :::
 
 Back at the tip jar, these fix defects three and four: `withdraw` sends `app.balance - app.min_balance`, and its inner payment carries `fee=UInt64(0)` so that the owner's own transaction covers the network.
@@ -1152,7 +1152,7 @@ That middle message is the shape you will read for the rest of this book. The se
 
 **Correction four: leave the minimum balance where it belongs, and stop paying the network out of the jar.** `app.balance - app.min_balance` and `fee=UInt64(0)` are two lines and two different ideas, grouped because they are the same defect from the account's point of view: the contract was treating its own balance as though every microAlgo in it were spendable. The transcript only ever showed the two of them failing together; patch one and the other is still there. This is also where the jar finally picks its authoritative number: the *balance* wins, because the commission pays out the float rather than the tally --- `tips_received` stays a statistic, and the two are allowed to disagree by exactly the unsolicited payments the counter never sees.
 
-One omission is deliberate: `withdraw` carries no `assert Txn.fee >= UInt64(2_000)`. The fee section offered one and said you could skip it; this contract skips it. Nothing is at risk either way, because with `fee=UInt64(0)` on the inner payment a group whose outer fees do not cover it is rejected at submission and no money moves. The assertion buys a legible refusal instead of a node-level one, and on an owner-only method the only person it would explain anything to is the owner. On a method anybody may call, write it. The rule is not *always assert the pooled fee*; it is *decide who is reading the failure, and whether they will understand it*.
+One omission is deliberate: `withdraw` carries no `assert Txn.fee >= Global.min_txn_fee * UInt64(2)`. The fee section offered one and said you could skip it; this contract skips it. Nothing is at risk either way, because with `fee=UInt64(0)` on the inner payment a group whose outer fees do not cover it is rejected at submission and no money moves. The assertion buys a legible refusal instead of a node-level one, and on an owner-only method the only person it would explain anything to is the owner. On a method anybody may call, write it. The rule is not *always assert the pooled fee*; it is *decide who is reading the failure, and whether they will understand it*.
 
 That is the finished jar. Against the commission:
 

@@ -26,7 +26,7 @@ class VestingSchedule(arc4.Struct):
 
 
 class Claimed(arc4.Struct):
-    """ARC-28 event: who was paid, and how much (Example 8-16's device)."""
+    """ARC-28 event: who was paid, and how much (Example 8-17's device)."""
 
     beneficiary: arc4.Address
     amount: arc4.UInt64

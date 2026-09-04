@@ -8,7 +8,7 @@
 
 Every constraint in this appendix is a consensus parameter, which means two things. It is the same on LocalNet, TestNet, and MainNet running the same consensus version, so a contract that fits on your laptop fits in production. And it changes only when the protocol upgrades, which is why each table below names the AVM version a value belongs to rather than presenting it as timeless.
 
-The figures here were checked against **consensus version v42 / AVM v13** (go-algorand 5.0.1), the MainNet protocol as of September 2026. Values that first appeared in v41 / AVM v12 are labeled as such; they remain in force. (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) and [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) for the authoritative specification.)
+The figures here were checked against **consensus version v42 / AVM v13** (go-algorand 5.0.1), the MainNet protocol as of September 2026. Values that first appeared in v41 / AVM v12 are labeled as such; they remain in force. Fee numerics --- `MinTxnFee`, Falcon's three-min-fee surcharge, the per-byte size surcharge --- are snapshots of that consensus version, not eternal constants; a client that needs the current fee reads `minFee` from `/v2/transactions/params` and `group-usage` from `simulate` (Example 8-11). (See [Costs and Constraints](https://dev.algorand.co/concepts/smart-contracts/costs-constraints/) and [Protocol Parameters](https://dev.algorand.co/concepts/protocol/protocol-parameters/) for the authoritative specification.)
 
 ## Quick Reference: AVM Limits {-}
 
@@ -40,7 +40,7 @@ Table B-1 collects the limits worth committing to memory. The rest of this appen
 | Legacy foreign-account references | 8 per app call (v41; was 4) |
 | ASA opt-in MBR | 100,000 microAlgo |
 | Min account balance | 100,000 microAlgo |
-| Min transaction fee | 1,000 microAlgo |
+| Min transaction fee | 1,000 microAlgo (v42 snapshot) |
 
 A transaction that stays inside those free allowances still pays exactly one minimum fee. Consensus v42 prices bytes *beyond* them at 0.1 microAlgo per byte (one ten-thousandth of a min-fee). Native Falcon-1024 authorization is the exception that costs more even at the old sizes --- three min-fees rather than one; see the survey below. Ordinary grouped inner-transaction fee pooling as taught in Chapter 11 is unchanged for the contracts in this book. Price anything that goes past those allowances with `simulate`'s group-usage rather than by counting transactions.
 
