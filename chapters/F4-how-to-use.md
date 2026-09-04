@@ -51,7 +51,7 @@ Chapter 1 takes an empty directory to a deployed contract. Do it first; every ch
 Two directories hold runnable code, and they are different things:
 
 - `examples/` holds the complete programs behind annotated numbered examples, each verified by the harness in its declared mode; the annotated set is growing toward the full example list. Where a chapter's example carries an annotation, that file is what it shows.
-- `projects/` holds the full project builds, one directory per project chapter, each with its own `pyproject.toml`, tests, and deploy scripts.
+- `projects/` holds the full project builds, one directory per project chapter, each with its own `pyproject.toml`, tests, and deploy scripts. Companion projects that left the spine live under `advanced/` instead.
 
 Everything is validated against the toolchain baseline the Preface pins. When a walkthrough behaves differently from the text, check the versions before checking your typing.
 

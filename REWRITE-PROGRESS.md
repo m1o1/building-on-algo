@@ -47,12 +47,12 @@ every other chapter = B2 chapter + 1, with BOOK-PLAN's per-chapter fixes and the
 | 18 | 18-a-number-nobody-can-predict.md | 08-c-randomness.md | 17 | Concept | IV Chance |
 | 19 | 19-a-lottery-that-pays-out-or-gives-back.md | 08-p-lottery.md | 18 | Project | IV |
 | — | 19z-checkpoint-chance.md | A6 §IV | — | Checkpoint | IV end |
-| 20 | 20-signing-without-a-key.md | 17-c-logicsigs.md | 19 | Concept | V Stateless Programs |
-| 21 | 21-delegated-limit-order-book.md | 09-p-limit-order-book.md | 20 | Project | V |
-| — | 21z-checkpoint-stateless-programs.md | A6 §V | — | Checkpoint | V end |
+| 20 | 20-further-reading-logicsigs.md | pointer (issue #44); full course in advanced/stateless-programs/ | — | Pointer | V Further Reading |
+| — | *(21 unused)* | companion: advanced/stateless-programs/21-*.md + advanced/limit-order-book/ | — | — | — |
+| — | *(21z unused)* | companion: advanced/stateless-programs/21z-*.md | — | — | — |
 | 22 | 22-proving-things-without-revealing-them.md | 19-c-cryptography.md | 21 | Concept | VI Cryptography |
-| 23 | 23-private-governance-voting.md | 10-p-zk-voting.md | 22 | Project | VI |
-| — | 23z-checkpoint-cryptography.md | A6 §VI | — | Checkpoint | VI end |
+| — | *(23 unused)* | companion: advanced/private-governance/ + advanced/governance-voting/ | — | — | — |
+| — | 22z-checkpoint-cryptography.md | A6 §VI (was 23z) | — | Checkpoint | VI end |
 | 24 | 24-shipping-and-surviving.md | 21-c-shipping.md | 23 | Concept | VII Shipping |
 | — | 24z-checkpoint-shipping.md | A6 §VII | — | Checkpoint | VII end |
 
@@ -63,6 +63,14 @@ A4-example-finder (GENERATED; was B2's A5). Back: Z1-whats-next (+Lottery +Falco
 Z2-glossary, Z3-bibliography, Z4-colophon.
 
 ## Standing decisions
+
+0. **Scope cut (issue #44):** LogicSig / delegated signatures (former Part V,
+   Ch 20–21 + 21z, `projects/limit-order-book`) and private governance voting
+   (former Ch 23 + project) left the reader-facing spine for `advanced/`.
+   Main book keeps a short Ch 20 pointer, keeps Ch 22 as a cost survey, keeps
+   Part IV lottery and Part VII shipping (Ch 24). Chapter numbers 21 and 23
+   unused on purpose. Do not re-teach the full LogicSig course or the ZK
+   vote in the main spine.
 
 1. **Renumbering**: new chapter = B2 chapter + 1, mechanical via scripts (Chapter N,
    Examples?/Tables?/Figures? N-M). Appendix letters unchanged (C=gotchas, D=finder).

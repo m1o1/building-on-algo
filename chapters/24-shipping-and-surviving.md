@@ -52,7 +52,7 @@ It also cannot be operated. Nothing it does reaches an indexer, nothing about it
 ## Saying What Happened
 A contract's state is public, so anything it stores can be read. Reading is not the same as being told, and an indexer that has to poll every box to learn that one changed is doing the work a log exists to avoid.
 
-You have emitted an event before: Chapter 8 put a `Claimed` announcement on the vesting contract's claim path, Chapter 19's lottery announced its winner, and Chapter 21's order book told its keepers about every order placed, filled and cancelled. What Chapter 8 deferred is everything an *operator* needs beyond emitting: the raw mechanism events are built on, the two other things that share the log, how a consumer tells the three apart, and how an event is found again months later by something that has never seen your source. Start below the event, at the raw mechanism.
+You have emitted an event before: Chapter 8 put a `Claimed` announcement on the vesting contract's claim path, and Chapter 19's lottery announced its winner. What Chapter 8 deferred is everything an *operator* needs beyond emitting: the raw mechanism events are built on, the two other things that share the log, how a consumer tells the three apart, and how an event is found again months later by something that has never seen your source. Start below the event, at the raw mechanism.
 
 **Example 24-1.** Logging bytes
 

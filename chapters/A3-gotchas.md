@@ -80,12 +80,6 @@ Chapter 3 established that `readonly=True` is a promise to callers, not somethin
 
 *From Chapter 8.*
 
-### byte[] application arguments need their ARC-4 length prefix {-}
-
-A `byte[]` ABI argument must carry its two-byte ARC-4 length prefix; a raw 32-byte value is not one, and the router mis-reads or refuses it. Build calls through `AtomicTransactionComposer`, `algosdk.abi`, or a typed client from `algokit generate client` --- all of which write the prefix; hand-packed `app_args` do not. `place_order`'s 32-byte `lsig_hash` is where this bites here.
-
-*From Chapter 21.*
-
 ### The error code reaches a failed send only on a node running the developer API {-}
 
 On LocalNet a rejected submission does carry the code, inside the `opcodes=` disassembly algod appends to the error. That tail comes from `EnableDeveloperAPI`, which AlgoKit's LocalNet sets true and which defaults to **false** everywhere else. Against a default node the same failure reads `logic eval error: err opcode executed. Details: app=<app-id>, pc=<n>`, with no code in it anywhere.
@@ -185,6 +179,17 @@ The checks a LogicSig must make --- `rekey_to` and `close_remainder_to` against 
 An inner transaction's fields start at zero --- the AVM populates a sender, a fee, and a validity window, and nothing else --- so a contract that never sets `rekey_to` cannot get it wrong. It *can* set it, and `rekey_to` on an inner transaction hands your application account to whoever holds that key; no assert can undo a value you supplied. The defence is not a check but the absence of the line.
 
 *From Chapter 10.*
+
+### Production wallets will not sign a delegated LogicSig {-}
+
+A delegated LogicSig is a signature the account holder cannot revoke.
+Pera and similar wallets refuse to present one for signing, because the
+user cannot see, later, every copy of what they authorised. Do not
+design a product that requires an end user to sign a delegation.
+Contract-account LogicSigs are a different binding: the program *is* the
+account, and nobody is asked to sign.
+
+*From Chapter 20.*
 
 ## Resource references, MBR, and budget {-}
 
@@ -437,12 +442,6 @@ Delete an application while it still owns boxes and those boxes stay in the ledg
 
 *From Chapter 19.*
 
-### A method that creates boxes fails unless the app account is funded first {-}
-
-An application account must already hold a box's minimum balance when the method that creates the box runs. Fund the account first, or the creating call fails with `account <address> balance <n> below min <m> (<k> assets)` --- a ledger refusal no assert inside the contract can catch or rename. Here that means paying the app before `initialize`: for a three-choice election, three tally boxes at `2,500 + 400 × (10 + 8) = 9,700` microAlgos each is 29,100, on top of the 100,000 base.
-
-*From Chapter 23.*
-
 ## Arithmetic and time {-}
 
 ### Dividing before multiplying silently returns zero {-}
@@ -688,59 +687,3 @@ BN254 `ec_pairing_check` is 8,000 plus 7,400 per chunk of its second operand, wh
 Two things do. Naming `BN254g2` puts the 64-byte G1 points in the counted operand against a 128-byte chunk, so one chunk covers two pairings --- one pair drops to 15,400 and four pairs to 22,800 against `BN254g1`'s 67,200. And the budget itself comes from the group: `len(group) x 20,000` for LogicSigs, with every transaction contributing.
 
 *From Chapter 22.*
-
-### One mimc hash costs more than an application call's entire budget {-}
-
-One `mimc` over 64 bytes costs 1,110 units --- 10 plus 550 per 32-byte block --- and an application call has 700. Any method hashing two field elements must raise its budget before the opcode: `ensure_budget(UInt64(1200), OpUpFeeSource.GroupCredit)` issues no-op inner app calls worth 700 units each, their fees drawn from the group's pooled fee credit, so the caller overpays the outer fee. Without it the call dies with `dynamic cost budget exceeded`. This chapter's instance is `reveal_vote`, whose recomputed `choice || randomness` commitment is exactly such a 64-byte hash.
-
-*From Chapter 23.*
-
-## LogicSigs {-}
-
-### These checks belong in a LogicSig and nowhere else {-}
-
-`close_remainder_to` and `rekey_to` are the fields a LogicSig must pin on every payment it approves, and `asset_close_to` is the third wherever it permits an asset transfer at all. A LogicSig *is* the sender's authority, so an unchecked field is authority it granted: any of the three can hand the account, its balance, or its holdings away inside a transaction the program said yes to. Chapter 10's twin gotcha rules on the other side of the line --- why a stateful contract must *not* copy these checks onto the transactions in its group.
-
-*From Chapter 20.*
-
-### A signed delegated LogicSig cannot be cancelled {-}
-
-The delegator's key signs the program once and is never consulted again, so there is no later moment at which consent can be withdrawn. Deleting your copy of the signed blob changes nothing --- copies may be anywhere, and the network does not know or care where it came from.
-
-The only exit is to rekey the delegating account, which invalidates the delegation by changing what authority the account has. Plan for that before signing: an expiry in `last_valid` costs one line and turns "forever" into "until round N".
-
-*From Chapter 20.*
-
-### Rekeying to an address you cannot sign for loses the account {-}
-
-`rekey_to` moves signing authority with no confirmation step and no undo. If the destination is an address you do not hold the key for, every asset and every Algo in that account is unreachable --- the account still exists, still shows a balance, and can never send anything again.
-
-Check the `rekey_to` value before signing, and check it again when it is a variable rather than a literal. This is the one transaction field where a typo is unrecoverable.
-
-*From Chapter 20.*
-
-### A parameterised LogicSig gives one address per parameter set, chosen at compile time {-}
-
-The natural way to write "an escrow for this customer" takes the customer as an argument, and that is exactly the form that will not compile. A per-customer escrow is not a per-customer compile.
-
-Two shapes work instead. Compile **one** program that reads the customer from somewhere it can verify, such as its own account's state or a value the calling contract passes and checks; or accept that the set of parameter combinations is fixed at build time and enumerate them. Reaching for the first is almost always right; the second is how people end up with a deployment script that compiles four hundred LogicSigs.
-
-*From Chapter 20.*
-
-### A LogicSig's arguments are supplied by the submitter, not the signer {-}
-
-The signature covers the program, not the arguments. Anything read from `op.arg(n)` was chosen by whoever assembled the transaction, so it may bound nothing and prove nothing. A secret compared against an argument is worse still --- the program's bytes are public at an address anyone can query.
-
-*From Chapter 20.*
-
-### `LogicSigAccount.address()` on a signed delegation returns the delegator, not the program hash {-}
-
-Once a delegation is signed, `LogicSigAccount.address()` reports the *delegating account's* address; the program hash comes from `algosdk.logic.address(program)`. Code that confuses them compiles and runs: a keeper checking an order's stored hash against `address()` compares an account against a program hash, silently declines every valid order, and reports nothing wrong.
-
-*From Chapter 21.*
-
-### suggested_params() can hand you a last_valid past the LogicSig's expiry {-}
-
-A LogicSig that bounds itself with `Txn.last_valid <= EXPIRY` rejects any transaction `suggested_params()` dated past that round --- the default validity window knows nothing about the program's own deadline. Cap it before building: `sp.last = min(sp.last, expiry_round)`. Here, the sell side of every fill group needs the cap or the order program refuses it near its expiry.
-
-*From Chapter 21.*

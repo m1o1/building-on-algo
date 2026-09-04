@@ -18,7 +18,7 @@ It is accepted when:
 - [ ] Your opcode figure is measured against a run, not estimated from a table
 - [ ] You can say what a bidder learns about other bids before the reveal, and whether that is what you intended
 - [ ] You can say what happens to a bidder who never reveals, and defend the choice
-- [ ] You can price the private upgrade: a range proof in place of the reveal --- "my bid is valid, and I am not showing it" --- costs a verification group, and you can say how many transactions per bid, using Chapter 23's group arithmetic
+- [ ] You can price the private upgrade: a range proof in place of the reveal --- "my bid is valid, and I am not showing it" --- costs a verification group, and you can say how many transactions per bid, using Example 22-9's group arithmetic
 
 **Fallback:** fix the field of bidders at creation and hold commitments in global state. The cost model is unchanged and the storage arithmetic goes away.
 

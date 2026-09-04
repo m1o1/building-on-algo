@@ -16,7 +16,7 @@ This book is *not* for you if you are looking for Solidity or EVM development (A
 
 ## How This Book Is Organized {-}
 
-The book is twenty-four chapters in seven parts, alternating between two kinds of chapter. A *concept chapter* takes one thing a decentralized application needs (somewhere to remember a number, somewhere to put data that grows, a way to move value) and works through several small, complete, runnable examples of it. A *project chapter* then spends those concepts on one program you build end to end. Nothing is introduced before the chapter that needs it.
+The book is twenty-two chapters in seven parts, alternating between two kinds of chapter. A *concept chapter* takes one thing a decentralized application needs (somewhere to remember a number, somewhere to put data that grows, a way to move value) and works through several small, complete, runnable examples of it. A *project chapter* then spends those concepts on one program you build end to end. Nothing is introduced before the chapter that needs it. Chapters 21 and 23 are deliberately unused: the LogicSig course and the private-governance voting project live in a companion tree, not on this spine.
 
 **Part I** is the on-ramp: the toolchain, then the machine, one mechanism at a time.
 
@@ -64,17 +64,13 @@ The book is twenty-four chapters in seven parts, alternating between two kinds o
 
 - **Chapter 19 --- A Lottery That Pays Out or Gives Back.** Tickets in boxes, a committed draw round, a winner chosen by a beacon nobody controls, and a refund path for the day the beacon goes silent --- run against a stub you control and a deployed beacon you do not.
 
-**Part V** is Algorand's second execution model.
+**Part V** is a pointer, not a course.
 
-- **Chapter 20 --- Signing Without a Key.** A program that replaces a private key rather than holding state: the two ways an account can be bound to one, the guards such a program cannot ship without, and why a signed delegation cannot be cancelled.
+- **Chapter 20 --- Further Reading: Logic Signatures.** Why delegated LogicSigs left this spine (production wallets such as Pera will not let a user sign one), the one contract-account shape Chapter 22 still needs a name for, and where the full course and the limit-order-book project now live.
 
-- **Chapter 21 --- Delegated Limit Order Book with LogicSig Agents.** Logic signatures applied to a delegated limit order book: the hybrid stateful/stateless architecture, template variables, keeper bots, and composability with the AMM from Chapter 14.
+**Part VI** prices the AVM's cryptographic opcodes.
 
-**Part VI** pushes the AVM to its limits.
-
-- **Chapter 22 --- Proving Things Without Revealing Them.** Hashes and what each costs, commitments, signatures verified against keys the chain never saw, merkle proofs, and the priced elliptic-curve primitives a zero-knowledge verifier is assembled from.
-
-- **Chapter 23 --- Private Governance Voting with Zero-Knowledge Proofs.** A private governance vote built on zero-knowledge proofs, elliptic curve operations over BN254, and the MiMC hash. (Algorand's Falcon-based post-quantum roadmap is covered in What's Next.)
+- **Chapter 22 --- Proving Things Without Revealing Them.** Hashes and what each costs, commitments, signatures verified against keys the chain never saw, merkle proofs, and the priced elliptic-curve primitives a zero-knowledge verifier is assembled from. The private-governance voting project that used to follow is companion material, pointed at the end of the chapter.
 
 **Part VII** is the part of a contract's life that starts after it works.
 
@@ -84,7 +80,7 @@ Figure P-1 shows how those chapters depend on one another. A solid arrow means y
 
 ![Figure P-1. How the chapters depend on each other. A solid arrow means you will be lost without the earlier chapter; a dashed one means the later chapter builds on it but stands alone.](figures/book-map.svg)
 
-The concept chapters are made of small complete programs rather than fragments of a project you have not seen yet; those carrying a source annotation are complete programs in the repository, verified in their declared modes, and the annotated set is growing toward the full example list. Every project chapter ships with a directory of runnable source under `projects/`. Six are full worked builds you can type along with from start to finish; Chapters 21 and 23 are guided builds --- the page shows every load-bearing decision and one fully worked representative of each repetitive layer --- and their directories are complete, so you can run the finished system before, during or after building your own.
+The concept chapters are made of small complete programs rather than fragments of a project you have not seen yet; those carrying a source annotation are complete programs in the repository, verified in their declared modes, and the annotated set is growing toward the full example list. Every project chapter ships with a directory of runnable source under `projects/`. The LogicSig limit-order book and the private-governance vote are companion builds under `advanced/`, not projects this spine asks you to assemble.
 
 Each part ends with a Mastery Checkpoint: a small program the part did not show you, with a stated acceptance test and a fallback. Four appendices follow: an environment reference for when the toolchain refuses, a one-page protocol reference of every limit and cost, a consolidated list of every gotcha in the book grouped by topic, and an Example Finder that indexes every numbered example by the task it performs.
 
@@ -114,7 +110,7 @@ Notes and warnings appear throughout the book.
 Warning admonitions highlight security concerns, common mistakes, or behavior that could cause loss of funds in a production contract. Do not skip these.
 :::
 
-Client-side code uses **typed generated clients** throughout: `algokit generate client` turns a compiled contract's ARC-56 specification into a Python class with one typed method per ABI method, and that class --- built for you by `algokit project run build` --- is what every deployment script and test in this book calls. The *generic* client (method names as strings) appears only where no generated client can exist, such as connecting to a contract you did not build (Appendix A), and **raw algosdk** appears only where field-level control over a transaction is itself the lesson --- the LogicSig-authorized groups of Chapters 20 and 21 --- and is labeled as the exception where it does.
+Client-side code uses **typed generated clients** throughout: `algokit generate client` turns a compiled contract's ARC-56 specification into a Python class with one typed method per ABI method, and that class --- built for you by `algokit project run build` --- is what every deployment script and test in this book calls. The *generic* client (method names as strings) appears only where no generated client can exist, such as connecting to a contract you did not build (Appendix A), and **raw algosdk** appears only where field-level control over a transaction is itself the lesson --- labeled as the exception where it does. The LogicSig-authorized groups that used that exception live in the companion tree.
 
 ## Using Code Examples {-}
 
@@ -193,8 +189,7 @@ material would have opened with half a chapter of environment plumbing.
 The Algorand developer community answered questions in public that this book
 now answers again in print. Discussions on the Algorand Discord and the
 Foundation's forum shaped several sections, particularly the treatment of
-opcode budget pooling in Chapter 11 and the LogicSig safety checklist in
-Chapter 21, both of which began as answers to questions somebody
+opcode budget pooling in Chapter 11, which began as answers to questions somebody
 else had already asked well.
 
 Finally, this book was produced with the assistance of Claude, an AI system
