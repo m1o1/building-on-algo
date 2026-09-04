@@ -44,6 +44,8 @@ Table B-1 collects the limits worth committing to memory. The rest of this appen
 
 A transaction that stays inside those free allowances still pays exactly one minimum fee. Consensus v42 prices bytes *beyond* them at 0.1 microAlgo per byte (one ten-thousandth of a min-fee). Native Falcon-1024 authorization is the exception that costs more even at the old sizes --- three min-fees rather than one; see the survey below. Ordinary grouped inner-transaction fee pooling as taught in Chapter 11 is unchanged for the contracts in this book. Price anything that goes past those allowances with `simulate`'s group-usage rather than by counting transactions.
 
+Block headers also carry a `CongestionTax`. Nothing in the current fee calculation reads it --- it is informational --- and it may later raise fees above the minimum under congestion, which is another reason not to hard-code a fee. [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note; this book does not guess an activation date.
+
 Most of the cryptographic opcode costs exceed an application call's 700-unit budget, so they need `ensure_budget` or a group with room in it. Table B-2 lists them, verified against go-algorand 5.0.1 (`data/transactions/logic/opcodes.go`) and [AVM opcode specs](https://specs.algorand.co/avm/avm-appendix-a).
 
 : Table B-2. Cryptographic opcode costs
@@ -208,3 +210,14 @@ class Legacy(ARC4Contract):
 `Txn.accounts(0)` is always the sender, which is why hand-written indexes are effectively one-based, and why off-by-one bugs in this area point at the *wrong account* rather than at none.
 
 **The unified access list (consensus v41).** Consensus v41 added a single unified access list alongside the separate accounts, assets, and applications arrays (see Table B-5). A transaction uses one form or the other, never both, which is why a modern contract can reference more resources in one transaction than the old per-array caps allowed. It is a wire-format change rather than a source-level one: a fact about what your transactions may carry rather than a line the contracts in this book write.
+
+## Further Reading {-}
+
+The Algorand 5.0 "flavor" series is the upgrade narrative behind the v42 rows in this appendix:
+
+- [Part 1: Salt](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-1-salt) --- native Falcon accounts and address salt
+- [Part 2: Fatter apps and transactions](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-2-fatter-apps-and-transactions) --- extra pages, SizeSponsor, larger notes, arguments, and LogicSigs
+- [Part 3: Acid](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-3-acid) --- foreign-box access and family shared state
+- [Part 4: Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) --- usage-based fees, `simulate`, `CongestionTax`
+- [Algorand v5.0.0 is here](https://algorand.co/blog/algorand-v5.0.0-is-here.-heres-what-it-means-for-you) --- the upgrade announcement
+- [go-algorand 5.0.0](https://github.com/algorand/go-algorand/releases/tag/v5.0.0-stable) --- the consensus-upgrade release (dryrun and tealdbg removed; use `simulate`)

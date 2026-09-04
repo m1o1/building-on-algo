@@ -12,6 +12,8 @@ Adams, H. et al. "Uniswap v3 Core." Uniswap, 2021. <https://uniswap.org/whitepap
 
 Adams, H. et al. "Uniswap v4 Core." Uniswap, 2023. <https://uniswap.org/whitepaper-v4.pdf>
 
+Algorand. "go-algorand v5.0.0-stable." GitHub release, 12 August 2026. <https://github.com/algorand/go-algorand/releases/tag/v5.0.0-stable>
+
 Algorand Foundation. "AlgoKit CLI Overview." <https://dev.algorand.co/algokit/cli/overview/>
 
 Algorand Foundation. "Algorand Python Documentation." <https://algorandfoundation.github.io/puya/>
@@ -19,6 +21,16 @@ Algorand Foundation. "Algorand Python Documentation." <https://algorandfoundatio
 Algorand Foundation. "Algorand Python API Reference." <https://algorandfoundation.github.io/puya/api/algopy/algopy/>
 
 Algorand Foundation. "Algorand Developer Portal." <https://dev.algorand.co/>
+
+Algorand Foundation. "Algorand v5.0.0 is here. Here's what it means for you." 16 August 2026. <https://algorand.co/blog/algorand-v5.0.0-is-here.-heres-what-it-means-for-you>
+
+Algorand Foundation. "Enhancing on-chain flavor in Algorand 5.0 --- Part 1: Salt." 20 August 2026. <https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-1-salt>
+
+Algorand Foundation. "Enhancing on-chain flavor in Algorand 5.0 --- Part 2: Fatter apps and transactions." 22 August 2026. <https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-2-fatter-apps-and-transactions>
+
+Algorand Foundation. "Enhancing on-chain flavor in Algorand 5.0 --- Part 3: Acid." 24 August 2026. <https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-3-acid>
+
+Algorand Foundation. "Enhancing on-chain flavor in Algorand 5.0 --- Part 4: Heat." 26 August 2026. <https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat>
 
 Bowe, S., Gabizon, A., and Green, M. "A multi-party protocol for constructing the public parameters of the Pinocchio zk-SNARK." *Financial Cryptography and Data Security*, 2018.
 

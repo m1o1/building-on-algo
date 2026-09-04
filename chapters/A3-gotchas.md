@@ -242,11 +242,11 @@ A passing simulate with `allow_unnamed_resources=True` is not evidence the call 
 
 *From Chapter 8.*
 
-### The minimum fee is a consensus parameter, not a constant {-}
+### A min-fee times a group size is not the group's fee {-}
 
-1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 by a group size underpays the whole group the moment the protocol raises it, and the failure is a rejected group rather than anything that points at the constant. Read the fee from `suggested_params()` and scale that.
+1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes beyond the free size allowances (Appendix B) add a per-byte surcharge. `/v2/transactions/params` still provides `minFee`; it is not the whole fee. Ask `simulate` for the group's usage rather than inventing the arithmetic ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)).
 
-Inside a contract, `Global.min_txn_fee` is the same number and costs one opcode, so a fee cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale, where `UInt64(10_000)` can.
+Inside a contract, `Global.min_txn_fee` is the floor and costs one opcode, so a cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale as a floor check. It is not a substitute for the client's simulate-reported fee.
 
 *From Chapter 11.*
 
@@ -306,9 +306,9 @@ A contract that logs its reason before failing does not get that reason back wit
 
 *From Chapter 8.*
 
-### dryrun still answers, and is already deleted upstream {-}
+### dryrun and tealdbg are gone; simulate is the endpoint {-}
 
-`simulate` is the endpoint for this job now. `dryrun` has been deleted from go-algorand's `master` branch and still answers on every *released* node, LocalNet included --- so code that reaches for it works today and stops working on an upgrade, which is worse than failing now. Older material using `dryrun` does not announce itself as dated; the endpoint's continued politeness is the trap.
+`simulate` (`/v2/transactions/simulate`) is the endpoint for this job. go-algorand 5.0.0 removed the `dryrun` REST endpoint and the `tealdbg` tool. Older material that still calls dryrun fails on a 5.0.x node; LocalNet tracking this book's algod pin (5.0.1) has nothing to answer.
 
 *From Chapter 8.*
 
