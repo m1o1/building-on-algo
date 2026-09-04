@@ -51,14 +51,14 @@
 **Concentrated liquidity**
 :   An AMM design (Uniswap V3) where liquidity providers choose a price range for their capital, dramatically improving capital efficiency but making positions non-fungible and amplifying impermanent loss.
 
+**CongestionTax**
+:   A block-header field. Nothing in the current (v42) fee formula reads it --- it is informational --- and a later upgrade may use it to raise fees above `MinTxnFee` under congestion. Another reason not to hard-code a fee; [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note.
+
 **Constant product formula**
 :   The AMM invariant $x \times y = k$, where $x$ and $y$ are token reserves. Ensures that removing one token requires adding the other in proportion.
 
 **Contract account**
 :   A LogicSig mode where the program's hash serves as an Algorand address with no private key. The program logic is the sole authority over transactions sent from that address.
-
-**CongestionTax**
-:   A block-header field. Nothing in the current (v42) fee formula reads it --- it is informational --- and a later upgrade may use it to raise fees above `MinTxnFee` under congestion. Another reason not to hard-code a fee; [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note.
 
 **Delegated signature**
 :   A LogicSig mode where an existing account signs the program, authorizing anyone holding the signed program to submit transactions from that account subject to the program's constraints.
@@ -111,11 +111,11 @@
 **MBR (Minimum Balance Requirement)**
 :   The minimum Algo balance an account must maintain, calculated based on the resources it holds (ASAs, applications, boxes). The base MBR is 0.1 Algo.
 
-**MinTxnFee (minFee)**
-:   The protocol's minimum transaction fee, a consensus parameter currently 1,000 microAlgo (v42 snapshot). It is the unit, not the whole fee: Falcon authorization, size surcharges, and a possible future `CongestionTax` all multiply usage. Clients read it from `/v2/transactions/params` and scale `simulate`'s `group-usage`; they do not hard-code 1,000.
-
 **MiMC**
 :   A hash function designed to be cheap to evaluate inside zero-knowledge circuits, available natively via the AVM's `mimc` opcode (AVM v11+). Not a general-purpose hash --- it has known collisions outside its intended ZK use.
+
+**MinTxnFee (minFee)**
+:   The protocol's base transaction fee, a consensus parameter currently 1,000 microAlgo (v42 snapshot). It is the unit, not the whole fee: Falcon authorization and size surcharges *add* usage; a possible future `CongestionTax` would *scale* the result. Clients read it from `/v2/transactions/params` and scale `simulate`'s `group-usage`; they do not hard-code 1,000.
 
 **Multisig (Multi-Signature)**
 :   An account that requires signatures from multiple parties (M-of-N) to authorize a transaction. Used for admin operations, treasury management, and governance in production protocols. Algorand supports multisig natively at the protocol level.

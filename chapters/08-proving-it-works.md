@@ -41,7 +41,8 @@ By the end of this chapter you will be able to:
 - Choose between `assert`, `logged_assert()`, `logged_err()` and `op.err()` for a given contract, and state what each one costs and buys
 - Name the validation the ARC-4 router already performs, so you stop writing assertions that restate it, and write the ones it cannot perform
 - Explain why there is no reentrancy on Algorand, in two separate facts, and say what that does and does not license you to do
-- Run a method against real ledger state without committing it, read the opcodes it consumed, the fee the group must pay, and the resources it touched, and see the trace of its execution
+- Run a method against real ledger state without committing it, read the opcodes it consumed and the resources it touched, and see the trace of its execution
+- Convert simulate's `group-usage` into the fee a group must pay, and say why multiplying `minFee` by a transaction count is the wrong production rule
 - Turn a program counter reported by a failing call back into the line of Python that emitted it
 - Write unit tests against an in-memory ledger you can rewrite, and negative tests that prove a rejection happened *for the reason you intended*
 
@@ -701,7 +702,9 @@ A passing simulate with `allow_unnamed_resources=True` is not evidence the call 
 A contract that logs its reason before failing does not get that reason back with the rejection. On a submitted transaction, the node's response to a failed `POST /v2/transactions` is a message and nothing else, with no logs array, no matter what the program logged before it aborted. Logs from a failing group survive in exactly one place: the simulate response, at `txn-groups[g].txn-results[i].txn-result.logs`, which the simulator saves specifically because a debugging tool needs them. ARC-65's promise that the failure reason is recoverable from the API response is therefore true of simulate and false of a real submission. For a client that can re-run a failure through simulate, logs are recoverable; for one reacting to a rejection in the wild, the program counter is all there is.
 :::
 
-Opcode cost is one of the things simulate reports. The other, and the one that stops being a constant the moment an account is Falcon-authorized, is the *fee*.
+Opcode cost is one of the things simulate reports. The other is the *fee*. This section is not one of the commission's five requirements: it is here because the mechanism is `simulate`, and Chapter 9's tests will attach a `static_fee` before Chapter 11 owns the full bill. Every `static_fee` literal in this book from here on is a measured LocalNet Ed25519 floor unless it says otherwise.
+
+*Predict: write down the fee you would attach to `claim` and the arithmetic you used. Then say what changes about that number if the beneficiary's account is Falcon-authorized --- a native post-quantum signature; Appendix B surveys it.*
 
 **Example 8-11.** Ask simulate for the group's fee
 
@@ -709,10 +712,11 @@ Opcode cost is one of the things simulate reports. The other, and the one that s
 <!-- finder: ask simulate for the fee a group must pay -->
 
 ```python
-"""Ask simulate for the fee a group must pay, then set it.
+"""Ask simulate for the fee a group must pay.
 
 Do not hard-code a fee. Read minFee from suggested params and
-group-usage from simulate. Heat: total = ceil(minFee * usage / 1e6).
+group-usage from simulate. Heat: total = ceil(minFee * usage /
+1,000,000).
 """
 
 import sys
@@ -729,6 +733,7 @@ def required_group_fee(min_fee: int, group_usage: int) -> int:
 
     group-usage is millionths of a min-fee, including every inner
     transaction. Round up once for the group, never per transaction.
+    `-(-a // b)` is integer ceiling division.
     """
     return -(-min_fee * group_usage // USAGE_SCALE)
 
@@ -751,12 +756,17 @@ def main(app_id: int, spec_path: str) -> int:
             method="claim", args=[], static_fee=probe,
         ))
     )
-    # Empty signers + allow-empty-signatures: algokit-utils already
-    # enables this. The transactions still carry the signature *type*
-    # that will be used once signed (Ed25519 here; a Falcon sender
-    # needs a placeholder PQ envelope or usage is understated).
-    result = group.simulate(allow_empty_signatures=True)
-    usage = result.simulate_response["txn-groups"][0]["group-usage"]
+    # skip_signatures swaps in empty signers and turns on
+    # allow-empty-signatures. LocalNet accounts are Ed25519; a
+    # Falcon sender priced this way is understated until the
+    # unsigned envelope carries that signature type.
+    result = group.simulate(skip_signatures=True)
+    txn_group = result.simulate_response["txn-groups"][0]
+    usage = txn_group.get("group-usage")
+    if usage is None:
+        raise RuntimeError(
+            "simulate omitted group-usage; need algod 5.0+"
+        )
     needed = required_group_fee(min_fee, usage)
     print(f"group-usage {usage}: pay {needed} microAlgo before signing")
     return needed
@@ -766,17 +776,21 @@ if __name__ == "__main__":
     main(int(sys.argv[1]), sys.argv[2])
 ```
 
-Chapter 7's splitter asserted `Global.min_txn_fee * 3` as a floor. That floor is what the contract can check without knowing who is paying. The number the *client* attaches is this one: `group-usage` from simulate, scaled by the network's current `minFee`, rounded up once for the group. [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note, and the guidance is not a preference: **do not hard-code anything related to fees.**
+On LocalNet, against this chapter's vesting `claim` --- one app call, one inner transfer, an ordinary Ed25519 sender --- that print is:
+
+```console
+group-usage 2000000: pay 2000 microAlgo before signing
+```
+
+Two millionths-of-a-min-fee units is two min-fees. The 2,000 matches the product Chapter 7 would have written. A Falcon-authorized beneficiary would not: that signature adds two extra min-fees to the outer call, so usage would be 4,000,000 and the attached fee 4,000. [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note: **do not hard-code anything related to fees.**
 
 Three facts make the pattern what it is, rather than "call simulate and hope."
 
-First, `suggested_params()` still provides `minFee`, and that is still the unit. It is not the whole fee. Multiplying it by the number of transactions underpays as soon as a transaction uses more than one min-fee: a Falcon-1024 authorization adds two extra min-fees to that one signature (three total, against one for Ed25519), and bytes beyond the free size allowances in Appendix B add a per-byte surcharge. The arithmetic lives in `group-usage`, reported in millionths of a min-fee, inners included.
+First, `suggested_params()` still provides `minFee`, and that is still the unit, not the whole fee. Multiplying it by the transaction count underpays as soon as a transaction uses more than one min-fee: a Falcon-1024 authorization (native post-quantum account signatures; Appendix B) adds two extra min-fees to that one signature, and bytes beyond the free size allowances add a per-byte surcharge. The arithmetic lives in `group-usage`, reported in millionths of a min-fee, inners included. The `-(-a // b)` line is integer ceiling, applied once for the group.
 
-Second, empty signers plus `allow-empty-signatures` let you price the group before anyone has signed it --- algokit-utils already turns both on --- but the unsigned transactions must still carry the *type* of signature that will be used. Simulate an Ed25519 envelope and then collect a Falcon signature and the priced fee is short: simulate succeeded, submit fails. Identify the account type first, then simulate. A placeholder PQ envelope (scheme only, no key, no signature bytes) is how you price a Falcon sender you have not yet asked to sign.
+Second, `skip_signatures=True` is how algokit-utils gives you empty signers together with `allow-empty-signatures`, so you can price the group before anyone has signed. The unsigned transactions must still carry the *type* of signature that will be used. Simulate an Ed25519 envelope and then collect a Falcon signature and the priced fee is short: simulate succeeded, submit fails. Identify the account type first, then simulate.
 
-Third, an underpaid simulate stops early. Inner transactions that never execute are not in `group-usage`, so the reported fee is a lower bound on a failed run, not the fee a successful submit needs. Example 8-11 probes at `minFee * 100` so the group finishes; you then overwrite that probe with `needed` *before* collecting signatures. Spread the total across the group however you like --- fees still pool.
-
-`CongestionTax` on the block header is informational today. Nothing in the current fee formula reads it. Heat flags that it may later raise fees above the minimum under congestion, which is another reason the number comes from simulate against live state rather than from a constant in your repo. Appendix B dates the snapshot; this book does not guess an activation date.
+Third, an underpaid simulate stops early. Inner transactions that never execute are not in `group-usage`, so the reported fee is a lower bound on a failed run. Example 8-11 probes at `minFee * 100` so the group finishes; you then put `needed` on the *app call* before signing. This book's contracts assert their floor on that call's `Txn.fee`, so pooling the total onto a sibling payment would fail the assertion even though the group had paid enough. (`CongestionTax` on the block header is informational today and may later raise fees above the minimum; another reason the number comes from live simulate rather than a constant. Appendix B dates the snapshot.)
 
 **Example 8-12.** One return value, three call paths, three shapes
 
@@ -1162,7 +1176,7 @@ Answer these from memory before moving on. Four reach back into earlier chapters
 5. A method reports 2,400 opcodes consumed under `extra_opcode_budget=20_000`. How many application calls does the real group need, and where does the extra budget exist?
 6. Your simulate of a failing group returns no object at all. What happened, and where are `pc` and the failure message?
 7. *(From Chapter 6)* `total * elapsed // duration` overflows and `mulw`/`divw` does not, for the same inputs. Say precisely which value exceeds sixty-four bits in the first form and why it never has to in the second.
-8. *(From Chapter 7)* Example 7-4 set every inner transaction's fee to zero and asserted that the caller's `Txn.fee` covered the whole pool. Say what you read from a simulate of that method to learn the fee the *client* must attach, and why counting inner transactions and multiplying `minFee` is the wrong production rule.
+8. Example 7-4 set every inner transaction's fee to zero and asserted that the caller's `Txn.fee` covered the whole pool. Say what you read from a simulate of that method to learn the fee the *client* must attach, and why counting inner transactions and multiplying `minFee` is the wrong production rule.
 9. *(From Chapter 3)* A method marked `readonly=True` increments a counter. Say what happens to the counter when a client calls it, why nothing reports an error, and what this chapter adds about the environment that call ran in.
 10. *(From Chapter 2)* You already knew a program counter identifies a byte in the compiled approval program. Name the file that maps it back to a line of Python, say which tool writes it, and say which tool does not read it.
 11. A return value and an ARC-28 event both travel in the transaction log. Say who each one is addressed to, and what a consumer needs to know to find every `Claimed(address,uint64)` event without holding the app spec.
@@ -1236,11 +1250,12 @@ Answer these from memory before moving on. Four reach back into earlier chapters
    e. **(Debug)** Write down which of your tests would still have passed if `revoke` had forgotten to stop the schedule, and fix that test rather than the contract.
 
 ## Before You Continue
-You should be able to check off all five of these:
+You should be able to check off all six of these:
 
 - [ ] I can say where an assert message is stored, prove it is not in the bytecode, explain what a caller without the app spec sees, and choose between `assert`, `logged_assert()` and `op.err()` for a given contract.
 - [ ] I can name what the ARC-4 router validates before my method runs, stop writing assertions that restate it, and give the two separate reasons there is no reentrancy on Algorand.
-- [ ] I can run a method through simulate against live state, read its opcode cost with extra budget, discover the resources it touched, convert `group-usage` into the fee the group must pay, and say why none of that is permission to submit.
+- [ ] I can run a method through simulate against live state, read its opcode cost with extra budget, discover the resources it touched, and say why none of that is permission to submit.
+- [ ] I can convert simulate's `group-usage` into the fee a group must pay, and say why multiplying `minFee` by a transaction count is the wrong production rule.
 - [ ] I can turn a program counter into a line of Python using the `.puya.map` file, and say what it means when a program counter does not resolve.
 - [ ] I can write a test that would go red if the contract were wrong, say why a test written from the code cannot, and pin a negative test to the specific message its assertion produces.
 
@@ -1257,6 +1272,6 @@ Chapter 9 builds the production version of this chapter's vesting contract: mult
 | Example 8-15 | The fast half of the suite, over the schedule arithmetic | Vesting is entirely a function of the clock. Say which of the project's methods can be tested with `patch_global_fields` alone, and which cannot and why. |
 | Example 8-16 | One test per security assertion, each pinned to its message | The project's admin-only methods each need a stranger test. Write down what such a test must assert beyond "an exception was raised". |
 | Example 8-9 | Sizing the group for a multi-beneficiary payout | A payout loop's cost scales with beneficiaries. Say how you would find the point at which the group needs a second app call, without deploying twice. |
-| Example 8-11 | The `static_fee` on every payout the project's tests attach | The project hard-codes 2,000 microAlgo for one inner transfer. Say what that number is (a LocalNet Ed25519 floor) and what you would read instead before sending the same call from a Falcon account. |
+| Example 8-11 | The `static_fee` on every payout the project's tests attach | You are about to send this same call from a Falcon-authorized account. What do you read first, and what do you do with what it returns? |
 | Example 8-13 | The debugging procedure when a claim fails on LocalNet | The project's build writes a `.puya.map` beside its bytecode. Say what you would do with a `pc` from a failed claim, in order, and where the procedure stops working. |
 | Example 8-17 | Events on every state-changing method, from the first deployment | The project has five state-changing methods. Decide which of them deserve an event and what belongs in each payload, then compare against what the project ships. |

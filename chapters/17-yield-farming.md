@@ -1008,9 +1008,9 @@ own terms:
   it unfunded and the refusal comes from the ledger, not from an assert.
 - **Declare the AMM.** `app_references=[pool.app_id]` is what makes the
   cross-contract read legal; without it the read fails with `unavailable App`.
-- **Pool the fees.** `static_fee=3_000` is a LocalNet Ed25519 floor covering
-  the outer call plus the two zero-fee opt-in inner transactions --- Chapter
-  11's arithmetic, one call later, not a production constant (Example 8-11).
+- **Pool the fees.** `static_fee=3_000` covers the outer call plus the two
+  zero-fee opt-in inner transactions --- Chapter 11's arithmetic, one call
+  later (Example 8-11).
 
 Build, then run it:
 

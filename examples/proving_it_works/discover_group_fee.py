@@ -1,8 +1,9 @@
 # book-example: mode=script
-"""Ask simulate for the fee a group must pay, then set it.
+"""Ask simulate for the fee a group must pay.
 
 Do not hard-code a fee. Read minFee from suggested params and
-group-usage from simulate. Heat: total = ceil(minFee * usage / 1e6).
+group-usage from simulate. Heat: total = ceil(minFee * usage /
+1,000,000).
 """
 
 import sys
@@ -19,6 +20,7 @@ def required_group_fee(min_fee: int, group_usage: int) -> int:
 
     group-usage is millionths of a min-fee, including every inner
     transaction. Round up once for the group, never per transaction.
+    `-(-a // b)` is integer ceiling division.
     """
     return -(-min_fee * group_usage // USAGE_SCALE)
 
@@ -41,12 +43,17 @@ def main(app_id: int, spec_path: str) -> int:
             method="claim", args=[], static_fee=probe,
         ))
     )
-    # Empty signers + allow-empty-signatures: algokit-utils already
-    # enables this. The transactions still carry the signature *type*
-    # that will be used once signed (Ed25519 here; a Falcon sender
-    # needs a placeholder PQ envelope or usage is understated).
-    result = group.simulate(allow_empty_signatures=True)
-    usage = result.simulate_response["txn-groups"][0]["group-usage"]
+    # skip_signatures swaps in empty signers and turns on
+    # allow-empty-signatures. LocalNet accounts are Ed25519; a
+    # Falcon sender priced this way is understated until the
+    # unsigned envelope carries that signature type.
+    result = group.simulate(skip_signatures=True)
+    txn_group = result.simulate_response["txn-groups"][0]
+    usage = txn_group.get("group-usage")
+    if usage is None:
+        raise RuntimeError(
+            "simulate omitted group-usage; need algod 5.0+"
+        )
     needed = required_group_fee(min_fee, usage)
     print(f"group-usage {usage}: pay {needed} microAlgo before signing")
     return needed

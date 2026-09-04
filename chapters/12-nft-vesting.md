@@ -1207,8 +1207,8 @@ def deliver_nft(
 Three arguments in `create_schedule` are decisions made earlier in this chapter,
 now in their permanent home: `SCHEDULE_MBR` is the 126,100 microAlgos of box
 plus NFT minimum balance, exact in both directions; the `static_fee` of 2,000
-covers the app call and the inner `AssetConfig` it fires --- a LocalNet
-Ed25519 floor of two min-fees, not a production constant (Example 8-11); and the box reference
+covers the app call and the inner `AssetConfig` it fires (Example 8-11);
+and the box reference
 names a box that does not exist yet, because the reference declares a name this
 call may touch, creation included. `deliver_nft` opts the recipient in *before*
 it calls, which is the opt-in problem's answer written as two lines instead of

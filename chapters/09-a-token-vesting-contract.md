@@ -1471,8 +1471,8 @@ import algokit_utils
 
 # Wraps the v4 send.call pattern for concise test code. Methods that emit
 # inner transactions (claim, revoke, cleanup_schedule) need a static_fee of
-# 2,000 so the outer transaction's fee covers the inner one by pooling --- a
-# LocalNet Ed25519 floor, not a production constant (Example 8-11); the
+# 2,000 so the outer transaction's fee covers the inner one by pooling
+# (not a production constant; Example 8-11); the
 # note is what tells two otherwise identical calls apart.
 FEE_FOR_ONE_INNER = algokit_utils.AlgoAmount.from_micro_algo(2_000)
 

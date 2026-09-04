@@ -98,7 +98,7 @@ result = lottery.send.call(
 )
 ```
 
-The composer places the payment ahead of the application call, which is the group of two the contract checks for. The static fee and the box reference are plumbing the chapter comes back to: `FEE_ENTER` is a LocalNet Ed25519 floor of one min-fee, not a production constant (Example 8-11).
+The composer places the payment ahead of the application call, which is the group of two the contract checks for. The static fee and the box reference are plumbing the chapter comes back to (`FEE_ENTER` is one min-fee on LocalNet; Example 8-11).
 
 The bill for state lands before the first ticket is sold. Table 19-3 is every global key the lottery declares.
 

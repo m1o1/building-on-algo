@@ -248,9 +248,9 @@ A passing simulate with `allow_unnamed_resources=True` is not evidence the call 
 
 *From Chapter 11.*
 
-### An inner transaction's fee is spent from the contract's own balance {-}
+### Spending the application account toward its floor makes every other inner transaction fail {-}
 
-The fee on an inner transaction comes from the application account, and `fee=0` is already the default on every `itxn` builder in algorand-python. So the hazard is not a forgotten fee but a fee somebody wrote a value into, usually `Global.min_txn_fee`, believing a transaction must carry one. On a method anybody may call, that is an unbounded withdrawal, a minimum fee per inner transaction per call from an account with no income --- and spending toward the minimum makes every *other* inner transaction the contract sends start failing, so the symptom is a contract that stops working entirely rather than one that reports a shortfall. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and require the caller to cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor. The number the client attaches is Example 8-11, not this product.
+Chapter 7 established where an inner fee comes from. The part that lands here is *which* balance it spends: the application account's spendable Algo, the same slab the splitter emptied. Drain it toward the minimum and the next inner payment fails as `balance below min`, not as a shortfall you can read off a return value. The symptom is a contract that stops working entirely. The floor assertion on `Txn.fee` does not prevent that drain; only `fee=UInt64(0)` on the inners does.
 
 *From Chapter 11.*
 
@@ -268,7 +268,7 @@ There is no fractional arithmetic on the AVM, so any split, share, rate or fee c
 
 ### A method that makes inner transactions carries a fee its own source never states {-}
 
-`fee=0` on an inner transaction means the caller pays for it, so a method making two inner transactions needs three minimum fees on the outer call and there is nothing in the contract that says three. A client written from the contract alone sends one, and the failure it gets back is `group fee 0.0A too small (needs 1mA more)` at whichever `itxn_submit` ran out --- which is not necessarily the first one, because the credit is checked as each inner transaction submits rather than against the whole group before the program runs. A method whose first inner transaction succeeds and whose second fails is underpaid rather than broken. Count the inner transactions on every path, take the largest, and send that many fees.
+`fee=0` on an inner transaction means the caller pays for it, so a method making two inner transactions needs three minimum fees on the outer call and there is nothing in the contract that says three. Send one and the failure is `group fee 0.0A too small (needs 1mA more)` at whichever `itxn_submit` ran out --- not necessarily the first, because credit is checked as each inner submits. A first inner that succeeds and a second that fails is underpaid, not broken. Count inners to size the contract's floor; the client attaches `simulate`'s `group-usage` (Example 8-11).
 
 *From Chapter 18.*
 
@@ -525,7 +525,7 @@ An inner payment of `app.balance` fails for every account that will still exist 
 
 ### A non-zero inner transaction fee is paid out of the contract's own balance {-}
 
-The fee on an inner transaction comes from the application account, never from the caller. `fee: UInt64 | int = 0` is already the default on every `itxn` builder, so the danger is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee`. On a public method that is an unbounded drain of one min-fee per call, and an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly, and make the caller cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor, not the fee the client attaches. Chapter 8's `simulate` reports `group-usage`; that, not this product, is the client's fee.
+The fee on an inner transaction comes from the application account. `fee: UInt64 | int = 0` is already the default on every `itxn` builder, so the danger is a fee somebody wrote a non-zero value into, most often `Global.min_txn_fee`. On a public method that is an unbounded drain of one min-fee per call, and an account drained toward its minimum fails every other inner transaction it wants to send. Write `fee=UInt64(0)` explicitly, and make the caller cover the group with `assert Txn.fee >= Global.min_txn_fee * UInt64(N)` --- a floor, not the fee the client attaches. Chapter 8's `simulate` reports `group-usage`; that, not this product, is the client's fee.
 
 *From Chapter 7.*
 
