@@ -14,11 +14,10 @@ matter what the source file is called.
 The committed `VoteVerifier.teal` is left alone unless you ask for it back.
 It is a generated ZK artifact like `vote.proof` and `vote_circuit.vk`: produced
 once, by a named command, and committed so a reader with no Go toolchain can
-still run the trustless path. It also assembles to the exact 3,464 bytes the
+still run the trustless path. It also assembles to the exact 3,447 bytes the
 chapter's Run It First table reports, and puyapy's output moves between
-releases --- 5.8.1 assembles the same source to 3,483 --- so regenerating it on
-every build would make a measured number depend on which puyapy the reader
-happened to install.
+releases, so regenerating it on every build would make a measured number
+depend on which puyapy the reader happened to install.
 
 Run it from the project root:
 
@@ -48,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     if TARGET.exists() and not force:
         print(
             f"{TARGET.name} is already present ({TARGET.stat().st_size} bytes of "
-            "TEAL, 3,464 assembled); pass --force to recompile it from "
+            "TEAL, 3,447 assembled); pass --force to recompile it from "
             f"{SOURCE.name}."
         )
         return 0
@@ -70,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
             "--out-dir",
             str(GENERATED),
             "--target-avm-version",
-            "12",
+            "13",
             str(SOURCE),
         ],
         text=True,

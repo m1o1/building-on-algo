@@ -22,7 +22,7 @@ The book is twenty-four chapters in seven parts, alternating between two kinds o
 
 - **Chapter 1 --- From Zero to Deployed.** An empty directory to a deployed, tested contract: the toolchain, LocalNet, the five-step loop every later chapter assumes, and three habits for when a step refuses.
 
-- **Chapter 2 --- The Algorand Mental Model.** The execution model, the account system, and the constraints every developer has to internalize, taught as the diagnosis of a contract you build and break.
+- **Chapter 2 --- The Algorand Mental Model.** Smart contracts are transaction validators, not running processes: the execution model, the account system, and the constraints every developer has to internalize, taught as the diagnosis of a contract you build and break.
 
 - **Chapter 3 --- Contracts That Exist and Respond.** What it takes for a contract to exist at all: creation, the OnCompletes that describe its lifecycle, the router that decides which method a call reaches, and the upgrade and delete authority you are choosing whether to keep.
 
@@ -118,7 +118,7 @@ Client-side code uses **typed generated clients** throughout: `algokit generate 
 
 ## Using Code Examples {-}
 
-All contract code in this book is Algorand Python targeting AVM v12, compiled
+All contract code in this book is Algorand Python targeting AVM v13, compiled
 and run on LocalNet with the toolchain versions listed at the end of this
 section. Every listing you are meant to learn from is a *numbered example*.
 Where a numbered example carries a source annotation, it corresponds to a
@@ -132,14 +132,14 @@ it belongs to) or tool output you are meant to read, never type.
 You are free to use the code examples in your own projects; no special
 permission is required.
 
-This book pins a dated, validated baseline toolchain. As of July 24, 2026, the examples were reviewed against:
+This book pins a dated, validated baseline toolchain. As of September 4, 2026, the examples were reviewed against:
 
 - AlgoKit CLI v2.10.2
-- PuyaPy compiler v5.8.1
-- `algorand-python` v3.5.0
+- PuyaPy compiler v5.10.1
+- `algorand-python` v4.0.0
 - `algokit-utils` v4.2.3
 - `algorand-python-testing` v1.1.0
-- AVM version 12
+- AVM version 13 (consensus v42; go-algorand 5.0.1)
 
 Newer patch or minor releases may work, but this list is the last validated baseline, not the latest. Avoid prerelease package lines unless you also rerun the affected chapter walkthroughs and tests.
 

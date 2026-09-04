@@ -146,13 +146,14 @@ class Sizing(ARC4Contract):
     @arc4.abimethod(readonly=True)
     def pages(self, app: Application) -> UInt64:
         # A program is one 2,048-byte page by default. Each extra page is
-        # another 100,000 microAlgo on the creator's minimum balance, and
-        # the count is fixed at creation like the schema.
+        # another 100,000 microAlgo on the creator's minimum balance.
+        # Consensus v42 lets an update change the count, but only if the
+        # contract approves UpdateApplication --- this one does not.
         extra, _exists = op.AppParamsGet.app_extra_program_pages(app)
         return extra
 ```
 
-An application gets one 2,048-byte page free, and that is approval and clear-state *combined*, not each. Every additional page costs another 100,000 microAlgo of the creator's minimum balance. Like the schema, the count is fixed at creation: a contract cannot grow a page later, so a program approaching the boundary is a deployment decision rather than an optimisation.
+An application gets one 2,048-byte page free, and that is approval and clear-state *combined*, not each. Every additional page costs another 100,000 microAlgo of the creator's minimum balance. Consensus v42 lets an update grow pages (and global schema), moving the extra MBR onto the updater --- but only if the contract approves `UpdateApplication`. A program approaching the boundary is still a deployment decision for every contract in this book that refuses updates.
 
 **Example 11-4.** Charge the user for the box they create
 
@@ -347,10 +348,12 @@ class FeeAware(ARC4Contract):
 
 `Global.min_txn_fee` is a consensus parameter. Writing `1_000` works today and is a claim about a number the protocol reserves the right to change; reading it costs one opcode and cannot go stale.
 
-::: {.gotcha #min-fee-is-a-parameter-not-a-constant topic="Resource references, MBR, and budget" title="The minimum fee is a consensus parameter, not a constant"}
-1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 by a group size underpays the whole group the moment the protocol raises it, and the failure is a rejected group rather than anything that points at the constant. Read the fee from `suggested_params()` and scale that.
+That is the *contract's* floor. On the client, `/v2/transactions/params` and `suggested_params()` still provide `minFee`, and for the ordinary groups this chapter builds --- Ed25519 signatures, sizes inside the free allowances --- multiplying that floor by the number of transactions is still the fee. It stops being enough once signature type or size leaves those allowances; the gotcha below is the client rule.
 
-Inside a contract, `Global.min_txn_fee` is the same number and costs one opcode, so a fee cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale, where `UInt64(10_000)` can.
+::: {.gotcha #min-fee-is-a-parameter-not-a-constant topic="Resource references, MBR, and budget" title="A min-fee times a group size is not the group's fee"}
+1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes beyond the free size allowances (Appendix B) add a per-byte surcharge. `/v2/transactions/params` still provides `minFee`; it is not the whole fee. Ask `simulate` for the group's usage rather than inventing the arithmetic ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)).
+
+Inside a contract, `Global.min_txn_fee` is the floor and costs one opcode, so a cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale as a floor check. It is not a substitute for the client's simulate-reported fee.
 :::
 
 **Example 11-8.** Fee pooling, and who covers the group

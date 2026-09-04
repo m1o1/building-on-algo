@@ -259,54 +259,54 @@ class Registry(ARC4Contract):
         return self.entries.value
 ```
 
-Example 8-2 has two rejections in one method, and the difference between them is one comma. Compile it --- PuyaPy 5.9 writes the ARC-56 spec by default, so there is no flag to remember --- and go looking for the message:
+Example 8-2 has two rejections in one method, and the difference between them is one comma. Compile it --- PuyaPy 5.10 writes the ARC-56 spec by default, so there is no flag to remember --- and go looking for the message:
 
 ```console
-$ uv run --group compile python -m puyapy --target-avm-version 11 \
-      --out-dir /tmp/ch07 examples/proving_it_works/assert_message_home.py
+$ uv run --group compile python -m puyapy --target-avm-version 13 \
+      --out-dir /tmp/ch08 examples/proving_it_works/assert_message_home.py
 ```
 
 ```python
->>> spec = json.loads(Path("/tmp/ch07/Registry.arc56.json").read_text())
+>>> spec = json.loads(Path("/tmp/ch08/Registry.arc56.json").read_text())
 >>> bytecode = base64.b64decode(spec["byteCode"]["approval"])
 >>> len(bytecode)
-111
+108
 >>> b"owner only" in bytecode
 False
 >>> spec["sourceInfo"]["approval"]["sourceInfo"]
-[{'pc': [92], 'errorMessage': 'check self.entries exists'},
- {'pc': [83], 'errorMessage': 'check self.owner exists'},
- {'pc': [75], 'errorMessage': 'invalid number of bytes for arc4.uint64'},
- {'pc': [85], 'errorMessage': 'owner only'}]
+[{'pc': [89], 'errorMessage': 'check self.entries exists'},
+ {'pc': [80], 'errorMessage': 'check self.owner exists'},
+ {'pc': [72], 'errorMessage': 'invalid number of bytes for arc4.uint64'},
+ {'pc': [82], 'errorMessage': 'owner only'}]
 ```
 
-The message went to two places, neither of them the chain. It became a TEAL comment --- `assert // owner only` --- which is discarded when the TEAL is assembled. And it became an entry in the ARC-56 app spec's `sourceInfo`, keyed by the program counter of the `assert` opcode. The AVM, when that assertion fails, reports `assert failed pc=85`. Everything legible after that is a client-side lookup: the client holds the app spec, matches `85` against the table, and substitutes `owner only` into the exception it raises.
+The message went to two places, neither of them the chain. It became a TEAL comment --- `assert // owner only` --- which is discarded when the TEAL is assembled. And it became an entry in the ARC-56 app spec's `sourceInfo`, keyed by the program counter of the `assert` opcode. The AVM, when that assertion fails, reports `assert failed pc=82`. Everything legible after that is a client-side lookup: the client holds the app spec, matches `82` against the table, and substitutes `owner only` into the exception it raises.
 
 Two consequences follow.
 
-**A caller who does not hold your app spec gets a number.** Not a truncated message, not a generic one: a program counter. Anyone integrating with your contract from a different toolchain, a different language, or a block explorer sees `assert failed pc=85` and has to come and ask you what it means.
+**A caller who does not hold your app spec gets a number.** Not a truncated message, not a generic one: a program counter. Anyone integrating with your contract from a different toolchain, a different language, or a block explorer sees `assert failed pc=82` and has to come and ask you what it means.
 
 **A bare assert has no entry at all.** That table has four rows for a method with two assertions, and three of the four are PuyaPy's own: `check self.owner exists` and `check self.entries exists` are existence assertions the compiler inserts in front of every global-state read, and `invalid number of bytes for arc4.uint64` is the ABI router validating an argument's width. Exactly one row belongs to the author. The second authored assertion, `assert count > UInt64(0)` with no message, is not in the table at all. It compiled to an `assert` opcode with no diagnostics attached, which makes it invisible to every tool that reads the app spec.
 
 ::: {.gotcha #assert-message-not-onchain topic="Compilation, tooling, and shipping" title="The string in an assert message is not in your program"}
-`assert cond, "message"` puts the string in two places and neither is the chain: a TEAL comment, discarded at assembly, and an ARC-56 `sourceInfo` entry keyed by the program counter of the `assert` opcode. The compiled bytes do not contain it (`b"owner only" in bytecode` is `False`), and the AVM reports only `assert failed pc=85`; everything legible after that is a client-side lookup against the app spec, so a caller integrating from a different toolchain, a different language, or a block explorer gets a number and has to come and ask you what it means. A *bare* `assert` produces no `sourceInfo` entry at all --- invisible to every tool that reads the spec, sitting beside the messaged existence assertions PuyaPy inserts on state reads.
+`assert cond, "message"` puts the string in two places and neither is the chain: a TEAL comment, discarded at assembly, and an ARC-56 `sourceInfo` entry keyed by the program counter of the `assert` opcode. The compiled bytes do not contain it (`b"owner only" in bytecode` is `False`), and the AVM reports only `assert failed pc=82`; everything legible after that is a client-side lookup against the app spec, so a caller integrating from a different toolchain, a different language, or a block explorer gets a number and has to come and ask you what it means. A *bare* `assert` produces no `sourceInfo` entry at all --- invisible to every tool that reads the spec, sitting beside the messaged existence assertions PuyaPy inserts on state reads.
 :::
 
 That is the vesting contract's defect three, seen from the outside. Compile the broken vesting contract with the same command, which also writes the `.puya.map` file, and run the lookup at the two program counters that sit two bytes apart in `claim`:
 
 ```console
-$ uv run --group compile python -m puyapy --target-avm-version 11 \
-      --out-dir /tmp/ch07 examples/proving_it_works/simple_vesting_broken.py
+$ uv run --group compile python -m puyapy --target-avm-version 13 \
+      --out-dir /tmp/ch08 examples/proving_it_works/simple_vesting_broken.py
 $ uv run --group test python examples/proving_it_works/pc_to_source_line.py \
-      /tmp/ch07/SimpleVesting.approval.puya.map 311
-pc=311  simple_vesting_broken.py:75
+      /tmp/ch08/SimpleVesting.approval.puya.map 309
+pc=309  simple_vesting_broken.py:76
    |  assert Txn.sender == self.beneficiary.value
    |  op=assert // check self.beneficiary exists
    |  error='check self.beneficiary exists'
 
 $ uv run --group test python examples/proving_it_works/pc_to_source_line.py \
-      /tmp/ch07/SimpleVesting.approval.puya.map 313
-pc=313  simple_vesting_broken.py:75
+      /tmp/ch08/SimpleVesting.approval.puya.map 311
+pc=311  simple_vesting_broken.py:76
    |  assert Txn.sender == self.beneficiary.value
    |  op=assert
 ```
@@ -413,11 +413,11 @@ class Gate(ARC4Contract):
         assert False, "closed for now"  # noqa: B011
 ```
 
-The two methods in Example 8-5 compile to the identical opcode. `op.err()` lowers to `err`. So does `assert False, "closed for now"`: an assertion the compiler can prove always fails becomes an unconditional `err` rather than a comparison. The only difference is in the app spec, read the same way as before against `/tmp/ch07/Gate.arc56.json`:
+The two methods in Example 8-5 compile to the identical opcode. `op.err()` lowers to `err`. So does `assert False, "closed for now"`: an assertion the compiler can prove always fails becomes an unconditional `err` rather than a comparison. The only difference is in the app spec, read the same way as before against `/tmp/ch08/Gate.arc56.json`:
 
 ```python
 >>> spec["sourceInfo"]["approval"]["sourceInfo"]
-[{'pc': [35], 'errorMessage': 'closed for now'}]
+[{'pc': [34], 'errorMessage': 'closed for now'}]
 ```
 
 One entry, for the `assert False` form. `op.err()` produces none. There is no case in which `op.err()` is better than `assert False, "..."`, and there is a case in which it is actively worse: a trailing `op.err()` after an `if`/`elif` chain can be folded by the optimizer into a bare assertion on the preceding branch, at which point you have a rejection with no message in a place you did not write one.
@@ -799,17 +799,17 @@ Example 8-12's `explain_pc` is the sixteen lines that close the gap, and the key
 
 ```console
 $ uv run --group test python examples/proving_it_works/pc_to_source_line.py \
-      /tmp/ch07/SimpleVesting.approval.puya.map 178
-pc=178  simple_vesting_broken.py:39
+      /tmp/ch08/SimpleVesting.approval.puya.map 176
+pc=176  simple_vesting_broken.py:40
    |  assert Txn.sender == self.admin.value, "admin only"
    |  op=assert // admin only  |  error='admin only'
 
 $ uv run --group test python examples/proving_it_works/pc_to_source_line.py \
-      /tmp/ch07/SimpleVesting.approval.puya.map 999
+      /tmp/ch08/SimpleVesting.approval.puya.map 999
 pc=999: no mapping
 ```
 
-The second call is the honest half, though not for the reason people expect. `999` is simply past the end of a 450-byte program. Every program counter *inside* the program resolves, because the map carries one segment per byte, so a failed lookup is not telling you "this byte has no source". It is telling you the number is out of range for *this* program, which nearly always means it belongs to a longer one than the map you built. That is the benign case, because it fails loudly. The two you will actually meet do not fail at all. A program counter from the clear-state program, looked up in the approval map, resolves: a clear program is a handful of bytes against an approval program of hundreds, so its counters land comfortably inside the approval map and come back pointing at line 0. And a map rebuilt from a commit other than the one deployed resolves to a line number that is real and wrong. **Both give you an answer; neither gives you the right one.** The tool cannot tell the difference, so you have to.
+The second call is the honest half, though not for the reason people expect. `999` is simply past the end of a 443-byte program. Every program counter *inside* the program resolves, because the map carries one segment per byte, so a failed lookup is not telling you "this byte has no source". It is telling you the number is out of range for *this* program, which nearly always means it belongs to a longer one than the map you built. That is the benign case, because it fails loudly. The two you will actually meet do not fail at all. A program counter from the clear-state program, looked up in the approval map, resolves: a clear program is a handful of bytes against an approval program of hundreds, so its counters land comfortably inside the approval map and come back pointing at line 0. And a map rebuilt from a commit other than the one deployed resolves to a line number that is real and wrong. **Both give you an answer; neither gives you the right one.** The tool cannot tell the difference, so you have to.
 
 Keep the map file. It is written on every compile, it is a few kilobytes, and it is the only artifact that connects the number in a production error report to a line you can go and read. If your deployment pipeline discards build outputs other than the app spec, this is the one to add back.
 
@@ -976,8 +976,8 @@ A negative test on a real network has a practical problem: to prove that a stran
 
 Two limits of the exception are worth knowing before you lean on it. `.traces` exists on the class and is `None` on every `LogicError` this toolchain raises --- the code path that builds a trace attaches it to a different exception type --- so code that reads it looks like it works and learns nothing; to see a trace, re-simulate and read the response. And every simulate algokit-utils makes turns on `allow_more_logs`, `allow_unnamed_resources`, and `allow_empty_signatures`, with an empty signer substituted throughout, so a simulate that *succeeds* is not evidence the same group would have been accepted with real signatures and declared resources. Simulate answers "would this program approve?"; only submission answers "would the network accept it?"
 
-::: {.gotcha #dryrun-is-leaving topic="Testing and simulation" title="dryrun still answers, and is already deleted upstream"}
-`simulate` is the endpoint for this job now. `dryrun` has been deleted from go-algorand's `master` branch and still answers on every *released* node, LocalNet included --- so code that reaches for it works today and stops working on an upgrade, which is worse than failing now. Older material using `dryrun` does not announce itself as dated; the endpoint's continued politeness is the trap.
+::: {.gotcha #dryrun-is-leaving topic="Testing and simulation" title="dryrun and tealdbg are gone; simulate is the endpoint"}
+`simulate` (`/v2/transactions/simulate`) is the endpoint for this job. go-algorand 5.0.0 removed the `dryrun` REST endpoint and the `tealdbg` tool. Older material that still calls dryrun fails on a 5.0.x node; LocalNet tracking this book's algod pin (5.0.1) has nothing to answer.
 :::
 
 Example 8-15 asserts not that an exception was raised, but that `"not the beneficiary" in rejected.message`. The `in` matters: `LogicError.message` is your string wrapped in the contract name, application ID and transaction ID, so an equality comparison against the bare string never holds. **One negative test per security assertion, each pinned to its own message,** is the practice that separates a suite which proves your authorization works from one which proves that *something* went wrong. A test that catches any exception passes when your contract rejects the stranger for the wrong reason, and passes when it rejects everybody, and passes when it is broken.

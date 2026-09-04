@@ -210,10 +210,10 @@ pipx-installed tool. `smart_contracts/__main__.py` falls back to
 `python -m puyapy` and `python -m algokit_client_generator` when pipx is not
 present, so `algokit project run build` works in a Poetry-only environment.
 The compiler flags are the same either way, including
-`--target-avm-version=12`.
+`--target-avm-version=13`.
 
 `poetry.lock` pins the toolchain this project was last built and tested
-against: puyapy 5.8.1, algorand-python 3.5.0, algokit-utils 4.2.3, and
+against: puyapy 5.10.1, algorand-python 4.0.0, algokit-utils 4.2.3, and
 pytest 9. `algokit project bootstrap all` installs from it rather than
 resolving afresh, so the artifacts in `smart_contracts/artifacts/` are
 reproducible byte for byte.

@@ -112,7 +112,7 @@ def build(output_dir: Path, contract_path: Path) -> Path:
             # Pinned here rather than left to the compiler default so a
             # reader cannot forget it. PuyaPy 5.x defaults to AVM 11; every
             # contract in this book targets 12.
-            "--target-avm-version=12",
+            "--target-avm-version=13",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

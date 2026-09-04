@@ -67,7 +67,7 @@
 :   A smart contract account that holds assets and releases them only when programmatic conditions are met. On Algorand, the contract's deterministic address acts as the escrow.
 
 **Falcon**
-:   A lattice-based post-quantum digital signature scheme selected by NIST for standardization. Algorand uses Falcon-1024 to sign State Proofs and supports on-chain verification via the `falcon_verify` opcode (AVM v12).
+:   A lattice-based post-quantum digital signature scheme selected by NIST for standardization. Algorand uses Falcon-1024 to sign State Proofs, supports on-chain verification via the `falcon_verify` opcode (AVM v12), and (consensus v42) accepts Falcon-1024 as a native account signature --- 1,793-byte public key, signature up to 1,423 bytes, three minimum fees.
 
 **Fee pooling**
 :   The ability for one transaction in an atomic group to overpay its fee to cover the minimum fees of other transactions in the same group.

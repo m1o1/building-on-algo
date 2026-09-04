@@ -7,7 +7,16 @@
 
 Chapter 1 left you with a running toolchain, a deployed application, and no account of what that application actually *is*. This chapter pays that debt, and it pays it the expensive way: you will build a contract of your own from an empty file, watch it fail three different ways, and use the failures to assemble a working model of the machine underneath.
 
-Algorand is a *proof-of-stake* blockchain with *instant finality*, a block time of roughly two and three-quarter seconds, and no forking. Every confirmed transaction is final: there is no "wait for six confirmations." Block proposers and committee voters are selected secretly by a *Verifiable Random Function*, so there is nobody to attack before they reveal themselves. None of that is what makes writing a contract feel strange the first time. The thing that does is smaller and closer to your keyboard: a contract is not a program that runs. It is a program that is *asked a question*, once, and answers yes or no.
+Algorand is a *proof-of-stake* blockchain with *instant finality*, a block time of roughly two and three-quarter seconds, and no forking. Every confirmed transaction is final: there is no "wait for six confirmations." Block proposers and committee voters are selected secretly by a *Verifiable Random Function*, so there is nobody to attack before they reveal themselves. None of that is what makes writing a contract feel strange the first time. The thing that does is smaller and closer to your keyboard: a contract is not a program that runs. It is a *transaction validator* --- asked once per call whether to approve or reject, and then it stops.
+
+## Execution Model: Smart Contracts Are Transaction Validators
+Algorand smart contracts do not run continuously. They are not servers. They are not daemons. They execute once per transaction, validate whether the transaction should be approved or rejected, and then stop.
+
+When a user submits a transaction that calls your smart contract, the *Algorand Virtual Machine (AVM)* loads your contract's bytecode, runs it against the transaction data, and produces a boolean result. If the program returns true, the transaction is approved and its effects are committed atomically. If it returns false or fails at any point, the entire transaction is rejected as if it never happened --- with one exception you will meet in Chapter 4: a ClearState call opts the account out regardless of what the clear program returns.
+
+This means your contract code is a set of validation rules. State changes happen as side effects of successful validation. On Algorand, the transaction *is* the input, and your contract decides whether to accept it. The developer portal's [Smart Contracts Overview](https://dev.algorand.co/concepts/smart-contracts/overview/) states the same model in the portal's own words.
+
+The bytecode the AVM runs is *TEAL* --- Transaction Execution Approval Language. You will never write TEAL directly: PuyaPy compiles your Python to it automatically. The name is worth knowing because it is the one Algorand documentation uses, and because it names the job.
 
 Everything else follows from that one idea.
 
@@ -35,7 +44,7 @@ Four requirements, two methods. At the end of the chapter you will re-run the fi
 
 By the end of this chapter you will be able to:
 
-- Explain what happens between submitting a transaction and seeing it confirmed, and say precisely when your state changes become real
+- Explain that a contract is a transaction validator, not a running process, and say precisely when its state changes become real
 - Write a complete, deployable contract from an empty file, and read the TEAL it compiles into well enough to recognize the parts
 - Name the four accounts a contract can talk about --- sender, creator, application, and an arbitrary referenced account --- and say which of them can sign a transaction
 - Attach a diagnostic message to a failing assertion and then find that message again from a client, knowing where it was stored
@@ -358,7 +367,7 @@ It also explains why the greeter's bugs are survivable. Every failed `greet` cal
 Knowing what the AVM refuses to do matters as much as knowing what it does, because most first designs assume at least one thing on this list. Every number below is a boundary drawn somewhere in Figure 2-1; the full table is in Appendix B.
 
 - **No floating point.** There are two types: `uint64` and `bytes`. Prices are rationals, held as a numerator and a denominator, and rounded deliberately. Chapter 9 does this for real.
-- **No unbounded loops.** Each instruction costs from an *opcode budget* of 700 per application call; most cost 1, cryptographic operations cost far more. The budget pools across the application calls in a group, so four app calls share 2,800, and padding a group with no-op calls to buy budget is a real technique (Chapter 11). LogicSig programs get a separate 20,000 per program. You cannot iterate over an arbitrarily large data set in one call.
+- **No unbounded loops.** Each instruction costs from an *opcode budget* of 700 per application call; most cost 1, cryptographic operations cost far more. The budget pools across the application calls in a group, so four app calls share 2,800, and padding a group with no-op calls to buy budget is a real technique (Chapter 11). LogicSig programs get a separate 20,000 per transaction (pooled; Chapter 20). You cannot iterate over an arbitrarily large data set in one call.
 - **A hard log budget.** An application call may write **1,024 bytes** to its log, across at most 32 `log` calls. Since an ABI return value *is* a log entry, this is a ceiling on what your methods can return, and it is not the same ceiling as the 2,048 bytes a call may carry in its *arguments*. A caller can therefore hand you more data than you are able to hand back.
 - **No callbacks.** When your contract sends tokens by inner transaction, no code runs on the receiving side. Classical reentrancy does not exist here, which means you should not write defenses against it (Chapter 7 explains what to write instead).
 - **Constrained app-to-app interaction.** A contract can submit an inner application call, but that is transaction coordination, not a call stack with an arbitrary synchronous return. Your contract can *read* another application's global state; it cannot write it.
@@ -618,7 +627,7 @@ Against the spec: greet anyone who asks --- yes. Refuse an empty name with an er
 ## Retrieval
 Answer these from memory before moving on. All of them are from this chapter; in later chapters, some will reach backwards on purpose.
 
-1. A contract is asked a question once and answers yes or no. When, exactly, do its state changes become real?
+1. A contract is a transaction validator, not a running process. When, exactly, do its state changes become real?
 2. What are the only two AVM value types?
 3. What is the base minimum balance of any Algorand account, in microAlgos?
 4. Which account pays the minimum balance for a box: the creator, the caller, or the application?
@@ -681,7 +690,7 @@ Answer these from memory before moving on. All of them are from this chapter; in
 ## Before You Continue
 You should be able to check off all five of these:
 
-- [ ] I can explain what a contract *is* --- a program asked one question per transaction --- and say what that implies about when its state changes commit.
+- [ ] I can explain what a contract *is* --- a transaction validator, not a running process --- and say what that implies about when its state changes commit.
 - [ ] I can name `Txn.sender`, `Global.creator_address`, `Global.current_application_address` and an `Account` argument, say which of them can sign a transaction, and pick the right one for an authorization check.
 - [ ] I can compute the minimum balance of an account given its assets, applications and boxes, and say which account is charged for each.
 - [ ] I can explain where an assertion message is stored, why it is not on chain, and what a caller sees when I omit it.

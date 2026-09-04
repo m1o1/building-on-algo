@@ -8,7 +8,7 @@
 
 **Building on Algorand: Smart Contracts from First Principles to Production DeFi**
 
-First edition, July 2026. Toolchain baseline July 24, 2026; the Preface names the exact package versions every example in this book was validated against.
+First edition, September 2026. Toolchain baseline September 4, 2026; the Preface names the exact package versions every example in this book was validated against.
 
 Copyright © 2026 m1o1. The text, the figures, and every program under `examples/` and `projects/` are released under the MIT License, reproduced as `LICENSE` in the book's source repository at <https://github.com/m1o1/building-on-algo>. You may use the code in your own projects, including commercial ones, without asking.
 

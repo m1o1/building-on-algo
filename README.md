@@ -66,8 +66,8 @@ smart contract.
 
 All contracts use **[Algorand Python (Puya)](https://dev.algorand.co/concepts/smart-contracts/languages/python/)**
 — real Python code that compiles to TEAL bytecode via a multi-stage
-optimizing compiler, pinned to a validated toolchain (PuyaPy 5.8.1,
-algorand-python 3.5.0, AlgoKit CLI 2.10.2, AVM 12).
+optimizing compiler, pinned to a validated toolchain (PuyaPy 5.10.1,
+algorand-python 4.0.0, AlgoKit CLI 2.10.2, AVM 13 / consensus v42).
 
 ## What You'll Build
 

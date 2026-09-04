@@ -419,14 +419,8 @@ The caller has to name every box and asset the factory will touch, because the
 AVM refuses to read a resource the transaction did not declare. The client
 side of `create_pool` is short enough to run as a standalone script, and
 running it now pays off the tour so far: it ends with algod naming the
-factory, not you, as the pool's creator. Build the project first if you have
-not already:
-
-```bash
-cd projects/amm-factory
-algokit project bootstrap all
-algokit project run build
-```
+factory, not you, as the pool's creator. If you have not built the project
+since Run It First, rebuild it now.
 
 The build regenerates the typed clients for both contracts under
 `smart_contracts/artifacts/`. Save the following as `create_first_pool.py` in

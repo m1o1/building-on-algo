@@ -109,7 +109,7 @@ def build(output_dir: Path, contract_path: Path) -> Path:
             str(contract_path.resolve()),
             f"--out-dir={output_dir}",
             "--output-source-map",
-            "--target-avm-version=12",
+            "--target-avm-version=13",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

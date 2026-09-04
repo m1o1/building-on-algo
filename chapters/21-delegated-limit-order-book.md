@@ -64,15 +64,7 @@ Answer the predict column before you follow the link.
 
 ## Project Setup
 
-Scaffold a new project for this chapter. The template creates a `hello_world/` contract directory, which we rename. This project has two separate compilable components (the order book contract and the LogicSig), so create a second directory after renaming:
-
-```bash
-algokit init -t python --name limit-order-book
-cd limit-order-book/projects/limit-order-book
-algokit project bootstrap all
-mv smart_contracts/hello_world smart_contracts/limit_order_book
-mkdir smart_contracts/limit_order_lsig
-```
+You are already in `projects/limit-order-book/` from Run It First. If you would rather scaffold your own, Chapter 9's setup note applies, with `limit_order_book` in place of `token_vesting`, and add a second directory, `smart_contracts/limit_order_lsig/`.
 
 The contract goes in `smart_contracts/limit_order_book/contract.py` and the LogicSig in `smart_contracts/limit_order_lsig/contract.py`. Delete the template-generated `deploy_config.py` in `smart_contracts/limit_order_book/`; it references the old `HelloWorld` contract.
 
@@ -525,7 +517,7 @@ PY
 ['place_order']
 ```
 
-One method so far, and one global slot for the whole application. The second line will grow with every method you add; the first will not, and cannot --- a schema is fixed at creation, so the count printed here is the count this application dies with. If that is a surprise, it is Chapter 4's rule arriving where it costs money.
+One method so far, and one global slot for the whole application. The second line will grow with every method you add; the first will not, and cannot --- this contract refuses updates, so the schema printed here is the schema it dies with. If that is a surprise, it is Chapter 4's rule arriving where it costs money.
 
 The deposit is checked with `==` rather than `>=`, which is the question Chapter 19's Exercise 2 left open: when is the loose form safe? Only when the contract can do something with the excess. This one cannot. It is immutable, it has no method that pays out anything but the box formula's own 57,700, and `cleanup_expired_order` refunds that figure rather than whatever arrived --- so a generous client's extra microAlgo sits in the application account forever, visible to everyone and spendable by nobody. `==` converts that into a refusal the client can act on before any money moves.
 
@@ -745,7 +737,7 @@ The signed LogicSig (Alice's signed delegation) must be shared with keepers some
 
 **Off-chain relay (simplest):** The frontend posts the signed LogicSig to a centralized API or peer-to-peer network. Keepers poll this relay for new orders. As of this writing, this is how most Algorand DEXs with limit orders work. The relay is a convenience layer; it doesn't affect security, because the LogicSig itself enforces all trading rules.
 
-**On-chain storage:** Store the signed LogicSig in box storage. This makes the system fully on-chain but expensive: a LogicSig can be up to 1,000 bytes, plus the signature. The MBR for a 1,100-byte box is `2,500 + 400 × (10 + 1,100) = 446,500 microAlgo` ≈ 0.45 Algo per order.
+**On-chain storage:** Store the signed LogicSig in box storage. This makes the system fully on-chain but expensive: a LogicSig's free size is 1,000 bytes per transaction (up to 16,000 with a per-byte surcharge), plus the signature. The MBR for a 1,100-byte box is `2,500 + 400 × (10 + 1,100) = 446,500 microAlgo` ≈ 0.45 Algo per order.
 
 **Hybrid (recommended):** Store only the LogicSig program hash on-chain (32 bytes, stored in the order data). Distribute the actual signed LogicSig off-chain. Keepers verify the hash matches before using it. This gives you on-chain order discovery with off-chain LogicSig distribution.
 
