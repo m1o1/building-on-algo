@@ -1,3 +1,6 @@
+<!-- Companion material (out of spine, issue #44). Not in the main TOC.
+     Reader-facing pointer: chapters/20-further-reading-logicsigs.md -->
+
 \newpage
 
 ```{=latex}

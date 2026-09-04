@@ -249,21 +249,11 @@ A caption names an example from the author's side. This appendix names it from y
 | Read a randomness beacon from inside a contract | Example 18-3 |
 | Run a raffle from entry to payout | Example 18-4 |
 
-### Part V: Stateless Programs {-}
+### Part V: Further Reading {-}
 
 | To do this | Go to |
 |------------|-------|
-| See the smallest complete LogicSig | Example 20-1 |
-| See a LogicSig that authorises more than its author meant | Example 20-2 |
-| The checks a LogicSig cannot ship without | Example 20-3 |
-| A LogicSig that is its own account, with no key anywhere | Example 20-4 |
-| An account's own key signs a program once, and cannot unsign it | Example 20-5 |
-| See why naming an application is a wider permission than it looks | Example 20-6 |
-| Narrow a LogicSig to a single method of a single application | Example 20-7 |
-| Get a LogicSig's address from inside a smart contract | Example 20-8 |
-| Stop a LogicSig-signed transaction being replayed | Example 20-9 |
-| The LogicSig version of trusting caller-supplied input | Example 20-10 |
-| See where a LogicSig's opcode budget comes from | Example 20-11 |
+| See a LogicSig that is its own account, with no key anywhere | Example 20-1 |
 
 ### Part VI: Cryptography {-}
 
@@ -279,7 +269,6 @@ A caption names an example from the author's side. This appendix names it from y
 | The hash that is expensive here and cheap inside a proof | Example 22-8 |
 | See why a pairing check needs companion transactions | Example 22-9 |
 | Verify a signature a quantum computer is not expected to forge | Example 22-10 |
-| Make a contract believe a proof only because it watched it verify | Example 23-1 |
 
 ### Part VII: Shipping {-}
 
@@ -300,7 +289,6 @@ A caption names an example from the author's side. This appendix names it from y
 
 | To do this | Go to |
 |------------|-------|
-| A LogicSig that is its own account, with no key anywhere | Example 20-4 |
 | Accept and validate an Algo payment sent alongside a call | Example 7-6 |
 | Account for deposits with stored state rather than with the balance | Example 7-23 |
 | Accumulate a price so any two readings give an average | Example 13-11 |
@@ -309,7 +297,6 @@ A caption names an example from the author's side. This appendix names it from y
 | Add and multiply points on BN254 | Example 22-7 |
 | Allocate a box of a fixed size and read part of it | Example 5-13 |
 | Allow an upgrade without allowing it forever | Example 24-6 |
-| An account's own key signs a program once, and cannot unsign it | Example 20-5 |
 | Append a fixed-size record to a growing box | Example 5-21 |
 | Ask an account what storage it holds, and what floor that implies | Example 11-6 |
 | Ask the ledger a question about an account, an asset, or another app | Example 2-4 |
@@ -373,7 +360,6 @@ A caption names an example from the author's side. This appendix names it from y
 | Fix which asset a pool's price is quoted in, once and for all | Example 13-2 |
 | Follow the residue a floored payout leaves behind | Example 13-7 |
 | Get a box's size without reading its contents | Example 5-15 |
-| Get a LogicSig's address from inside a smart contract | Example 20-8 |
 | Get more opcode budget without the contract sending anything | Example 11-12 |
 | Get randomness that nobody chose and everybody can verify | Example 22-6 |
 | Get the decoded return value from each of the three ways to call a method | Example 8-11 |
@@ -399,7 +385,6 @@ A caption names an example from the author's side. This appendix names it from y
 | Let a relayer pay the fee so your user signs a zero-fee transaction | Example 11-9 |
 | Let a set of accounts share a role, and cap how many | Example 10-7 |
 | Let only the author of a stored record change it | Example 10-6 |
-| Make a contract believe a proof only because it watched it verify | Example 23-1 |
 | Make a contract stop working after a chosen round | Example 6-13 |
 | Make a stored record immutable after it is written | Example 4-15 |
 | Make an existing box bigger | Example 5-19 |
@@ -409,7 +394,6 @@ A caption names an example from the author's side. This appendix names it from y
 | Measure what a loop costs in opcodes rather than guessing | Example 11-13 |
 | Mint an ASA whose creator is the application account | Example 7-16 |
 | Multiply two numbers whose product does not fit in 64 bits | Example 6-7 |
-| Narrow a LogicSig to a single method of a single application | Example 20-7 |
 | Offer a getter clients can call without paying a fee | Example 3-19 |
 | Opt an application account into an ASA it did not create | Example 7-17 |
 | Order a state write and an inner payment without a rollback path | Example 7-12 |
@@ -465,7 +449,7 @@ A caption names an example from the author's side. This appendix names it from y
 | See a division-by-zero that compiles cleanly and detonates later | Example 6-6 |
 | See a donation re-price every position in a vault | Example 7-24 |
 | See a linear vesting calculation that returns zero for the whole schedule | Example 6-1 |
-| See a LogicSig that authorises more than its author meant | Example 20-2 |
+| See a LogicSig that is its own account, with no key anywhere | Example 20-1 |
 | See a membership contract that keeps balances in local state | Example 4-1 |
 | See a parent contract that pays whichever child it is handed | Example 15-1 |
 | See a price quote that gives value away in both directions | Example 13-1 |
@@ -483,7 +467,6 @@ A caption names an example from the author's side. This appendix names it from y
 | See the one assertion that can tell a correct contract from an incorrect one | Example 8-13 |
 | See the one-line omission behind Tinyman V1's $3M exploit | Example 7-15 |
 | See the registry with all three defects fixed | Example 4-21 |
-| See the smallest complete LogicSig | Example 20-1 |
 | See the smallest useful contract that has an admin method | Example 2-1 |
 | See the tip jar with all four defects fixed | Example 7-25 |
 | See the vesting calculator with all four defects fixed | Example 6-22 |
@@ -492,19 +475,16 @@ A caption names an example from the author's side. This appendix names it from y
 | See what happens when a uint64 addition overflows | Example 6-3 |
 | See what happens when a uint64 subtraction goes below zero | Example 6-4 |
 | See what makes a contract impossible to change | Example 24-5 |
-| See where a LogicSig's opcode budget comes from | Example 20-11 |
 | See which checks the ARC-4 router has already performed for you | Example 8-6 |
 | See why a block seed cannot be used as a source of randomness | Example 6-17 |
 | See why a pairing check needs companion transactions | Example 22-9 |
 | See why dividing before multiplying pays nothing | Example 6-19 |
-| See why naming an application is a wider permission than it looks | Example 20-6 |
 | Send Algo from a contract with an inner transaction | Example 7-3 |
 | Send several inner transactions atomically | Example 15-6 |
 | Set and check a deadline using block timestamps | Example 6-12 |
 | Set global state values when the contract is created | Example 4-16 |
 | Stash who passed a check for a later transaction in the group to read | Example 10-14 |
 | Stop a configuration method being called a second time | Example 10-5 |
-| Stop a LogicSig-signed transaction being replayed | Example 20-9 |
 | Stop a signature being valid for something it was not meant for | Example 22-3 |
 | Stop an account from calling a method too often | Example 6-21 |
 | Stop the first depositor from taking the second one's money | Example 13-10 |
@@ -517,11 +497,9 @@ A caption names an example from the author's side. This appendix names it from y
 | Take a fee from an incoming payment and forward the remainder | Example 7-13 |
 | Tell the difference between a state key set to zero and one never set | Example 4-5 |
 | Test time-dependent behaviour without waiting or deploying | Example 8-14 |
-| The checks a LogicSig cannot ship without | Example 20-3 |
 | The corrected fee splitter, caller-funded fees and accounted dust | Example 11-17 |
 | The corrected pay-to-post board, every authorization guard in place | Example 10-17 |
 | The hash that is expensive here and cheap inside a proof | Example 22-8 |
-| The LogicSig version of trusting caller-supplied input | Example 20-10 |
 | Transfer ASA units from a contract to an account | Example 7-18 |
 | Treat raw bytes as an ARC-4 value safely | Example 3-8 |
 | Turn a number into exactly eight bytes and read it back | Example 3-5 |

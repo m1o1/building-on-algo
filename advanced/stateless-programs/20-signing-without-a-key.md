@@ -1,3 +1,9 @@
+<!-- Companion material (out of spine, issue #44). Not in the main TOC.
+     Reader-facing pointer: chapters/20-further-reading-logicsigs.md
+     Runnable project for Ch 21: advanced/limit-order-book/
+     Figures: figures/ at the repository root. Paths that still say
+     projects/limit-order-book/ mean advanced/limit-order-book/. -->
+
 \newpage
 
 \part{Stateless Programs}

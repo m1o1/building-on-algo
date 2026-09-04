@@ -1,5 +1,8 @@
-"""Private governance voting contract - extracted from Chapter 23 of the book.
-Tests the MiMC padding fix (choice must be padded to 32 bytes)."""
+"""Private governance voting fixture from the companion Chapter 23 project.
+
+The full listing lives under advanced/governance-voting/ (issue #44).
+Tests the MiMC padding fix (choice must be padded to 32 bytes).
+"""
 
 from algopy import (
     ARC4Contract, BoxMap, Bytes, Global, GlobalState, OpUpFeeSource,

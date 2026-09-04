@@ -6,8 +6,9 @@
 
 - `chapters/metadata.yaml` -- Pandoc YAML frontmatter (title, fonts, LaTeX config)
 - `chapters/F*.md` -- Front matter (Legal Notice, Foreword, Preface, How to Use)
-- `chapters/01-*.md` through `chapters/24-*.md` -- Numbered chapters, 7 parts (spine in `scripts/spine.py`)
+- `chapters/01-*.md` through `chapters/24-*.md` -- Numbered chapters on the reader-facing spine, 7 parts (`scripts/spine.py`). Chapters 21 and 23 are unused; Part V is a companion pointer.
 - `chapters/NNz-checkpoint-*.md` -- Mastery Checkpoints, printed at part ends
+- `advanced/` -- Out-of-spine companion material (LogicSig course, limit-order book, private governance voting). Not typeset into the main book.
 - `chapters/A*.md` -- Appendices. A3 (gotchas) and A4 (example finder) are GENERATED — edit the inline `::: {.gotcha}` callouts / `<!-- finder: -->` comments in chapters and run `python3 scripts/generate_appendices.py`
 - `chapters/Z*.md` -- Back matter (What's Next, Glossary, Bibliography, Colophon)
 

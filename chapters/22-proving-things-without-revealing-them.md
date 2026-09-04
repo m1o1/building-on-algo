@@ -2,7 +2,7 @@
 
 \part{Cryptography}
 
-Part VI prices the AVM's cryptographic opcodes and puts them to work. Chapter 22 builds a sealed-bid commitment scheme on hashes and signature checks --- and shows the failure that makes an expensive check worthless; Chapter 23 builds private governance voting on zero-knowledge proofs.
+Part VI prices the AVM's cryptographic opcodes and puts them to work. Chapter 22 is a cost survey: a sealed-bid commitment scheme on hashes and signature checks, and the failure that makes an expensive check worthless. The private-governance voting project that used to assemble those primitives is companion material, pointed at the end of this chapter; Part VII is shipping.
 
 ```{=latex}
 \renewcommand{\BOAchapterkind}{\BOAkind{Concept}}
@@ -90,7 +90,7 @@ It costs 130 units against `sha512_256`'s 45 and `sha256`'s 35, and buys nothing
 ## Committing to a Value
 Chapter 18 built the primitive that closes the auction: `sha512_256(value || nonce)` stored now, the value and the nonce supplied later, one comparison deciding whether they agree. Example 18-2 is the whole of it, and the nonce is what stops a small set of plausible bids being enumerated against the digest.
 
-What this chapter adds is the price, and the fact that the hash is a choice rather than a given. Committing costs one hash to make and one to check, so at 45 units the auction never notices. It stops being free the moment a commitment has to be *proved* correct rather than merely checked, because a zero-knowledge circuit pays for every bit of the hash inside the proof system. That is why Chapter 23 commits with `mimc` instead of the native hash, and why Example 22-8 is the example that prices a budget rather than an opcode. Example 22-5, further on, is the same primitive one level up: a commitment to a whole set instead of to a single value.
+What this chapter adds is the price, and the fact that the hash is a choice rather than a given. Committing costs one hash to make and one to check, so at 45 units the auction never notices. It stops being free the moment a commitment has to be *proved* correct rather than merely checked, because a zero-knowledge circuit pays for every bit of the hash inside the proof system. That is why a circuit prefers `mimc` even though the native hash is cheaper on chain, and why Example 22-8 is the example that prices a budget rather than an opcode. Example 22-5, further on, is the same primitive one level up: a commitment to a whole set instead of to a single value.
 
 ## Verifying a Signature the Chain Never Saw
 An oracle attesting to a price, a game server signing a result, a KYC provider signing an approval: the authority a contract acts on does not always originate on the chain. Making it arrive as a transaction costs an account, a fee and a round, for a fact that has already been signed.
@@ -401,7 +401,7 @@ def verifier() -> bool:
         # The guards first, and they are not decoration: a program that
         # authorises a payment on the strength of a pairing check over
         # CALLER-SUPPLIED arguments is a blank cheque, because anyone can
-        # supply a satisfying pair. Chapter 20 is where that is argued.
+        # supply a satisfying pair. The next section is where that is argued.
         Txn.type_enum == TransactionType.Payment
         and Txn.close_remainder_to == Global.zero_address
         and Txn.rekey_to == Global.zero_address
@@ -423,7 +423,7 @@ So the smallest pairing check on `BN254g1` overruns a program running on its own
 
 Naming the other group is not a workaround so much as a different accounting. `BN254g2` swaps the operands and computes the same product (the opcode exchanges them and calls the same routine), but now you have named the 128-byte group while the second operand holds the 64-byte G1 points, so a single chunk covers *two* pairings. Four pairs become two chunks: 22,800 rather than 67,200, a three-fold saving for naming a different constant. One pair is 15,400 either way you count it, which fits in a LogicSig alone.
 
-Even so, the group is where the headroom comes from once a real verifier is assembled around the check. The LogicSig budget pools across the group at 20,000 per transaction, and *every* transaction contributes whether or not it carries a LogicSig. A verifier that needs 67,200 units needs a group of at least four, and in practice more once the program around the pairing check is counted, which is why Chapter 23's proof transaction arrives with companions that do nothing but exist. The padding is a protocol requirement rather than a trick, and it is why the fee for verifying a proof on chain is quoted in transaction counts.
+Even so, the group is where the headroom comes from once a real verifier is assembled around the check. The LogicSig budget pools across the group at 20,000 per transaction, and *every* transaction contributes whether or not it carries a LogicSig. A verifier that needs 67,200 units needs a group of at least four, and in practice more once the program around the pairing check is counted, which is why a proof transaction arrives with companions that do nothing but exist. The padding is a protocol requirement rather than a trick, and it is why the fee for verifying a proof on chain is quoted in transaction counts.
 
 ::: {.gotcha #pairing-check-exceeds-one-program topic="Cryptography" title="A `BN254g1` pairing check does not fit in one program's budget"}
 BN254 `ec_pairing_check` is 8,000 plus 7,400 per chunk of its second operand, where a chunk is the point size of the group you named. Under `BN254g1` you named the 64-byte group and the second operand holds 128-byte G2 points, so one pair is two chunks: 22,800, already over a LogicSig's 20,000 and thirty times an application call's 700, before any surrounding code. No rearrangement of that code helps; the opcode alone exceeds the budget.
@@ -465,7 +465,7 @@ Ed25519 and ECDSA rest on discrete logarithms, which a large enough quantum comp
 Those sizes decide the shape of the method. A Falcon-1024 public key is 1,793 bytes and a signature 1,232. Together they are 3,025 against a 2,048-byte cap on *all* of a transaction's application arguments, so a method taking both as arguments cannot be called at all: `tx.ApplicationArgs total length is too long`. The key goes in a **box** (1,793 bytes is also over global state's 128-byte combined key-plus-value ceiling, so state is not an option either), which leaves the signature in the arguments with 808 bytes left for the message. The box is not free: at Chapter 11's rate it raises the application account's minimum balance by 720,500 microAlgo, where the global-state version would have cost nothing extra and not worked. A LogicSig is the other way out, where size pooling gives the group `len(group) x 1,000` bytes to work with.
 
 ## The Check That Gates Nothing
-Example 22-9 authorises a payment when a pairing check succeeds. The check is real (8,000 units plus 7,400 per 64-byte chunk of its second operand, so no less than 22,800), and the program carries all seven of Example 20-3's guards.
+Example 22-9 authorises a payment when a pairing check succeeds. The check is real (8,000 units plus 7,400 per 64-byte chunk of its second operand, so no less than 22,800), and the program pins the guards a LogicSig cannot ship without: type, `close_remainder_to`, `rekey_to`, a fee cap, receiver, amount, and expiry.
 
 ```python
     return (
@@ -500,7 +500,7 @@ Two pairs is 8,000 plus four chunks of 7,400, so the check alone is 37,600 and t
 
 The check is doing real cryptography and gating nothing. The failure is not in the mathematics. A verifier proves a statement *about a specific instance* --- this proof, over this public input, against this verifying key. Those inputs have to be pinned by something the submitter does not control: a verifying key baked into the program as a template variable, and a public input bound to the transaction rather than passed beside it. A pairing check over two caller-supplied blobs proves that the caller can do arithmetic.
 
-A LogicSig's arguments are chosen by whoever submits the transaction (Chapter 20), and this is that rule in its most expensive form. **The cost of a check is not evidence that it constrains anything.** A 37,600-unit operation over attacker-chosen inputs is an expensive way to return true.
+A LogicSig's arguments are chosen by whoever submits the transaction --- they are `arg`, not a field the program author pinned --- and this is that rule in its most expensive form. **The cost of a check is not evidence that it constrains anything.** A 37,600-unit operation over attacker-chosen inputs is an expensive way to return true.
 
 ## The Commission, Item by Item
 Every requirement the DAO set now has an example and a bill beside it:
@@ -524,7 +524,7 @@ Answer these from memory before moving on. Three of them reach back into earlier
 6. Example 22-6's `draw` is readonly and answers a client that set no fee. Say why it can, and what the fee becomes --- and why --- once the same call is submitted.
 7. A one-pair pairing check costs 22,800 under `BN254g1` and 15,400 under `BN254g2`, for the same product. Explain the difference, and say where extra budget comes from when you need it.
 8. *(From Chapter 11)* An application call has 700 opcode units. Name the two ways a method gets more, and say who pays in each.
-9. *(From Chapter 20)* A group of eight carries one LogicSig. How many units does that program have, and how many of the eight had to carry a signature for that to be true?
+9. A group of eight carries one LogicSig. How many units does that program have, and how many of the eight had to carry a signature for that to be true?
 10. *(From Chapter 5)* Price ten thousand 32-byte allowlist entries as boxes, then as a merkle root, and say what the root cannot do that the boxes can.
 
 ## Exercises
@@ -581,17 +581,18 @@ Answer these from memory before moving on. Three of them reach back into earlier
 - [ ] I can prove set membership without storing the set, and say what checking a VRF proof costs and who pays it
 - [ ] I can say why a pairing check needs a group, and why naming the other curve group changes its price
 
-## Handoff: What the ZK Voting Project Needs
-Chapter 23 builds a private governance vote: voters prove they are eligible and that their vote is well-formed, without revealing who they are or how they voted. Every primitive in this chapter appears in it, and the budget arithmetic is what makes it buildable at all. Table 22-1 is what it draws on.
+## Further Reading: Private Governance Voting
 
-The fee arithmetic transfers before any of the cryptography does. That project's verification group is eight transactions, and seven of them carry no proof and do nothing --- they are there because the budget pools per transaction and one pairing check does not fit in one transaction's share. That is the same trade `ensure_budget` makes here, priced at group scale: you are buying opcodes with transactions, and somebody pays a minimum fee for each one.
+The project that used to follow this chapter assembled every primitive above into a private governance vote: voters proved they were eligible and that their ballot was well-formed, without revealing who they were or how they voted. It pulled in AlgoPlonk, a Go/gnark proving path, and a LogicSig verifier whose group exists mostly to buy opcode budget --- the same trade `ensure_budget` makes here, priced at group scale.
 
-: Table 22-1. What Chapter 23 draws on from this chapter
+That project is out of place on this book's arc (foundations → custody → DEX → randomness → shipping). The manuscript and the runnable AlgoKit project are companion material:
 
-| From this chapter | Where it appears in the project | Predict before you read it |
-|-------------------|---------------------------------|----------------------------|
-| Example 22-9 | The verifier LogicSig and the group it travels in | The proof costs more than one program has. Work out the smallest group that can afford a four-pair check. |
-| Example 22-5 | Deliberately *not* used: the project gates eligibility on one commitment per address, and restoring the register is its Exercise 6 | Membership is proven and identity is not. Say what the proof must therefore *not* contain. |
-| Example 18-2 | The vote itself, committed before the tally | Say why the tally cannot begin until every commitment is in, and what a late reveal costs. |
-| Example 22-8 | The hash inside the circuit | MiMC is more expensive on chain than `sha512_256`. Say who pays for the alternative and why they mind more. |
-| Example 22-7 | The verifier's scalar multiplications | The verifier is a fixed routine per circuit. Say what changes when the circuit changes. |
+- `advanced/private-governance/23-private-governance-voting.md`
+- `advanced/governance-voting/`
+
+They keep the old Chapter 23 numbering so internal references still resolve. This chapter does not assume you have built them. The assembly this chapter *does* ask of you is the Part VI checkpoint: a sealed-bid auction you can afford to run, priced from the tables you just used.
+
+Part VII is next, and it does not need a verifier. Chapter 24 is what an operator needs from a contract that already works: a log, an error code, a pause, and a lifecycle stance chosen before you freeze it.
+
+## Mastery Checkpoint
+That is the end of Part VI. The checklist above asks whether you followed the chapter. The Mastery Checkpoint printed on the next page asks something harder: whether you can build a thing this part did not show you. It is a small program with a stated acceptance test, and a fallback if you stall.

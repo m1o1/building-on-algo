@@ -706,7 +706,7 @@ class Deposits(ARC4Contract):
         self.total += payment.amount
 ```
 
-Those two lines are mandatory in a **LogicSig**, which is a program that signs on an account's behalf and must therefore refuse to let the transaction it approves rekey or empty that account. Chapter 21 is where that checklist earns its place. A stateful contract signs for nobody. It has no key, it approves nothing on anyone's behalf, and a `rekey_to` on the caller's own payment is the caller's business with their own wallet.
+Those two lines are mandatory in a **LogicSig**, which is a program that signs on an account's behalf and must therefore refuse to let the transaction it approves rekey or empty that account. Chapter 20 names that checklist and why this book does not teach delegated signatures as a product path. A stateful contract signs for nobody. It has no key, it approves nothing on anyone's behalf, and a `rekey_to` on the caller's own payment is the caller's business with their own wallet.
 
 So the two assertions protect nothing, and they are not free: they reject honest callers whose wallet batched a rekey or a close-out into the same group, which is a legitimate thing for a wallet to do and not something your user chose. The habit is contagious. It looks like diligence, it passes every review, and the only way to see it is to ask what the check would prevent and find that the answer is nothing.
 

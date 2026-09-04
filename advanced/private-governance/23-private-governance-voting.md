@@ -1,3 +1,8 @@
+<!-- Companion material (out of spine, issue #44). Not in the main TOC.
+     Reader-facing pointer: end of chapters/22-proving-things-without-revealing-them.md
+     Runnable project: advanced/governance-voting/
+     (body paths that still say projects/governance-voting/ mean that directory). -->
+
 \newpage
 
 ```{=latex}

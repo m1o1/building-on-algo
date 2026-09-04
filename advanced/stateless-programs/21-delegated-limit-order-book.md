@@ -1,3 +1,8 @@
+<!-- Companion material (out of spine, issue #44). Not in the main TOC.
+     Reader-facing pointer: chapters/20-further-reading-logicsigs.md
+     Runnable project: advanced/limit-order-book/
+     (body paths that still say projects/limit-order-book/ mean that directory). -->
+
 \newpage
 
 ```{=latex}

@@ -16,11 +16,11 @@
       "notes": "Shortened fixture covering vesting math and selected lifecycle checks; not the full Chapter 9 listing."
     },
     {
-      "chapter": "23",
+      "chapter": "companion/23",
       "name": "Private voting fixture",
       "path": "tests/contracts/voting.py",
       "status": "active",
-      "notes": "Shortened fixture covering MiMC padding and proof-record authorization; not the full Chapter 23 listing."
+      "notes": "Shortened fixture covering MiMC padding and proof-record authorization. Full Chapter 23 listing and project live under advanced/ (issue #44); this fixture stays in CI so the split does not orphan coverage."
     },
     {
       "chapter": "12",
@@ -51,11 +51,11 @@
       "notes": "Reward arithmetic model tests land in the reward-bounds PR."
     },
     {
-      "chapter": "21",
+      "chapter": "companion/21",
       "name": "Delegated limit order LogicSig",
       "path": "validation/extracted/limit_order.py",
       "status": "pending-extraction",
-      "notes": "Requires a dedicated LogicSig compile fixture."
+      "notes": "Out of spine (issue #44). Project lives at advanced/limit-order-book/. Requires a dedicated LogicSig compile fixture if companion CI is restored."
     }
   ],
   "high_risk_flows": [
@@ -142,18 +142,18 @@
       "notes": "Depends on an extracted stake/claim/unstake smoke flow."
     },
     {
-      "chapter": "21",
+      "chapter": "companion/21",
       "name": "LogicSig limit order LocalNet walkthrough",
       "script": "validation/localnet/limit_order.py",
       "status": "pending-extraction",
-      "notes": "Depends on an extracted LogicSig compile/fill/cancel smoke flow."
+      "notes": "Out of spine (issue #44). Project lives at advanced/limit-order-book/."
     },
     {
-      "chapter": "23",
+      "chapter": "companion/23",
       "name": "Private voting LocalNet walkthrough",
       "script": "validation/localnet/voting.py",
       "status": "pending-extraction",
-      "notes": "Depends on an extracted commit/prove/reveal voting smoke flow."
+      "notes": "Out of spine (issue #44). Project lives at advanced/governance-voting/."
     }
   ],
   "coverage_summary": [
@@ -218,23 +218,25 @@
       ]
     },
     {
-      "chapter": 21,
+      "chapter": "companion/21",
       "status": "pending-pr",
       "active_coverage": [],
       "pending_gaps": [
+        "Out of spine (issue #44); project at advanced/limit-order-book/",
         "LogicSig network-binding repro PR",
         "LogicSig compile fixture",
         "LocalNet smoke walkthrough"
       ]
     },
     {
-      "chapter": 23,
+      "chapter": "companion/23",
       "status": "active",
       "active_coverage": [
         "shortened voting fixture compiles with PuyaPy",
         "MiMC padding and proof-record authorization tests"
       ],
       "pending_gaps": [
+        "Out of spine (issue #44); project at advanced/governance-voting/",
         "ZK proof-binding repro PR",
         "full Chapter 23 extraction",
         "LocalNet smoke walkthrough"

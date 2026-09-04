@@ -1,6 +1,10 @@
-# Chapter 21: Delegated Limit Order Book with LogicSig Agents
+# Companion project: Delegated Limit Order Book with LogicSig Agents
 
-This is the finished project for Chapter 21 of *Building on Algorand*. It
+This AlgoKit project is **out of the main book spine** (issue #44). The
+reader-facing book points here from Chapter 20. The preserved project
+chapter is `advanced/stateless-programs/21-delegated-limit-order-book.md`.
+
+This is the finished project that used to be Chapter 21 of *Building on Algorand*. It
 contains both halves of the hybrid system the chapter builds: a stateful order
 book contract that owns the shared state, and a delegated Logic Signature that
 encodes one trader's order and is signed once, off chain, before it ever rests.

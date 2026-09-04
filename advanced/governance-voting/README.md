@@ -1,6 +1,10 @@
-# Chapter 23: Private Governance Voting with Zero-Knowledge Proofs
+# Companion project: Private Governance Voting with Zero-Knowledge Proofs
 
-This is the finished Chapter 23 project from *Building on Algorand*. It is a
+This AlgoKit project is **out of the main book spine** (issue #44). The
+reader-facing book points here from the end of Chapter 22. The preserved
+project chapter is `advanced/private-governance/23-private-governance-voting.md`.
+
+This is the finished project that used to be Chapter 23 of *Building on Algorand*. It is a
 four-phase governance vote in which ballots stay secret through the commit and
 prove phases, and a PLONK proof over BN254 --- verified on chain by a LogicSig,
 not by anyone's word --- attests that each secret ballot is a valid one.

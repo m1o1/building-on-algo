@@ -16,7 +16,7 @@ class Chapter:
     number: int | None  # None for unnumbered interstitials (checkpoints)
     filename: str
     title: str
-    kind: str  # "concept" | "project" | "checkpoint"
+    kind: str  # "concept" | "project" | "checkpoint" | "pointer"
     part: int  # 1-7
 
 
@@ -32,7 +32,7 @@ PARTS = [
     Part(2, "II", "Value Under Management"),
     Part(3, "III", "Building a DEX"),
     Part(4, "IV", "Chance"),
-    Part(5, "V", "Stateless Programs"),
+    Part(5, "V", "Further Reading"),
     Part(6, "VI", "Cryptography"),
     Part(7, "VII", "Shipping"),
 ]
@@ -61,12 +61,9 @@ CHAPTERS = [
     Chapter(18, "18-a-number-nobody-can-predict.md", "A Number Nobody Can Predict", "concept", 4),
     Chapter(19, "19-a-lottery-that-pays-out-or-gives-back.md", "A Lottery That Pays Out or Gives Back", "project", 4),
     Chapter(None, "19z-checkpoint-chance.md", "Mastery Checkpoint: Chance", "checkpoint", 4),
-    Chapter(20, "20-signing-without-a-key.md", "Signing Without a Key", "concept", 5),
-    Chapter(21, "21-delegated-limit-order-book.md", "Delegated Limit Order Book with LogicSig Agents", "project", 5),
-    Chapter(None, "21z-checkpoint-stateless-programs.md", "Mastery Checkpoint: Stateless Programs", "checkpoint", 5),
+    Chapter(20, "20-further-reading-logicsigs.md", "Further Reading: Logic Signatures", "pointer", 5),
     Chapter(22, "22-proving-things-without-revealing-them.md", "Proving Things Without Revealing Them", "concept", 6),
-    Chapter(23, "23-private-governance-voting.md", "Private Governance Voting with Zero-Knowledge Proofs", "project", 6),
-    Chapter(None, "23z-checkpoint-cryptography.md", "Mastery Checkpoint: Cryptography", "checkpoint", 6),
+    Chapter(None, "22z-checkpoint-cryptography.md", "Mastery Checkpoint: Cryptography", "checkpoint", 6),
     Chapter(24, "24-shipping-and-surviving.md", "Shipping and Surviving", "concept", 7),
     Chapter(None, "24z-checkpoint-shipping.md", "Mastery Checkpoint: Shipping", "checkpoint", 7),
 ]

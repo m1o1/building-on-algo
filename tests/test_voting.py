@@ -1,5 +1,9 @@
-"""Unit tests for the private voting contract (Chapter 23).
-Tests the MiMC 32-byte padding fix and authorization checks."""
+"""Unit tests for the private voting contract fixture.
+
+The full Chapter 23 project left the main spine for companion material
+(`advanced/governance-voting/`, issue #44). This shortened fixture still
+covers MiMC padding and proof-record authorization in CI.
+"""
 
 import pytest
 from algopy_testing import algopy_testing_context

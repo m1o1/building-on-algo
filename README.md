@@ -8,10 +8,13 @@
 
 [**Read the book online**](https://m1o1.github.io/building-on-algo/)
 
-Twenty-four chapters in seven parts. Concept chapters teach one mechanism
+Twenty-two chapters in seven parts. Concept chapters teach one mechanism
 against a commission you build; project chapters assemble the mechanisms into
 something you would actually ship; each part ends with a Mastery Checkpoint —
-a novel build with an acceptance list and no walkthrough.
+a novel build with an acceptance list and no walkthrough. Part V is a pointer
+to companion material rather than a course. Chapters 21 and 23 are unused on
+this spine: delegated LogicSigs and private governance voting live under
+`advanced/`.
 
 **Part I — Foundations**
 1. [From Zero to Deployed](https://m1o1.github.io/building-on-algo/01-from-zero-to-deployed.html)
@@ -43,15 +46,13 @@ a novel build with an acceptance list and no walkthrough.
 18. [A Number Nobody Can Predict](https://m1o1.github.io/building-on-algo/18-a-number-nobody-can-predict.html)
 19. [A Lottery That Pays Out or Gives Back](https://m1o1.github.io/building-on-algo/19-a-lottery-that-pays-out-or-gives-back.html)
 
-**Part V — Stateless Programs**
+**Part V — Further Reading**
 
-20. [Signing Without a Key](https://m1o1.github.io/building-on-algo/20-signing-without-a-key.html)
-21. [Delegated Limit Order Book](https://m1o1.github.io/building-on-algo/21-delegated-limit-order-book.html)
+20. [Further Reading: Logic Signatures](https://m1o1.github.io/building-on-algo/20-further-reading-logicsigs.html)
 
 **Part VI — Cryptography**
 
 22. [Proving Things Without Revealing Them](https://m1o1.github.io/building-on-algo/22-proving-things-without-revealing-them.html)
-23. [Private Governance Voting](https://m1o1.github.io/building-on-algo/23-private-governance-voting.html)
 
 **Part VII — Shipping**
 
@@ -79,9 +80,12 @@ algorand-python 4.0.0, AlgoKit CLI 2.10.2, AVM 13 / consensus v42).
 | **AMM factory** | 16 | On-chain pool creation, pair registry, provenance a stranger can verify |
 | **LP farming** | 17 | Reward-per-token accumulator, lock multipliers, cross-contract reads |
 | **Lottery** | 19 | ARC-21 randomness beacon, commit to a future round, pay out or refund — never strand money |
-| **Delegated limit order book** | 21 | LogicSig delegation, hybrid stateless/stateful architecture, keeper bots |
-| **Private governance voting** | 23 | Commit-reveal ballots, a real PLONK proof verified on-chain through an AlgoPlonk LogicSig |
 | **Shippable guestbook** | 24 | Events, error codes, pause, freeze, delete — the operability layer |
+
+The delegated limit-order book and the private-governance vote are companion
+projects under `advanced/`, not builds this spine asks you to assemble. Chapter
+20 explains why delegated LogicSigs left; the end of Chapter 22 points at the
+voting manuscript.
 
 Plus four appendices: **A** the validated environment, **B** every limit and
 cost on one page, **C** every gotcha in the book grouped by topic, and **D**
@@ -95,8 +99,10 @@ drift-checked in CI.
   are derived outputs)
 - `examples/<topic>/` — standalone example programs, each carrying the mode
   (`compile`, `unit`, `script`, `localnet`) a harness verifies it in
-- `projects/<name>/` — the nine AlgoKit projects, each with its own test
+- `projects/<name>/` — the AlgoKit projects on this spine, each with its own test
   suite and workflow script
+- `advanced/` — companion material split out of the spine (LogicSig course,
+  limit-order book, private governance voting). Not typeset into the main book.
 - `scripts/` — build spine, drift checker, example harness, appendix
   generator
 - `figures/` — hand-authored SVG diagrams

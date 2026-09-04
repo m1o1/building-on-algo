@@ -95,35 +95,26 @@
     <line x1="720" y1="386" x2="700" y2="424" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
     <line x1="542" y1="456" x2="596" y2="456" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
 
-    <!-- 14 to 21, routed around the factory row -->
-    <path d="M330 386 C 292 420, 286 448, 286 476 Q 286 494, 304 494 L 748 494 Q 764 494, 768 506 L 772 520"
-          fill="none" stroke="#5a6172" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mN)"/>
-
     <!-- Parts IV and V -->
     <text x="40" y="516" font-size="12" fill="#5a6172" letter-spacing="1">PART IV — CHANCE</text>
-    <text x="470" y="516" font-size="12" fill="#5a6172" letter-spacing="1">PART V — STATELESS PROGRAMS</text>
+    <text x="470" y="516" font-size="12" fill="#5a6172" letter-spacing="1">PART V — FURTHER READING</text>
     <rect x="40" y="524" width="230" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
     <text x="155" y="557" font-size="13" text-anchor="middle">18 · A number nobody can predict</text>
     <rect x="300" y="524" width="110" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
     <text x="355" y="557" font-size="14" text-anchor="middle">19 · Lottery</text>
-    <rect x="470" y="524" width="210" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
-    <text x="575" y="557" font-size="14" text-anchor="middle">20 · Signing without a key</text>
-    <rect x="720" y="524" width="110" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
-    <text x="775" y="557" font-size="13" text-anchor="middle">21 · Order book</text>
+    <rect x="470" y="524" width="360" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="650" y="549" font-size="14" text-anchor="middle">20 · Logic signatures (companion)</text>
+    <text x="650" y="567" font-size="11" text-anchor="middle" fill="#5a6172">Ch 21 unused · limit-order book in advanced/</text>
 
     <line x1="272" y1="552" x2="296" y2="552" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
-    <line x1="682" y1="552" x2="716" y2="552" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
 
     <!-- Parts VI and VII -->
     <text x="40" y="606" font-size="12" fill="#5a6172" letter-spacing="1">PART VI — CRYPTOGRAPHY</text>
-    <text x="560" y="606" font-size="12" fill="#5a6172" letter-spacing="1">PART VII — SHIPPING</text>
-    <rect x="40" y="614" width="270" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
-    <text x="175" y="647" font-size="14" text-anchor="middle">22 · Proving without revealing</text>
-    <rect x="350" y="614" width="160" height="56" rx="8" fill="#e8eaef" stroke="#3d7dd8" stroke-width="2"/>
-    <text x="430" y="647" font-size="14" text-anchor="middle">23 · Private voting</text>
-    <rect x="560" y="614" width="270" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
-    <text x="695" y="647" font-size="14" text-anchor="middle">24 · Shipping and surviving</text>
-
-    <line x1="312" y1="642" x2="346" y2="642" stroke="#5a6172" stroke-width="2" marker-end="url(#mN)"/>
+    <text x="470" y="606" font-size="12" fill="#5a6172" letter-spacing="1">PART VII — SHIPPING</text>
+    <rect x="40" y="614" width="360" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="220" y="639" font-size="14" text-anchor="middle">22 · Proving without revealing</text>
+    <text x="220" y="657" font-size="11" text-anchor="middle" fill="#5a6172">Ch 23 unused · voting project in advanced/</text>
+    <rect x="470" y="614" width="360" height="56" rx="8" fill="#f4f5f7" stroke="#5a6172" stroke-width="1.5"/>
+    <text x="650" y="647" font-size="14" text-anchor="middle">24 · Shipping and surviving</text>
   </g>
 </svg>

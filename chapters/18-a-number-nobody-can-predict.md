@@ -157,7 +157,7 @@ class SealedBid(ARC4Contract):
         assert op.sha512_256(amount.bytes + nonce) == self.commitment.value
 ```
 
-A party submits `sha512_256(value || nonce)`, which reveals nothing about the value; when the deadline passes they submit the value and the nonce, and the contract checks the hash. The two hash properties are what make that work: binding stops the value being changed afterwards, and hiding stops it being read before. One slot and one commitment, written as a sealed bid because an auction is where most people first meet the primitive. Chapter 22 returns to that auction and prices it; Chapter 23 keys the same shape by voter --- one box per sealed *ballot*, so everyone can commit at once; and the auction itself is never assembled for you: it is the Part VI Mastery Checkpoint's commission, deliberately yours.
+A party submits `sha512_256(value || nonce)`, which reveals nothing about the value; when the deadline passes they submit the value and the nonce, and the contract checks the hash. The two hash properties are what make that work: binding stops the value being changed afterwards, and hiding stops it being read before. One slot and one commitment, written as a sealed bid because an auction is where most people first meet the primitive. Chapter 22 returns to that auction and prices it, and the auction itself is never assembled for you: it is the Part VI Mastery Checkpoint's commission, deliberately yours.
 
 The nonce is the part people leave out, and without it the scheme breaks completely. Bid amounts come from a small set: round numbers, in a known range, with a known number of decimals. An attacker who wants to know your bid hashes every plausible amount and compares. With a 32-byte nonce there is nothing to enumerate.
 

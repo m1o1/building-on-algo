@@ -287,7 +287,10 @@ STUDY-GUIDE.md / EXAMPLES.md / PROJECTS.md files generated from the same source.
 
 ## 7. The Replacement Outline
 
-Twenty-four chapters in seven parts. Each part ends with its Mastery Checkpoint
+Twenty-four chapters in seven parts *(issue #44 later cut Part V and Ch 23
+from the reader-facing spine; see the callout before Part V below. The
+main book now prints twenty-two numbered chapters, with 21 and 23 unused).*
+Each part ends with its Mastery Checkpoint
 **printed at the part boundary** (not pointed to in back matter). Sources: "B2 chN"
 = book 2 chapter; "B1" = book 1 material to import.
 
@@ -446,7 +449,18 @@ introduced events.
 
 *Part IV Mastery Checkpoint (Randomness and Fair Draws), printed here.*
 
-### Part V — Stateless Programs
+> **Scope cut (issue #44, 2026-09):** Part V (LogicSig / delegated signatures,
+> Ch 20–21 + 21z) and the Ch 23 private-governance voting project left the
+> reader-facing spine. Production wallets such as Pera will not let a user
+> sign a delegated LogicSig; the ZK voting project sits off the
+> foundations→custody→DEX→randomness→shipping arc. The manuscripts and
+> AlgoKit projects are preserved under `advanced/`. The main book keeps a
+> short Chapter 20 pointer (contract-account LogicSig only) and keeps
+> Chapter 22 as a cost survey; Chapter 24 still closes the book. Chapter
+> numbers 21 and 23 are unused on purpose so the companion files keep their
+> original numbering.
+
+### Part V — Stateless Programs *(companion; out of spine)*
 
 **Ch 20. Signing Without a Key** *(B2 ch19 — best-paced chapter in the manuscript)*
 Allowance; two binding modes; the guards a LogicSig cannot ship without; "Four
@@ -472,7 +486,7 @@ the price delta; single home for Falcon (here, briefly — or in What's Next —
 not both); merge the fee-scaling paragraph and its echo gotcha.
 
 **Ch 23. Project: Private Governance Voting with ZK Proofs** *(B2 ch22,
-restructured)*
+restructured; companion / out of spine per issue #44)*
 Keep the two-track (runnable Python / illustrative Go) design and its honest
 expectation-setting. Fixes: Parts 2–3 become delta-recaps citing Ch 22 examples;
 re-anchor the recap to Ch 22 (not "Chapter 20"); write the missing "What You Need
