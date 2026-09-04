@@ -21,7 +21,7 @@ You will rebuild the vesting contract from Chapter 9 with these changes, and lea
 - **`revoke`** adds clawback of the NFT, NFT destruction, and unvested token return: a multi-step inner transaction sequence not needed in Chapter 9.
 - **`create_schedule`** mints an NFT via inner transaction, stores the returned NFT asset ID inside the schedule, and returns it to the caller.
 - **`deliver_nft`** has no Chapter 9 counterpart at all. It is the second half of every mint: the contract keeps the NFT it just created until the beneficiary has opted into an asset ID that did not exist when the group was signed, and this method is what finally hands it over.
-- **Kept from Chapter 9** --- the `Claimed` event from Example 8-16, emitted by `claim` after the schedule is written back. The struct is unchanged; what changed is who its `beneficiary` field names, which is now whoever held the NFT at claim time.
+- **Kept from Chapter 9** --- the `Claimed` event from Example 8-17, emitted by `claim` after the schedule is written back. The struct is unchanged; what changed is who its `beneficiary` field names, which is now whoever held the NFT at claim time.
 
 ## Run It First
 
@@ -476,7 +476,7 @@ Chapter 9's event comes across unchanged. Add it at module level beside the `Ves
 
 ```python
 class Claimed(arc4.Struct):
-    """ARC-28 event: who was paid, and how much (Example 8-16's device)."""
+    """ARC-28 event: who was paid, and how much (Example 8-17's device)."""
 
     beneficiary: arc4.Address
     amount: arc4.UInt64
@@ -1207,7 +1207,8 @@ def deliver_nft(
 Three arguments in `create_schedule` are decisions made earlier in this chapter,
 now in their permanent home: `SCHEDULE_MBR` is the 126,100 microAlgos of box
 plus NFT minimum balance, exact in both directions; the `static_fee` of 2,000
-covers the app call and the inner `AssetConfig` it fires; and the box reference
+covers the app call and the inner `AssetConfig` it fires (Example 8-11);
+and the box reference
 names a box that does not exist yet, because the reference declares a name this
 call may touch, creation included. `deliver_nft` opts the recipient in *before*
 it calls, which is the opt-in problem's answer written as two lines instead of

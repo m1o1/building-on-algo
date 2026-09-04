@@ -369,7 +369,7 @@ buy_amount × PRICE_D ≥ sell_amount × PRICE_N
 
 ### The Order Record
 
-Each order lives in [box storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/), keyed by order id, as an `arc4.Struct` --- the same move as Chapter 9's vesting schedules. Every field is fixed-width, so the record encodes to the same 128 bytes every time: 32 for the seller, eight 8-byte integers, and the 32-byte hash of the order's compiled LogicSig. The three event structs are ARC-28 events (Example 8-16's device): keepers and indexers find `NewOrder` by its four-byte log prefix instead of polling boxes.
+Each order lives in [box storage](https://dev.algorand.co/concepts/smart-contracts/storage/box/), keyed by order id, as an `arc4.Struct` --- the same move as Chapter 9's vesting schedules. Every field is fixed-width, so the record encodes to the same 128 bytes every time: 32 for the seller, eight 8-byte integers, and the 32-byte hash of the order's compiled LogicSig. The three event structs are ARC-28 events (Example 8-17's device): keepers and indexers find `NewOrder` by its four-byte log prefix instead of polling boxes.
 
 Add the following to `smart_contracts/limit_order_book/contract.py`:
 

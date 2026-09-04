@@ -98,7 +98,7 @@ result = lottery.send.call(
 )
 ```
 
-The composer places the payment ahead of the application call, which is the group of two the contract checks for. The static fee and the box reference are plumbing the chapter comes back to.
+The composer places the payment ahead of the application call, which is the group of two the contract checks for. The static fee and the box reference are plumbing the chapter comes back to (`FEE_ENTER` is one min-fee on LocalNet; Example 8-11).
 
 The bill for state lands before the first ticket is sold. Table 19-3 is every global key the lottery declares.
 
@@ -302,7 +302,7 @@ class Won(arc4.Struct):
         return index
 ```
 
-The `arc4.emit` line is Example 8-16's device doing project work, and it is doing a different job than the `self.winner` write three lines above it. State answers whoever *asks*; the event reaches whoever is *listening* --- a results page or an entrant's indexer query finds `Won(address,uint64)` by its four-byte prefix without polling this contract's state or holding its source. It adds no transaction and no fee: an event is a log write inside the call that emitted it.
+The `arc4.emit` line is Example 8-17's device doing project work, and it is doing a different job than the `self.winner` write three lines above it. State answers whoever *asks*; the event reaches whoever is *listening* --- a results page or an entrant's indexer query finds `Won(address,uint64)` by its four-byte prefix without polling this contract's state or holding its source. It adds no transaction and no fee: an event is a log write inside the call that emitted it.
 
 **`draw` takes no arguments.** Everything it decides comes from state written before the target round existed and from the beacon's answer for that round. A caller chooses when the draw happens and nothing else, which is why the method needs no authorization at all: gatekeeping a computation the caller cannot influence buys nothing, and a lottery whose draw only the operator can trigger is a lottery the operator can stall. The compiled ARC-56 spec records the empty argument list, and `tests/test_contract_shape.py` reads it back out and asserts it.
 

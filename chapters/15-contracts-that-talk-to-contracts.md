@@ -286,7 +286,7 @@ class Vault(ARC4Contract):
 class Depositor(ARC4Contract):
     @arc4.abimethod
     def deposit_into(self, vault: Application, amount: UInt64) -> None:
-        assert Txn.fee >= UInt64(3_000), "cover the two inner fees"
+        assert Txn.fee >= Global.min_txn_fee * UInt64(3), "cover the two inner fees"
         # The vault insists on a payment beside the call. Passing the unsent
         # payment as the transaction argument makes abi_call compose the two
         # into one inner group, exactly the shape a client would build.
@@ -305,13 +305,13 @@ The vault asks one of Example 7-8's four questions and skips the other three on 
 <!-- finder: send several inner transactions atomically -->
 
 ```python
-from algopy import Account, ARC4Contract, Txn, UInt64, arc4, itxn
+from algopy import Account, ARC4Contract, Global, Txn, UInt64, arc4, itxn
 
 
 class Treasurer(ARC4Contract):
     @arc4.abimethod
     def pay_both(self, first: Account, second: Account, each: UInt64) -> None:
-        assert Txn.fee >= UInt64(3_000), "cover the two inner fees"
+        assert Txn.fee >= Global.min_txn_fee * UInt64(3), "cover the two inner fees"
         # Building without sending is the manual form of what abi_call did
         # with its transaction argument: the pair goes out as one group,
         # so either both payments land or neither does.

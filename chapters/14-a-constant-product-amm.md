@@ -238,7 +238,7 @@ The LP token has a total supply of $2^{63}$, large enough that the pool will nev
 
 In the seed payment pattern, the caller sends Algo to fund the application account's MBR for the LP token creation (100,000 microAlgos), the two asset opt-ins (100,000 each), the app account's base balance, and a buffer. The global-state schema MBR is different: it is paid by the creator account when the application is created, not by this bootstrap seed payment.
 
-The outer group has two transactions: the seed payment and the app call. The app call submits three inner transactions (LP creation plus two asset opt-ins), so the app call needs to cover its own 1,000 microAlgo fee plus 3,000 microAlgos of inner transaction fees. With fee pooling, `static_fee = 4000` on the app call, plus the seed payment's default 1,000 fee, provides sufficient coverage.
+The outer group has two transactions: the seed payment and the app call. The app call submits three inner transactions (LP creation plus two asset opt-ins), so the app call needs to cover its own min-fee plus three inner-transaction min-fees. With fee pooling, `static_fee = 4000` on the app call, plus the seed payment's default min-fee, covers an ordinary Ed25519 group (Example 8-11).
 
 Because `bootstrap` reads `asset_a.clawback`, `asset_a.freeze`, `asset_a.default_frozen`, and the same fields for `asset_b`, the client must include both ASAs in the app call's asset references. Algorand Python's default resource encoding passes resource arguments by value, but the protocol still needs those assets available to the transaction.
 

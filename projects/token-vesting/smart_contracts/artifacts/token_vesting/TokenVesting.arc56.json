@@ -150,7 +150,7 @@
                             "name": "amount"
                         }
                     ],
-                    "desc": "ARC-28 event: who was paid, and how much (Example 8-16's device)."
+                    "desc": "ARC-28 event: who was paid, and how much (Example 8-17's device)."
                 }
             ],
             "recommendations": {}
@@ -527,7 +527,7 @@
                     "name": "amount"
                 }
             ],
-            "desc": "ARC-28 event: who was paid, and how much (Example 8-16's device)."
+            "desc": "ARC-28 event: who was paid, and how much (Example 8-17's device)."
         }
     ],
     "templateVariables": {}

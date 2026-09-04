@@ -1010,7 +1010,7 @@ own terms:
   cross-contract read legal; without it the read fails with `unavailable App`.
 - **Pool the fees.** `static_fee=3_000` covers the outer call plus the two
   zero-fee opt-in inner transactions --- Chapter 11's arithmetic, one call
-  later.
+  later (Example 8-11).
 
 Build, then run it:
 

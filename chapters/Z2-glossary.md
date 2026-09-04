@@ -51,6 +51,9 @@
 **Concentrated liquidity**
 :   An AMM design (Uniswap V3) where liquidity providers choose a price range for their capital, dramatically improving capital efficiency but making positions non-fungible and amplifying impermanent loss.
 
+**CongestionTax**
+:   A block-header field. Nothing in the current (v42) fee formula reads it --- it is informational --- and a later upgrade may use it to raise fees above `MinTxnFee` under congestion. Another reason not to hard-code a fee; [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat) is the protocol note.
+
 **Constant product formula**
 :   The AMM invariant $x \times y = k$, where $x$ and $y$ are token reserves. Ensures that removing one token requires adding the other in proportion.
 
@@ -67,7 +70,7 @@
 :   A smart contract account that holds assets and releases them only when programmatic conditions are met. On Algorand, the contract's deterministic address acts as the escrow.
 
 **Falcon**
-:   A lattice-based post-quantum digital signature scheme selected by NIST for standardization. Algorand uses Falcon-1024 to sign State Proofs, supports on-chain verification via the `falcon_verify` opcode (AVM v12), and (consensus v42) accepts Falcon-1024 as a native account signature --- 1,793-byte public key, signature up to 1,423 bytes, three minimum fees.
+:   A lattice-based post-quantum digital signature scheme selected by NIST for standardization. Algorand uses Falcon-1024 to sign State Proofs, supports on-chain verification via the `falcon_verify` opcode (AVM v12), and (consensus v42) accepts Falcon-1024 as a native account signature --- 1,793-byte public key, signature up to 1,423 bytes, three minimum fees. Those three min-fees are a v42 snapshot; a client discovers the current fee from `simulate`, not from this entry.
 
 **Fee pooling**
 :   The ability for one transaction in an atomic group to overpay its fee to cover the minimum fees of other transactions in the same group.
@@ -80,6 +83,9 @@
 
 **Groth16**
 :   The most compact zk-SNARK proof system: three group elements per proof, verified by a single pairing check. Its price is a trusted setup per circuit, whose "toxic waste" must be destroyed.
+
+**group-usage**
+:   Fee usage for a transaction group, including every inner transaction, reported by `simulate` in millionths of a min-fee. Required fee is `ceil(minFee * group-usage / 1,000,000)`, rounded up once for the group. A v42-era field; the formula is from [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat).
 
 **Impermanent loss**
 :   The reduction in value that liquidity providers experience compared to simply holding their tokens, caused by the AMM rebalancing the position as prices move. Called "impermanent" because it reverses if the price returns to its original ratio.
@@ -107,6 +113,9 @@
 
 **MiMC**
 :   A hash function designed to be cheap to evaluate inside zero-knowledge circuits, available natively via the AVM's `mimc` opcode (AVM v11+). Not a general-purpose hash --- it has known collisions outside its intended ZK use.
+
+**MinTxnFee (minFee)**
+:   The protocol's base transaction fee, a consensus parameter currently 1,000 microAlgo (v42 snapshot). It is the unit, not the whole fee: Falcon authorization and size surcharges *add* usage; a possible future `CongestionTax` would *scale* the result. Clients read it from `/v2/transactions/params` and scale `simulate`'s `group-usage`; they do not hard-code 1,000.
 
 **Multisig (Multi-Signature)**
 :   An account that requires signatures from multiple parties (M-of-N) to authorize a transaction. Used for admin operations, treasury management, and governance in production protocols. Algorand supports multisig natively at the protocol level.

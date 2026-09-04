@@ -76,8 +76,8 @@ CREATOR_APP_MBR = (
     + LOTTERY_GLOBAL_BYTES * GLOBAL_BYTES_MBR
 )
 
-# Fees, counted as transactions rather than guessed. Every inner transaction
-# is `fee=UInt64(0)`, so the outer call pays for the whole tree.
+# LocalNet Ed25519 floors (minFee * txn count including inners). Production
+# clients use simulate's group-usage (Example 8-11), not these constants.
 FEE_ENTER = 1_000  # the app call; the payment beside it pays its own
 FEE_DRAW = 3_000  # app call + inner beacon call + inner payment
 FEE_SETTLE = 2_000  # app call + inner payment

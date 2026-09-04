@@ -537,7 +537,7 @@ The seed is Table 16-3's bill arriving as a grouped payment, and the
 at work: one outer call
 plus six zero-fee inner transactions --- the app create, the funding payment,
 the `bootstrap` call, and, inside `bootstrap`, the LP-token create and two
-asset opt-ins --- is seven minimum fees.
+asset opt-ins --- is seven minimum fees (Example 8-11).
 
 Run it from the project root (the script imports the generated client by its
 package path, so the working directory matters):

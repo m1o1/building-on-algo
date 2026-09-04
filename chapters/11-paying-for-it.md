@@ -26,6 +26,7 @@ By the end of this chapter you will be able to:
 - Compute an application's minimum balance from its schema, its pages and its boxes, and say which of those the *creator* pays and which the *application account* pays
 - Charge a user for the storage they create, and refund it to the account that actually paid
 - Say where an inner transaction's fee comes from, and make the caller cover a group instead
+- Say why a min-fee times a transaction count is a floor rather than the client's fee, and name what a client reads instead
 - Measure a method's opcode budget from the AVM rather than estimating it, and buy more from either of two sources
 - Say which of those two sources is a drain vector on a public method, and why
 - Say what a transaction is allowed to touch, how that list is built, and the two situations in which it is built wrong
@@ -348,12 +349,10 @@ class FeeAware(ARC4Contract):
 
 `Global.min_txn_fee` is a consensus parameter. Writing `1_000` works today and is a claim about a number the protocol reserves the right to change; reading it costs one opcode and cannot go stale.
 
-That is the *contract's* floor. On the client, `/v2/transactions/params` and `suggested_params()` still provide `minFee`, and for the ordinary groups this chapter builds --- Ed25519 signatures, sizes inside the free allowances --- multiplying that floor by the number of transactions is still the fee. It stops being enough once signature type or size leaves those allowances; the gotcha below is the client rule.
+That is the *contract's* floor. The *client's* fee is Example 8-11: read `minFee` from `/v2/transactions/params`, read `group-usage` from `simulate`, and set `total = ceil(minFee * group-usage / 1,000,000)` on the app call before collecting signatures. For the ordinary LocalNet groups this chapter builds --- Ed25519 signatures, sizes inside the free allowances --- that product happens to equal `minFee` times the transaction count, which is why a listing that writes `static_fee=4_000` still runs. It is a demo floor, not the production rule. The moment a signer is Falcon-authorized, or a note or program steps past the free allowances in Appendix B, multiplying underpays. algokit-utils' `cover_app_call_inner_transaction_fees=True` is the same multiply-by-count arithmetic: it never reads `group-usage`, so it underpays those groups too. [Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat): do not hard-code anything related to fees.
 
 ::: {.gotcha #min-fee-is-a-parameter-not-a-constant topic="Resource references, MBR, and budget" title="A min-fee times a group size is not the group's fee"}
-1,000 microAlgo is the minimum *today*. Client code that multiplies a hard-coded 1,000 --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes beyond the free size allowances (Appendix B) add a per-byte surcharge. `/v2/transactions/params` still provides `minFee`; it is not the whole fee. Ask `simulate` for the group's usage rather than inventing the arithmetic ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)).
-
-Inside a contract, `Global.min_txn_fee` is the floor and costs one opcode, so a cap written as `Global.min_txn_fee * UInt64(10)` cannot go stale as a floor check. It is not a substitute for the client's simulate-reported fee.
+1,000 microAlgo is the minimum *today*. Multiplying it --- or even `suggested_params()`'s `minFee` --- by a group size underpays as soon as a transaction uses more than one min-fee: Falcon authorization costs three, and bytes past the free allowances (Appendix B) add a per-byte surcharge. Identify the signer's account type, then ask `simulate` for `group-usage` and scale it (Example 8-11); an empty Ed25519 envelope underprices a Falcon signature ([Heat](https://algorand.co/blog/enhancing-on-chain-flavor-in-algorand-5.0-part-4-heat)). Inside a contract, `Global.min_txn_fee * UInt64(N)` is a floor check that cannot go stale. It is not the client's fee.
 :::
 
 **Example 11-8.** Fee pooling, and who covers the group
@@ -393,8 +392,8 @@ transaction HHVJ...4MJQ: account LCP5...6IBA balance 97301 below min
 
 The ledger will not let an account settle below its floor. The splitter never spent its last 100,000 microAlgo because it was never allowed to; it spent everything above that and then stopped being able to act at all.
 
-::: {.gotcha #inner-fee-from-app-balance topic="Resource references, MBR, and budget" title="An inner transaction's fee is spent from the contract's own balance"}
-The fee on an inner transaction comes from the application account, and `fee=0` is already the default on every `itxn` builder in algorand-python. So the hazard is not a forgotten fee but a fee somebody wrote a value into, usually `Global.min_txn_fee`, believing a transaction must carry one. On a method anybody may call, that is an unbounded withdrawal, a minimum fee per inner transaction per call from an account with no income --- and spending toward the minimum makes every *other* inner transaction the contract sends start failing, so the symptom is a contract that stops working entirely rather than one that reports a shortfall. Write `fee=UInt64(0)` explicitly so the omission reads as a decision, and require the caller to cover the group with one assertion counting every transaction, inner ones included.
+::: {.gotcha #inner-fee-from-app-balance topic="Resource references, MBR, and budget" title="Spending the application account toward its floor makes every other inner transaction fail"}
+Chapter 7 established where an inner fee comes from. The part that lands here is *which* balance it spends: the application account's spendable Algo, the same slab the splitter emptied. Drain it toward the minimum and the next inner payment fails as `balance below min`, not as a shortfall you can read off a return value. The symptom is a contract that stops working entirely. The floor assertion on `Txn.fee` does not prevent that drain; only `fee=UInt64(0)` on the inners does.
 :::
 
 **Example 11-9.** Sponsored fees
@@ -734,7 +733,7 @@ Floor division leaves the remainder with the contract, never with a recipient, a
 There is no fractional arithmetic on the AVM, so any split, share, rate or fee calculation loses a remainder to floor division --- small, silent, and absent from any test built on round numbers. Decide where the remainder goes and write it down: added to one recipient's share, carried in a named accumulator, or left in the contract's balance. The one option that is not available is ignoring it, because the remainder does not evaporate: it stays in the application account and quietly stops being distinguishable from the account's minimum balance or from an operator's float. Prefer floor division over any rounding that could favour the caller: dust that accumulates toward the contract is a bookkeeping task, and dust that accumulates toward callers is a slow withdrawal.
 :::
 
-Deploy the corrected splitter, fund it with the same one Algo, and replay the two calls from the start of the chapter. The caller now covers four transactions instead of one, so the fee is the only thing about the client that changes:
+Deploy the corrected splitter, fund it with the same one Algo, and replay the two calls from the start of the chapter. The caller now covers four transactions instead of one, so the fee is the only thing about the client that changes. The `4_000` below is a LocalNet Ed25519 floor --- four min-fees for this call plus three inners --- not a production constant; Example 8-11 is what a client that might see a Falcon signer runs first:
 
 ```console
 >>> def split(amount):     # the caller now covers four transactions
@@ -797,6 +796,7 @@ Answer these from memory before moving on. Four of them reach back into earlier 
 8. *(From Chapter 10)* A role set in global state has a ceiling. What sets it, and when?
 9. How does a client work out which resources a transaction must declare, and name the case where it cannot.
 10. Where does the remainder of a floor division go, and why is that the direction to prefer?
+11. *(From Chapter 8)* A Falcon-authorized caller pays three min-fees for one signature. Why is `suggested_params().minFee` times the group size still the wrong client rule, and what do you read instead?
 
 ## Exercises
 
@@ -835,12 +835,17 @@ Answer these from memory before moving on. Four of them reach back into earlier 
    - **c.** Say at what point the accumulated dust becomes worth a transaction's fee to move.
    - **d.** Say what your answer implies about contracts that split very small payments.
 
+6. **(Compare)** A client attaches `static_fee=3_000` to Example 11-8's `send_to`. A simulate of the same group reports `group-usage` of 5,000,000 and `minFee` of 1,000.
+   - **a.** What fee must the group pay?
+   - **b.** What happens on submit with 3,000 attached?
+   - **c.** Name one reason usage would be 5,000,000 rather than 2,000,000.
+
 ## Before You Continue
 You should be able to check off all five of these:
 
 - [ ] I can name the four bills, say who receives each of the two charged in money, and say why that question has no answer for the other two.
 - [ ] I can compute an application's minimum balance from its schema, pages and boxes, and say which parts the creator pays.
-- [ ] I can explain where an inner transaction's fee comes from and make the caller cover a whole group.
+- [ ] I can explain where an inner transaction's fee comes from, make the caller cover a whole group, and say why a LocalNet `static_fee` of `N * 1,000` is a demo floor rather than the fee a production client attaches.
 - [ ] I can measure a method's opcode budget from the AVM, buy more, and say whose money each source spends.
 - [ ] I can say what a transaction is allowed to touch, and name a case where a client cannot work that out for me.
 

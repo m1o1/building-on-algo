@@ -159,12 +159,13 @@ A caption names an example from the author's side. This appendix names it from y
 | Run a method against real ledger state without committing anything | Example 8-8 |
 | Measure what a call costs when it does not fit in one app call's budget | Example 8-9 |
 | Ask the node which accounts, assets and boxes a call actually touched | Example 8-10 |
-| Get the decoded return value from each of the three ways to call a method | Example 8-11 |
-| Turn a program counter into the Python statement that produced it | Example 8-12 |
-| See the one assertion that can tell a correct contract from an incorrect one | Example 8-13 |
-| Test time-dependent behaviour without waiting or deploying | Example 8-14 |
-| Prove a rejection happens for the reason you intended | Example 8-15 |
-| Emit an event a stranger can find without reading state | Example 8-16 |
+| Ask simulate for the fee a group must pay | Example 8-11 |
+| Get the decoded return value from each of the three ways to call a method | Example 8-12 |
+| Turn a program counter into the Python statement that produced it | Example 8-13 |
+| See the one assertion that can tell a correct contract from an incorrect one | Example 8-14 |
+| Test time-dependent behaviour without waiting or deploying | Example 8-15 |
+| Prove a rejection happens for the reason you intended | Example 8-16 |
+| Emit an event a stranger can find without reading state | Example 8-17 |
 
 ### Part II: Value Under Management {-}
 
@@ -312,6 +313,7 @@ A caption names an example from the author's side. This appendix names it from y
 | An account's own key signs a program once, and cannot unsign it | Example 20-5 |
 | Append a fixed-size record to a growing box | Example 5-21 |
 | Ask an account what storage it holds, and what floor that implies | Example 11-6 |
+| Ask simulate for the fee a group must pay | Example 8-11 |
 | Ask the ledger a question about an account, an asset, or another app | Example 2-4 |
 | Ask the node which accounts, assets and boxes a call actually touched | Example 8-10 |
 | Attach a readable error message to a failing check | Example 2-3 |
@@ -357,7 +359,7 @@ A caption names an example from the author's side. This appendix names it from y
 | Draw an outcome from a block seed and watch a caller choose it | Example 18-1 |
 | Emit a machine-readable error code that survives without the app spec | Example 8-3 |
 | Emit an event a client can recognise | Example 24-2 |
-| Emit an event a stranger can find without reading state | Example 8-16 |
+| Emit an event a stranger can find without reading state | Example 8-17 |
 | Emit an event without importing its struct | Example 24-3 |
 | Expose two ways to call the same operation | Example 3-18 |
 | Express a percentage or a fee without floating point | Example 6-2 |
@@ -376,7 +378,7 @@ A caption names an example from the author's side. This appendix names it from y
 | Get a LogicSig's address from inside a smart contract | Example 20-8 |
 | Get more opcode budget without the contract sending anything | Example 11-12 |
 | Get randomness that nobody chose and everybody can verify | Example 22-6 |
-| Get the decoded return value from each of the three ways to call a method | Example 8-11 |
+| Get the decoded return value from each of the three ways to call a method | Example 8-12 |
 | Get the native value out of an ARC-4 one | Example 3-7 |
 | Give a newly created application an account it can use | Example 15-13 |
 | Give the client more than one thing back from a single call | Example 3-11 |
@@ -419,7 +421,7 @@ A caption names an example from the author's side. This appendix names it from y
 | Perform a clawback transfer from a contract | Example 7-22 |
 | Place an unconditional failure inside a method that must return a value | Example 8-4 |
 | Price a share of a pool in a unit that did not exist before | Example 13-5 |
-| Prove a rejection happens for the reason you intended | Example 8-15 |
+| Prove a rejection happens for the reason you intended | Example 8-16 |
 | Prove an address is on a list you are not storing | Example 22-5 |
 | Prove the assert message is absent from the compiled bytecode | Example 8-2 |
 | Pull one field out of the middle of a byte string | Example 3-4 |
@@ -480,7 +482,7 @@ A caption names an example from the author's side. This appendix names it from y
 | See the counter with all three defects fixed | Example 3-22 |
 | See the greeter with all three defects fixed | Example 2-10 |
 | See the guestbook with all three defects fixed | Example 5-24 |
-| See the one assertion that can tell a correct contract from an incorrect one | Example 8-13 |
+| See the one assertion that can tell a correct contract from an incorrect one | Example 8-14 |
 | See the one-line omission behind Tinyman V1's $3M exploit | Example 7-15 |
 | See the registry with all three defects fixed | Example 4-21 |
 | See the smallest complete LogicSig | Example 20-1 |
@@ -516,7 +518,7 @@ A caption names an example from the author's side. This appendix names it from y
 | Store several related fields in one state slot | Example 4-12 |
 | Take a fee from an incoming payment and forward the remainder | Example 7-13 |
 | Tell the difference between a state key set to zero and one never set | Example 4-5 |
-| Test time-dependent behaviour without waiting or deploying | Example 8-14 |
+| Test time-dependent behaviour without waiting or deploying | Example 8-15 |
 | The checks a LogicSig cannot ship without | Example 20-3 |
 | The corrected fee splitter, caller-funded fees and accounted dust | Example 11-17 |
 | The corrected pay-to-post board, every authorization guard in place | Example 10-17 |
@@ -525,7 +527,7 @@ A caption names an example from the author's side. This appendix names it from y
 | Transfer ASA units from a contract to an account | Example 7-18 |
 | Treat raw bytes as an ARC-4 value safely | Example 3-8 |
 | Turn a number into exactly eight bytes and read it back | Example 3-5 |
-| Turn a program counter into the Python statement that produced it | Example 8-12 |
+| Turn a program counter into the Python statement that produced it | Example 8-13 |
 | Understand what ARC4Contract generates for me | Example 2-5 |
 | Understand what happens to local state on a clear-state transaction | Example 4-20 |
 | Understand why an array assignment needs .copy() | Example 9-2 |
